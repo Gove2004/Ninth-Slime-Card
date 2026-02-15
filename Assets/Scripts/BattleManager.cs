@@ -148,7 +148,7 @@ public class BattleManager : MonoBehaviour
             NextTurn();
         });
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < GameManager.Instance.difficultyLevel; i++)
         {
             var card = player.DrawCard(0);
             if (card != null)

@@ -72,7 +72,9 @@ public class EnemyBoss : BaseCharacter
         // 进入下一阶段
         phase++;
 
-        autoManaPerTurn++;  // 每个阶段增加自动法力值
+        // 超过界定后Boss成长加速
+        autoManaPerTurn += (int)(phase/10) + 1;
+        Debug.Log($"魔力回复 +{(int)(phase/10)}");
 
         EventCenter.Publish("EnemyBoss_PhaseChanged", phase);  // 提前发布事件，让玩家先知道阶段提升了，可能会有一些反应措施
 
