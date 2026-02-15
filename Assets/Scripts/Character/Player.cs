@@ -45,6 +45,11 @@ public class Player : BaseCharacter
         {
             health = 0;
             isDead = true;
+            if ((LastDamageCard != null && LastDamageCard.IsStolenFromOpponent) ||
+                (LastDamageDot != null && LastDamageDot.IsStolenFromOpponent))
+            {
+                EventCenter.Publish("Achievement_KilledByStolenCard", LastDamageCard);
+            }
             EventCenter.Publish("PlayerDead", this);
         }
     }

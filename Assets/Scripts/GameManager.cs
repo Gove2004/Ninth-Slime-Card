@@ -8,6 +8,12 @@ public class GameManager : MonoBehaviour
     {
         Instance = this;
 
+        if (AchievementManager.Instance == null)
+        {
+            var go = new GameObject("AchievementManager");
+            go.AddComponent<AchievementManager>();
+        }
+
         Load(); // 加载存档
     }
 

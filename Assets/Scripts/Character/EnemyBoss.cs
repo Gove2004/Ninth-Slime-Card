@@ -35,8 +35,8 @@ public class EnemyBoss : BaseCharacter
     {
         // 初始化敌人属性
         health = 0;
-        mana = 1;
-        autoManaPerTurn = 1;  // 初始Boss比较弱
+        mana = GameManager.Instance.difficultyLevel;
+        autoManaPerTurn = GameManager.Instance.difficultyLevel;
     }
 
 
@@ -98,16 +98,17 @@ public class EnemyBoss : BaseCharacter
 
     private static int GetThresholdForPhase(int phase)
     {
-        // 这里定义每个阶段的生命阈值，可以根据需要调整
-        // 初始就是第一阶段
-        if (phase == 1) return 10; // 第一阶段没有特殊要求
-        if (phase == 2) return 25;
-        if (phase == 3) return 50;
-        if (phase == 4) return 100;
-        if (phase <= 13) return 100 * (phase - 3);
-
-        int n = phase - 13;
-        return 1000 + 100 * (n * (n + 3) / 2);
+        if (phase <= 1) return 30;
+        if (phase == 2) return 50;
+        int prev = 30;
+        int current = 50;
+        for (int i = 3; i <= phase; i++)
+        {
+            int next = prev + current;
+            prev = current;
+            current = next;
+        }
+        return current;
     }
 
 

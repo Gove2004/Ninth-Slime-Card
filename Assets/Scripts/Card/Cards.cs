@@ -16,6 +16,10 @@ public class 抽牌 : BaseCard
             if (card != null && user is Player)
             {
                 EventCenter.Publish("Player_DrawCard", card);
+                if (card.Name == "抽牌")
+                {
+                    EventCenter.Publish("Achievement_DrawDrawCard", card);
+                }
             }
         }
     }
@@ -144,10 +148,18 @@ public class 第7张牌 : BaseCard
         int value = Value;
         if (duration <= 0) return;
         if (value < 0) value = 0;
+        var triggeredEffects = new System.Collections.Generic.HashSet<int>();
+        bool reportedAll = false;
         Dot dot = null;
         dot = new Dot(user, target, duration, d =>
         {
             int effectIndex = UnityEngine.Random.Range(0, 7);
+            triggeredEffects.Add(effectIndex);
+            if (!reportedAll && triggeredEffects.Count == 7 && user is Player)
+            {
+                reportedAll = true;
+                EventCenter.Publish("Achievement_SevenSinsAllEffects", this);
+            }
             if (effectIndex == 0)
             {
                 int damage = value * 11;
@@ -180,6 +192,7 @@ public class 第7张牌 : BaseCard
                             {
                                 int index = UnityEngine.Random.Range(0, target.Cards.Count);
                 BaseCard stolenCard = target.Cards[index];
+                stolenCard.MarkStolenFromOpponent();
                 target.RemoveCard(stolenCard);
                 user.GainCard(stolenCard);
                 stolen = true;
@@ -194,6 +207,7 @@ public class 第7张牌 : BaseCard
                                 target.dotBar.RemoveAt(index);
                                 stolenDot.source = user;
                                 stolenDot.target = user;
+                                stolenDot.MarkStolenFromOpponent();
                                 user.dotBar.Add(stolenDot);
                                 stolen = true;
                             }
@@ -360,6 +374,7 @@ public class 偷窃 : BaseCard
             {
                 int index = UnityEngine.Random.Range(0, target.Cards.Count);
                 BaseCard stolen = target.Cards[index];
+                stolen.MarkStolenFromOpponent();
                 target.RemoveCard(stolen);
                 user.GainCard(stolen);
                 if (target.Cards.Count == 0) break;
@@ -594,25 +609,28 @@ public class 破甲 : BaseCard
 }
 
 
-public class 无敌金身 : BaseCard
+public class 羽化飞升 : BaseCard
 {
     protected override int id => 1025;
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        int delay = 1;
-        int duration = Duration;
-        Dot dot = null;
-        dot = new Dot(user, user, duration + delay, d =>
+        int discardCount = user.Cards.Count;
+        if (discardCount <= 0) return;
+        if (user is Player)
         {
-            if (delay > 0)
+            var discardList = new System.Collections.Generic.List<BaseCard>(user.Cards);
+            foreach (var card in discardList)
             {
-                delay--;
-                return;
+                user.Cards.Remove(card);
+                EventCenter.Publish("Player_PlayCard", card);
             }
-            user.SetImmuneThisTurn(true);
-        }, null, () => delay > 0 ? $"{delay}回合后生效，免疫伤害，持续{duration}回合" : $"免疫伤害，剩余{dot.duration}回合");
-        user.dotBar.Add(dot);
+        }
+        else
+        {
+            user.Cards.Clear();
+        }
+        user.ChangeMana(discardCount);
     }
 }
 
@@ -639,6 +657,7 @@ public class 偷dot : BaseCard
                 target.dotBar.RemoveAt(index);
                 stolen.source = user;
                 stolen.target = user;
+                stolen.MarkStolenFromOpponent();
                 user.dotBar.Add(stolen);
             }
         }, null, () => $"每回合随机偷取对方的{stealCount}个持续效果，剩余{dot.duration}回合");

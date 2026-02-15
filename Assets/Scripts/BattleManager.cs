@@ -130,8 +130,11 @@ public class BattleManager : MonoBehaviour
         {
             if (player != null)
             {
-                player.autoManaPerTurn++;
-                Debug.Log($"阶段提升，玩家每回合自动回蓝增加至: {player.autoManaPerTurn}");
+                if (player.autoManaPerTurn < 10)
+                {
+                    player.autoManaPerTurn++;
+                    Debug.Log($"阶段提升，玩家每回合自动回蓝增加至: {player.autoManaPerTurn}");
+                }
             }
         });
 
@@ -192,6 +195,7 @@ public class BattleManager : MonoBehaviour
         // 结算分数
         int score = 0;
         if (enemy != null) score = enemy.health;
+        if (AchievementManager.Instance != null) AchievementManager.Instance.AddScore(score);
         GameManager.Instance.Save(score);
 
         // 清理战斗数据

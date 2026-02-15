@@ -45,6 +45,7 @@ public abstract class BaseCard
     public int Duration { get; private set; }
     public string Description { get; private set; }
     public string ImagePath { get; private set; }
+    public bool IsStolenFromOpponent { get; private set; }
     public static int OverclockMultiplier { get; private set; } = 1;
 
     public void MultiplyNumbers(int multiplier)
@@ -58,6 +59,11 @@ public abstract class BaseCard
     {
         if (amount == 0) return;
         Duration += amount;
+    }
+
+    public void MarkStolenFromOpponent()
+    {
+        IsStolenFromOpponent = true;
     }
 
     public static void ResetOverclock()

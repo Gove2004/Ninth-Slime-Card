@@ -19,6 +19,11 @@ public abstract class BaseCharacter
     private int overclockMultiplier = 1;
     protected int extraCardDuration = 0;
     private float damageTakenMultiplier = 1f;
+    public static BaseCard ActiveCardContext { get; set; }
+    public static Dot ActiveDotContext { get; set; }
+    public BaseCard LastDamageCard { get; private set; }
+    public Dot LastDamageDot { get; private set; }
+    public BaseCharacter LastDamageSource { get; private set; }
     public event Action<int, BaseCharacter> DamageTaken;
     public event Action<int, BaseCharacter> DamageDealt;
     public event Action<int> HealTaken;
@@ -38,6 +43,7 @@ public abstract class BaseCharacter
         if (amount > 0)
         {
              if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Mana");
+             if (this is Player) EventCenter.Publish("Player_GainMana", amount);
         }
     }
 
@@ -194,6 +200,13 @@ public abstract class BaseCharacter
             amount = -damage;
         }
 
+        if (amount < 0)
+        {
+            LastDamageCard = ActiveCardContext;
+            LastDamageDot = ActiveDotContext;
+            LastDamageSource = source;
+        }
+
         ChangeHealth(amount);
 
         if (amount < 0)
@@ -205,6 +218,7 @@ public abstract class BaseCharacter
         else if (amount > 0)
         {
             HealTaken?.Invoke(amount);
+            if (this is Player) EventCenter.Publish("Player_Heal", amount);
         }
     }
 
@@ -316,9 +330,16 @@ public abstract class BaseCharacter
             Cards.Remove(card);
 
             // 使用卡牌效果
+            var previousContext = ActiveCardContext;
+            ActiveCardContext = card;
             card.Execute(this, Target);
+            ActiveCardContext = previousContext;
 
             EventCenter.Publish("CardPlayed", card);
+            if (this is Player)
+            {
+                EventCenter.Publish("Player_PlayCardExecuted", card);
+            }
         }
         else
         {

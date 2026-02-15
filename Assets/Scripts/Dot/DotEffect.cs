@@ -5,6 +5,8 @@ public class Dot
     public BaseCharacter source;
     public BaseCharacter target;
     public int duration;
+    public BaseCard sourceCard;
+    public bool IsStolenFromOpponent { get; private set; }
     private readonly Action<Dot> onTick;
     private readonly Action<Dot> onExpire;
 
@@ -17,13 +19,20 @@ public class Dot
             this.duration = duration;
             this.onTick = onTick;
             this.onExpire = onExpire;
+            sourceCard = BaseCharacter.ActiveCardContext;
 
             this.description = description ?? (() => "");
         }
 
     public void Apply()
     {
+        var previousCardContext = BaseCharacter.ActiveCardContext;
+        var previousDotContext = BaseCharacter.ActiveDotContext;
+        BaseCharacter.ActiveCardContext = sourceCard;
+        BaseCharacter.ActiveDotContext = this;
         onTick?.Invoke(this);
+        BaseCharacter.ActiveCardContext = previousCardContext;
+        BaseCharacter.ActiveDotContext = previousDotContext;
         duration--;
         if (duration <= 0)
         {
@@ -37,5 +46,10 @@ public class Dot
                 target.dotBar.Remove(this);
             }
         }
+    }
+
+    public void MarkStolenFromOpponent()
+    {
+        IsStolenFromOpponent = true;
     }
 }

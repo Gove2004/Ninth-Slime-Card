@@ -1,0 +1,11 @@
+{
+  "id": "valscene01",
+  "type": "ValidateScene",
+  "timestamp": "2026-02-15T00:00:00.000Z",
+  "parameters": {
+    "checkMissingScripts": true,
+    "checkMissingPrefabs": true,
+    "checkDuplicateNames": true,
+    "checkEmptyGameObjects": false
+  }
+}
