@@ -130,8 +130,11 @@ public class BattleManager : MonoBehaviour
         {
             if (player != null)
             {
-                player.autoManaPerTurn++;
-                Debug.Log($"阶段提升，玩家每回合自动回蓝增加至: {player.autoManaPerTurn}");
+                if (player.autoManaPerTurn < 10)
+                {
+                    player.autoManaPerTurn++;
+                    Debug.Log($"阶段提升，玩家每回合自动回蓝增加至: {player.autoManaPerTurn}");
+                }
             }
         });
 
