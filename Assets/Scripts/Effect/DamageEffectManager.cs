@@ -47,6 +47,7 @@ public class DamageEffectManager : MonoBehaviour
     {
         FindPositions();
         EnsureShakeRoot();
+        ApplyVibrationSetting(GameSettings.VibrationEnabled);
 
         EventCenter.Register("BattleStarted", (obj) => 
         {
@@ -59,6 +60,14 @@ public class DamageEffectManager : MonoBehaviour
         if (BattleManager.Instance != null && BattleManager.Instance.player != null)
         {
             SubscribeToCharacters();
+        }
+    }
+
+    public void ApplyVibrationSetting(bool enabled)
+    {
+        if (!enabled)
+        {
+            StopScreenShake();
         }
     }
 
@@ -331,6 +340,7 @@ public class DamageEffectManager : MonoBehaviour
     private void PlayDamageScreenShake(ulong damageAmount)
     {
         if (damageAmount == 0) return;
+        if (!GameSettings.VibrationEnabled) return;
 
         float damage = ClampToFloat(damageAmount);
         float upperBound = Mathf.Max(1f, shakeDamageUpperBound);
