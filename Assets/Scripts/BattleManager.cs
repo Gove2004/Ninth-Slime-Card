@@ -26,16 +26,13 @@ public class BattleManager : MonoBehaviour
     public AudioClip enemyDamageClip;
     public AudioClip healClip;
     public AudioClip manaClip;
+    private bool lastIsGMMode;
 
     void Awake()
     {
         Instance = this;
-
-
-        if (GetComponent<GMTool>() == null && IsGMMode)
-        {
-            gameObject.AddComponent<GMTool>();
-        }
+        lastIsGMMode = !IsGMMode;
+        EnsureGMToolState();
 
         // 自动添加伤害特效管理器
         if (GetComponent<DamageEffectManager>() == null)
@@ -77,6 +74,34 @@ public class BattleManager : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        if (lastIsGMMode != IsGMMode)
+        {
+            EnsureGMToolState();
+        }
+    }
+
+    private void EnsureGMToolState()
+    {
+        var gmTool = GetComponent<GMTool>();
+        if (IsGMMode)
+        {
+            if (gmTool == null)
+            {
+                gameObject.AddComponent<GMTool>();
+            }
+        }
+        else
+        {
+            if (gmTool != null)
+            {
+                Destroy(gmTool);
+            }
+        }
+        lastIsGMMode = IsGMMode;
+    }
+
 
     public BaseCharacter player;
     public BaseCharacter enemy;
@@ -87,23 +112,26 @@ public class BattleManager : MonoBehaviour
     }
     private Action onPhaseChangedUnsub;
     private Action onPlayerDeadUnsub;
+    private Action onEnemyDeadUnsub;
     private Action onCharacterEndedTurnUnsub;
 
 
     public void StartBattle()
     {
         Debug.Log("战斗开始！");
+        EnsureGMToolState();
 
         StopAllCoroutines();
         player?.OnBattleEnd();
         enemy?.OnBattleEnd();
         onPhaseChangedUnsub?.Invoke();
         onPlayerDeadUnsub?.Invoke();
+        onEnemyDeadUnsub?.Invoke();
         onCharacterEndedTurnUnsub?.Invoke();
         Time.timeScale = 1f;
         EnemyBoss.AllowPlay = true;
         EnemyBoss.AllowDraw = true;
-        var gmTool = FindObjectOfType<GMTool>();
+        var gmTool = GetComponent<GMTool>();
         if (gmTool != null) gmTool.ResetEnemyAIFlags();
 
         currentTurn = 0;
@@ -111,6 +139,7 @@ public class BattleManager : MonoBehaviour
 
         CardFactory.ResetPlayerDeck();
         CardFactory.ResetEnemyDeck();
+        献祭.ResetSacrificeBonus();
 
         player = new Player();
         enemy = new EnemyBoss();
@@ -139,6 +168,11 @@ public class BattleManager : MonoBehaviour
         });
 
         onPlayerDeadUnsub = EventCenter.Register("PlayerDead", (param) =>
+        {
+            var character = param as BaseCharacter;
+            EndBattle();
+        });
+        onEnemyDeadUnsub = EventCenter.Register("EnemyDead", (param) =>
         {
             var character = param as BaseCharacter;
             EndBattle();
@@ -179,6 +213,7 @@ public class BattleManager : MonoBehaviour
         enemy?.OnBattleEnd();
         onPhaseChangedUnsub?.Invoke();
         onPlayerDeadUnsub?.Invoke();
+        onEnemyDeadUnsub?.Invoke();
         onCharacterEndedTurnUnsub?.Invoke();
         Time.timeScale = 1f;
 
@@ -193,8 +228,8 @@ public class BattleManager : MonoBehaviour
         yield return new WaitForSeconds(1.0f);
 
         // 结算分数
-        int score = 0;
-        if (enemy != null) score = enemy.health;
+        ulong score = 0;
+        if (enemy is EnemyBoss enemyBoss) score = enemyBoss.score;
         if (AchievementManager.Instance != null) AchievementManager.Instance.AddScore(score);
         GameManager.Instance.Save(score);
 
@@ -299,6 +334,9 @@ public class BattleManager : MonoBehaviour
     void OnDestroy()
     {
         onPhaseChangedUnsub?.Invoke();
+        onPlayerDeadUnsub?.Invoke();
+        onEnemyDeadUnsub?.Invoke();
+        onCharacterEndedTurnUnsub?.Invoke();
         
         // 游戏退出或重新加载时，清理所有静态事件，防止引用已销毁的对象
         EventCenter.ClearAllEvents();

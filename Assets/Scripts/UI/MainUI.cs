@@ -36,7 +36,12 @@ public class MainUI : MonoBehaviour
             achievementButton.onClick.AddListener(OnAchievementClicked);
         }
 
-        if (dropdown != null) dropdown.onValueChanged.AddListener(OnDropdownValueChanged);
+        if (dropdown != null)
+        {
+            EnsureDifficultyOptions();
+            dropdown.onValueChanged.AddListener(OnDropdownValueChanged);
+            OnDropdownValueChanged(dropdown.value);
+        }
     }
 
     public void OnEnable()
@@ -84,10 +89,9 @@ public class MainUI : MonoBehaviour
 
     public void OnDropdownValueChanged(int index)
     {
-        // 这里可以根据index来设置不同的选项
         Debug.Log($"Dropdown value changed: {index}");
         if (GameManager.Instance == null) return;
-        GameManager.Instance.SetDiff(index+1);
+        GameManager.Instance.SetDiff(index + 1);
     }
 
     private void EnsureReferences()
@@ -105,5 +109,14 @@ public class MainUI : MonoBehaviour
         {
             maxScoreText = GetComponentInChildren<TextMeshProUGUI>(true);
         }
+    }
+
+    private void EnsureDifficultyOptions()
+    {
+        if (dropdown == null) return;
+        string[] targetOptions = { "简单", "困难", "地狱", "无尽" };
+        if (dropdown.options.Count == targetOptions.Length) return;
+        dropdown.ClearOptions();
+        dropdown.AddOptions(new System.Collections.Generic.List<string>(targetOptions));
     }
 }

@@ -40,19 +40,19 @@ public abstract class BaseCard
     }
     
     public string Name { get; private set; }
-    public int Cost { get; private set; }
-    public int Value { get; private set; }
+    public ulong Cost { get; private set; }
+    public ulong Value { get; private set; }
     public int Duration { get; private set; }
     public string Description { get; private set; }
     public string ImagePath { get; private set; }
     public bool IsStolenFromOpponent { get; private set; }
-    public static int OverclockMultiplier { get; private set; } = 1;
+    public static ulong OverclockMultiplier { get; private set; } = 1;
 
-    public void MultiplyNumbers(int multiplier)
+    public void MultiplyNumbers(ulong multiplier)
     {
         if (multiplier == 1) return;
-        Cost *= multiplier;
-        Value *= multiplier;
+        Cost = BaseCharacter.SaturatingMultiply(Cost, multiplier);
+        Value = BaseCharacter.SaturatingMultiply(Value, multiplier);
     }
 
     public void AddDuration(int amount)
@@ -75,10 +75,10 @@ public abstract class BaseCard
         }
     }
 
-    public static void ApplyOverclock(int factor)
+    public static void ApplyOverclock(ulong factor)
     {
         if (factor == 1) return;
-        OverclockMultiplier *= factor;
+        OverclockMultiplier = BaseCharacter.SaturatingMultiply(OverclockMultiplier, factor);
         foreach (var card in CardFactory.GetAllCards())
         {
             card.MultiplyNumbers(factor);
@@ -90,8 +90,8 @@ public abstract class BaseCard
         if (string.IsNullOrEmpty(Description)) return Description;
         return Description
             .Replace("[费用]", Cost.ToString())
-            .Replace("[数值×20]", (Value * 20).ToString())
-            .Replace("[数值×2]", (Value * 2).ToString())
+            .Replace("[数值×20]", BaseCharacter.SaturatingMultiply(Value, 20).ToString())
+            .Replace("[数值×2]", BaseCharacter.SaturatingMultiply(Value, 2).ToString())
             .Replace("[数值/10]", (Value / 10).ToString())
             .Replace("[数值]", Value.ToString())
             .Replace("[持续时间]", Duration.ToString());

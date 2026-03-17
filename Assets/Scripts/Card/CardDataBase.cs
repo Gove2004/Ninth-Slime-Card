@@ -11,8 +11,8 @@ public static class CardDatabase
     {
         public int id;
         public string name;
-        public int cost;
-        public int value;
+        public ulong cost;
+        public ulong value;
         public int duration;
         public string effect;
         public string imagePath;
@@ -153,12 +153,12 @@ public static class CardDatabase
                     Debug.LogWarning($"卡牌ID解析失败: {fields[0]}");
                     continue;
                 }
-                if (!int.TryParse(fields[2], out int costValue))
+                if (!ulong.TryParse(fields[2], out ulong costValue))
                 {
                     Debug.LogWarning($"卡牌成本解析失败，ID={idValue}: {fields[2]}");
                     continue;
                 }
-                if (!int.TryParse(fields[3], out int valueValue))
+                if (!ulong.TryParse(fields[3], out ulong valueValue))
                 {
                     Debug.LogWarning($"卡牌价值解析失败，ID={idValue}: {fields[3]}");
                     continue;

@@ -7,6 +7,19 @@ using UnityEngine;
 public class EnemyBoss : BaseCharacter
 {
     private CancellationTokenSource _cts;
+    private bool isDead = false;
+    public ulong score { get; private set; }
+    public bool IsEndlessMode => GameManager.Instance != null && GameManager.Instance.difficultyLevel >= 4;
+    public static ulong GetTargetHealth(int difficultyLevel)
+    {
+        return difficultyLevel switch
+        {
+            1 => 10000,
+            2 => 1000000,
+            3 => 2147483647,
+            _ => ulong.MaxValue
+        };
+    }
 
     public override void OnBattleEnd()
     {
@@ -33,36 +46,41 @@ public class EnemyBoss : BaseCharacter
 
     public EnemyBoss()
     {
-        // 初始化敌人属性
-        health = 0;
-        mana = GameManager.Instance.difficultyLevel;
-        autoManaPerTurn = GameManager.Instance.difficultyLevel;
+        health = GetTargetHealth(GameManager.Instance.difficultyLevel);
+        mana = (ulong)GameManager.Instance.difficultyLevel;
+        autoManaPerTurn = (ulong)GameManager.Instance.difficultyLevel;
+        score = 0;
     }
 
 
     public int phase = 1;  // 当前阶段
-    public int nextPhaseHealthThreshold = GetThresholdForPhase(1);  // 下一阶段的生命阈值
-    public override void ChangeHealth(int amount)
+    public ulong nextPhaseHealthThreshold = GetThresholdForPhase(1);  // 下一阶段的生命阈值
+    public override void ChangeHealth(long amount)
     {
-        // 如果是治疗效果，转为护盾
         if (amount > 0)
         {
-            shiled += amount;
+            shiled = SaturatingAdd(shiled, (ulong)amount);
         }
         else
         {
-            // 先扣护盾
-            int damageToShield = Mathf.Min(shiled, -amount);
-            shiled -= damageToShield;
-            amount += damageToShield; // 减去被护盾吸收的伤害
+            ulong damage = amount == long.MinValue ? (ulong)long.MaxValue + 1UL : (ulong)(-amount);
+            ulong damageToShield = shiled < damage ? shiled : damage;
+            shiled = SaturatingSub(shiled, damageToShield);
+            damage = SaturatingSub(damage, damageToShield);
 
-            // 如果还有剩余伤害，扣血
-            if (amount < 0)
+            if (damage > 0)
             {
-                health -= amount;  // Boss的生命是得分
-                
-                // 移除实时检测阶段变化的逻辑
-                // if (health >= nextPhaseHealthThreshold) ...
+                score = SaturatingAdd(score, damage);
+                if (!IsEndlessMode)
+                {
+                    health = SaturatingSub(health, damage);
+                    if (health == 0 && !isDead)
+                    {
+                        health = 0;
+                        isDead = true;
+                        EventCenter.Publish("EnemyDead", this);
+                    }
+                }
             }
         }
     }
@@ -73,7 +91,7 @@ public class EnemyBoss : BaseCharacter
         phase++;
 
         // 超过界定后Boss成长加速
-        autoManaPerTurn += (int)(phase/10) + 1;
+        autoManaPerTurn = SaturatingAdd(autoManaPerTurn, (ulong)((phase / 10) + 1));
         Debug.Log($"魔力回复 +{(int)(phase/10)}");
 
         EventCenter.Publish("EnemyBoss_PhaseChanged", phase);  // 提前发布事件，让玩家先知道阶段提升了，可能会有一些反应措施
@@ -98,15 +116,15 @@ public class EnemyBoss : BaseCharacter
     }
 
 
-    private static int GetThresholdForPhase(int phase)
+    private static ulong GetThresholdForPhase(int phase)
     {
         if (phase <= 1) return 30;
         if (phase == 2) return 50;
-        int prev = 30;
-        int current = 50;
+        ulong prev = 30;
+        ulong current = 50;
         for (int i = 3; i <= phase; i++)
         {
-            int next = prev + current;
+            ulong next = SaturatingAdd(prev, current);
             prev = current;
             current = next;
         }
@@ -117,10 +135,16 @@ public class EnemyBoss : BaseCharacter
 
     private float GetAISpeedScale()
     {
-        float manaFactor = Mathf.InverseLerp(3f, 12f, mana);
+        float manaFactor = Mathf.InverseLerp(3f, 12f, ClampToFloat(mana));
         float handFactor = Mathf.InverseLerp(3f, 10f, Cards.Count);
         float t = Mathf.Clamp01(Mathf.Max(manaFactor, handFactor));
         return Mathf.Lerp(1f, 0.35f, t);
+    }
+
+    private static float ClampToFloat(ulong value)
+    {
+        if (value >= (ulong)int.MaxValue) return int.MaxValue;
+        return value;
     }
 
     private async Task WaitRandomSeconds(CancellationToken token, int min = 1000, int max = 3000)

@@ -35,15 +35,15 @@ public class GameManager : MonoBehaviour
 
     # region 存档
 
-    public int maxScore { get; private set; } = 0;
+    public ulong maxScore { get; private set; } = 0;
 
-    public void Save(int score)
+    public void Save(ulong score)
     {
         Debug.Log($"Saving score: {score}, current maxScore: {maxScore}");
         if (score > maxScore)
         {
             maxScore = score;
-            PlayerPrefs.SetInt("MaxScore", maxScore);
+            PlayerPrefs.SetString("MaxScore", maxScore.ToString());
             PlayerPrefs.Save();
         }
     }
@@ -51,7 +51,8 @@ public class GameManager : MonoBehaviour
 
     public void Load()
     {
-        maxScore = PlayerPrefs.GetInt("MaxScore", 0);
+        var saved = PlayerPrefs.GetString("MaxScore", "0");
+        maxScore = ulong.TryParse(saved, out var parsed) ? parsed : 0;
     }
 
     # endregion
@@ -115,13 +116,12 @@ public class GameManager : MonoBehaviour
     #region 难度
     // 没有采用配置表
     // 建议全局搜索 "GameManager.Instance.difficultyLevel" 查看用法
-    // 忘了用枚举，直接用整数了，1-3分别代表简单、困难、地狱
+    // 忘了用枚举，直接用整数了，1-4分别代表简单、困难、地狱、无尽
     public int difficultyLevel { get; private set; } = 1;  // 默认难度为1
     
     public void SetDiff(int diff)
     {
-        
-        difficultyLevel = diff;
+        difficultyLevel = Mathf.Clamp(diff, 1, 4);
     }
     #endregion
 }

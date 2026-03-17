@@ -9,27 +9,58 @@ public class BattleUI : MonoBehaviour
     public Button drawCardButton;
     public Button playCardButton;
     public Button endTurnButton;
+    public Button exitButton;
 
     public TextMeshProUGUI turnText;
 
     private TextMeshProUGUI endTurnButtonText;
-    private int lastAutoMana = -1;
+    private ulong lastAutoMana = 0;
+    private bool hasLastAutoMana = false;
 
     public CardList cardList;
 
     void Start()
     {
-        drawCardButton.onClick.AddListener(OnDrawCardClicked);
-        playCardButton.onClick.AddListener(OnPlayCardClicked);
-        endTurnButton.onClick.AddListener(OnEndTurnClicked);
+        EnsureReferences();
 
-        endTurnButtonText = endTurnButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (drawCardButton != null) drawCardButton.onClick.AddListener(OnDrawCardClicked);
+        if (playCardButton != null) playCardButton.onClick.AddListener(OnPlayCardClicked);
+        if (endTurnButton != null) endTurnButton.onClick.AddListener(OnEndTurnClicked);
+        if (exitButton != null) exitButton.onClick.AddListener(OnExitClicked);
+
+        if (endTurnButton != null) endTurnButtonText = endTurnButton.GetComponentInChildren<TextMeshProUGUI>();
 
         EventCenter.Register("TurnStart", (param) => ShowNewTurnInfo());
         EventCenter.Register("BattleStarted", (param) => 
         {
             if (cardList != null) cardList.Clear();
         });
+    }
+
+    private void EnsureReferences()
+    {
+        var buttons = FindObjectsOfType<Button>(true);
+        foreach (var button in buttons)
+        {
+            if (button == null) continue;
+            var buttonName = button.gameObject.name;
+            if (drawCardButton == null && (buttonName == "DrawCard" || buttonName == "抽牌"))
+            {
+                drawCardButton = button;
+            }
+            else if (playCardButton == null && (buttonName == "PlayCard" || buttonName == "出牌"))
+            {
+                playCardButton = button;
+            }
+            else if (endTurnButton == null && (buttonName == "EndTurn" || buttonName == "结束回合"))
+            {
+                endTurnButton = button;
+            }
+            else if (exitButton == null && (buttonName == "Exit" || buttonName == "ExitButton" || buttonName == "退出"))
+            {
+                exitButton = button;
+            }
+        }
     }
 
 
@@ -127,19 +158,31 @@ public class BattleUI : MonoBehaviour
         ((Player)BattleManager.Instance.player).UI_EndTurn();
     }
 
+    private void OnExitClicked()
+    {
+        if (BattleManager.Instance == null) return;
+        BattleManager.Instance.EndBattle();
+    }
+
+    public void OnExitButtonClicked()
+    {
+        OnExitClicked();
+    }
+
     private void IsPlayerTurn()
     {
         if ((Player)BattleManager.Instance?.player != null)
         {
             Player player = (Player)BattleManager.Instance.player;
             bool isPlayerTurn = player.isReady;
-            drawCardButton.interactable = isPlayerTurn && player.mana >= 1 && player.Cards.Count < Player.HandLimit;
-            playCardButton.interactable = isPlayerTurn && cardList.AblePlay;
-            endTurnButton.interactable = isPlayerTurn;
+            if (drawCardButton != null) drawCardButton.interactable = isPlayerTurn && player.mana >= 1 && player.Cards.Count < Player.HandLimit;
+            if (playCardButton != null) playCardButton.interactable = isPlayerTurn && cardList.AblePlay;
+            if (endTurnButton != null) endTurnButton.interactable = isPlayerTurn;
 
-            if (player.autoManaPerTurn != lastAutoMana)
+            if (!hasLastAutoMana || player.autoManaPerTurn != lastAutoMana)
             {
                 lastAutoMana = player.autoManaPerTurn;
+                hasLastAutoMana = true;
                 if (endTurnButtonText != null)
                 {
                     endTurnButtonText.text = $"结束（D）\n(回复{lastAutoMana}魔力)";

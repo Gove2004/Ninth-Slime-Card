@@ -21,7 +21,7 @@ public class AchievementManager : MonoBehaviour
         public string id;
         public string name;
         public AchievementType type;
-        public int threshold;
+        public ulong threshold;
         public string description;
     }
 
@@ -40,11 +40,11 @@ public class AchievementManager : MonoBehaviour
     private const string TotalHealKey = "Achievement_TotalHeal";
     private const string CustomAchievementPrefix = "Achievement_Custom_";
 
-    public int TotalScore { get; private set; }
-    public int TotalDraw { get; private set; }
-    public int TotalPlay { get; private set; }
-    public int TotalMana { get; private set; }
-    public int TotalHeal { get; private set; }
+    public ulong TotalScore { get; private set; }
+    public ulong TotalDraw { get; private set; }
+    public ulong TotalPlay { get; private set; }
+    public ulong TotalMana { get; private set; }
+    public ulong TotalHeal { get; private set; }
 
     private readonly List<AchievementDefinition> definitions = new();
     private readonly HashSet<string> customCompleted = new();
@@ -85,38 +85,38 @@ public class AchievementManager : MonoBehaviour
         onStolenKillUnsub?.Invoke();
     }
 
-    public void AddScore(int amount)
+    public void AddScore(ulong amount)
     {
-        if (amount <= 0) return;
-        TotalScore += amount;
+        if (amount == 0) return;
+        TotalScore = BaseCharacter.SaturatingAdd(TotalScore, amount);
         Save();
     }
 
-    public void AddDraw(int amount)
+    public void AddDraw(ulong amount)
     {
-        if (amount <= 0) return;
-        TotalDraw += amount;
+        if (amount == 0) return;
+        TotalDraw = BaseCharacter.SaturatingAdd(TotalDraw, amount);
         Save();
     }
 
-    public void AddPlay(int amount)
+    public void AddPlay(ulong amount)
     {
-        if (amount <= 0) return;
-        TotalPlay += amount;
+        if (amount == 0) return;
+        TotalPlay = BaseCharacter.SaturatingAdd(TotalPlay, amount);
         Save();
     }
 
-    public void AddMana(int amount)
+    public void AddMana(ulong amount)
     {
-        if (amount <= 0) return;
-        TotalMana += amount;
+        if (amount == 0) return;
+        TotalMana = BaseCharacter.SaturatingAdd(TotalMana, amount);
         Save();
     }
 
-    public void AddHeal(int amount)
+    public void AddHeal(ulong amount)
     {
-        if (amount <= 0) return;
-        TotalHeal += amount;
+        if (amount == 0) return;
+        TotalHeal = BaseCharacter.SaturatingAdd(TotalHeal, amount);
         Save();
     }
 
@@ -142,11 +142,11 @@ public class AchievementManager : MonoBehaviour
         onPlayUnsub = EventCenter.Register("Player_PlayCard", (obj) => AddPlay(1));
         onManaUnsub = EventCenter.Register("Player_GainMana", (obj) =>
         {
-            if (obj is int value) AddMana(value);
+            if (obj is ulong value) AddMana(value);
         });
         onHealUnsub = EventCenter.Register("Player_Heal", (obj) =>
         {
-            if (obj is int value) AddHeal(value);
+            if (obj is ulong value) AddHeal(value);
         });
         onDrawDrawUnsub = EventCenter.Register("Achievement_DrawDrawCard", (obj) => UnlockCustom("draw_draw"));
         onSevenSinsUnsub = EventCenter.Register("Achievement_SevenSinsAllEffects", (obj) => UnlockCustom("seven_sins_all"));
@@ -192,7 +192,7 @@ public class AchievementManager : MonoBehaviour
         AddDef("double_agent", "双面间谍", AchievementType.Custom, 1, "被从对手处偷到的卡牌或dot杀死");
     }
 
-    private void AddDef(string id, string name, AchievementType type, int threshold, string description = null)
+    private void AddDef(string id, string name, AchievementType type, ulong threshold, string description = null)
     {
         definitions.Add(new AchievementDefinition
         {
@@ -206,14 +206,14 @@ public class AchievementManager : MonoBehaviour
 
     private bool IsCompleted(AchievementDefinition def)
     {
-        int value = def.type switch
+        ulong value = def.type switch
         {
             AchievementType.Score => TotalScore,
             AchievementType.Draw => TotalDraw,
             AchievementType.Play => TotalPlay,
             AchievementType.Mana => TotalMana,
             AchievementType.Heal => TotalHeal,
-            AchievementType.Custom => customCompleted.Contains(def.id) ? 1 : 0,
+            AchievementType.Custom => customCompleted.Contains(def.id) ? 1UL : 0UL,
             _ => 0
         };
         return value >= def.threshold;
@@ -235,21 +235,21 @@ public class AchievementManager : MonoBehaviour
 
     private void Save()
     {
-        PlayerPrefs.SetInt(TotalScoreKey, TotalScore);
-        PlayerPrefs.SetInt(TotalDrawKey, TotalDraw);
-        PlayerPrefs.SetInt(TotalPlayKey, TotalPlay);
-        PlayerPrefs.SetInt(TotalManaKey, TotalMana);
-        PlayerPrefs.SetInt(TotalHealKey, TotalHeal);
+        PlayerPrefs.SetString(TotalScoreKey, TotalScore.ToString());
+        PlayerPrefs.SetString(TotalDrawKey, TotalDraw.ToString());
+        PlayerPrefs.SetString(TotalPlayKey, TotalPlay.ToString());
+        PlayerPrefs.SetString(TotalManaKey, TotalMana.ToString());
+        PlayerPrefs.SetString(TotalHealKey, TotalHeal.ToString());
         PlayerPrefs.Save();
     }
 
     private void Load()
     {
-        TotalScore = PlayerPrefs.GetInt(TotalScoreKey, 0);
-        TotalDraw = PlayerPrefs.GetInt(TotalDrawKey, 0);
-        TotalPlay = PlayerPrefs.GetInt(TotalPlayKey, 0);
-        TotalMana = PlayerPrefs.GetInt(TotalManaKey, 0);
-        TotalHeal = PlayerPrefs.GetInt(TotalHealKey, 0);
+        TotalScore = ParseUlongOrZero(PlayerPrefs.GetString(TotalScoreKey, "0"));
+        TotalDraw = ParseUlongOrZero(PlayerPrefs.GetString(TotalDrawKey, "0"));
+        TotalPlay = ParseUlongOrZero(PlayerPrefs.GetString(TotalPlayKey, "0"));
+        TotalMana = ParseUlongOrZero(PlayerPrefs.GetString(TotalManaKey, "0"));
+        TotalHeal = ParseUlongOrZero(PlayerPrefs.GetString(TotalHealKey, "0"));
     }
 
     private void LoadCustom()
@@ -272,5 +272,11 @@ public class AchievementManager : MonoBehaviour
         customCompleted.Add(id);
         PlayerPrefs.SetInt(CustomAchievementPrefix + id, 1);
         PlayerPrefs.Save();
+    }
+
+    private static ulong ParseUlongOrZero(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return 0;
+        return ulong.TryParse(value, out var parsed) ? parsed : 0;
     }
 }
