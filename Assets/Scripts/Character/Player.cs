@@ -8,10 +8,15 @@ public class Player : BaseCharacter
 
     public Player()
     {
-        // 初始化玩家属性
-        health = 50 * (4 - GameManager.Instance.difficultyLevel);  // 难度系数影响玩家初始生命
-        mana = GameManager.Instance.difficultyLevel == 3 ? 2 : 3;  // 最难模式下，只有2
-        autoManaPerTurn = GameManager.Instance.difficultyLevel == 3 ? 2 : 3;  // 最难模式下，每回合增加2
+        int difficultyLevel = GameManager.Instance.difficultyLevel;
+        health = difficultyLevel switch
+        {
+            1 => 150UL,
+            2 => 100UL,
+            _ => 50UL
+        };
+        mana = difficultyLevel >= 3 ? 2UL : 3UL;
+        autoManaPerTurn = difficultyLevel >= 3 ? 2UL : 3UL;
     }
 
 
@@ -25,23 +30,24 @@ public class Player : BaseCharacter
 
 
     private bool isDead = false;
-    public override void ChangeHealth(int amount)
+    public override void ChangeHealth(long amount)
     {
         if (amount >= 0)
         {
-            health += amount;
+            health = SaturatingAdd(health, (ulong)amount);
         }
         else
         {
-            int damageToShield = UnityEngine.Mathf.Min(shiled, -amount);
-            shiled -= damageToShield;
-            amount += damageToShield;
-            if (amount < 0)
+            ulong damage = amount == long.MinValue ? (ulong)long.MaxValue + 1UL : (ulong)(-amount);
+            ulong damageToShield = shiled < damage ? shiled : damage;
+            shiled = SaturatingSub(shiled, damageToShield);
+            damage = SaturatingSub(damage, damageToShield);
+            if (damage > 0)
             {
-                health += amount;
+                health = SaturatingSub(health, damage);
             }
         }
-        if (health <= 0 && !isDead)
+        if (health == 0 && !isDead)
         {
             health = 0;
             isDead = true;
@@ -99,9 +105,9 @@ public class Player : BaseCharacter
         if (enemy != null)
         {
             // 循环检测，直到不再满足升级条件
-            while (enemy.health >= enemy.nextPhaseHealthThreshold)
+            while (enemy.score >= enemy.nextPhaseHealthThreshold)
             {
-                Debug.Log($"回合结束结算：当前分数 {enemy.health} >= 阈值 {enemy.nextPhaseHealthThreshold}，触发升级。");
+                Debug.Log($"回合结束结算：当前分数 {enemy.score} >= 阈值 {enemy.nextPhaseHealthThreshold}，触发升级。");
                 
                 // 触发升级事件
                 enemy.TriggerPhaseChange();

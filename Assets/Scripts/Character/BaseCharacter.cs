@@ -9,14 +9,14 @@ public abstract class BaseCharacter
     public BaseCharacter Target { get; set; }
 
     // 基础属性
-    public int health = 30;
-    public int mana = 0;
-    public int shiled = 0; // 护盾值
-    public int autoManaPerTurn = 3;  // 每回合自动增加的法力值
+    public ulong health = 30;
+    public ulong mana = 0;
+    public ulong shiled = 0; // 护盾值
+    public ulong autoManaPerTurn = 3;  // 每回合自动增加的法力值
     public bool IsInTurn { get; private set; }
     private bool immuneThisTurn = false;
     private bool immuneSelfDamage = false;
-    private int overclockMultiplier = 1;
+    private ulong overclockMultiplier = 1;
     protected int extraCardDuration = 0;
     private float damageTakenMultiplier = 1f;
     public static BaseCard ActiveCardContext { get; set; }
@@ -24,26 +24,30 @@ public abstract class BaseCharacter
     public BaseCard LastDamageCard { get; private set; }
     public Dot LastDamageDot { get; private set; }
     public BaseCharacter LastDamageSource { get; private set; }
-    public event Action<int, BaseCharacter> DamageTaken;
-    public event Action<int, BaseCharacter> DamageDealt;
-    public event Action<int> HealTaken;
+    public event Action<ulong, BaseCharacter> DamageTaken;
+    public event Action<ulong, BaseCharacter> DamageDealt;
+    public event Action<ulong> HealTaken;
     
-    public abstract void ChangeHealth(int amount);
+    public abstract void ChangeHealth(long amount);
     
     public virtual void OnBattleEnd() { }
 
-    public virtual void ChangeMana(int amount)
+    public virtual void ChangeMana(long amount)
     {
-        mana += amount;
-        if (mana < 0)
+        if (amount >= 0)
         {
-            mana = 0;
+            ulong gain = (ulong)amount;
+            mana = SaturatingAdd(mana, gain);
+            if (gain > 0)
+            {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Mana");
+                if (this is Player) EventCenter.Publish("Player_GainMana", gain);
+            }
         }
-
-        if (amount > 0)
+        else
         {
-             if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Mana");
-             if (this is Player) EventCenter.Publish("Player_GainMana", amount);
+            ulong loss = MagnitudeFromSigned(amount);
+            mana = SaturatingSub(mana, loss);
         }
     }
 
@@ -55,7 +59,7 @@ public abstract class BaseCharacter
         IsInTurn = true;
         immuneThisTurn = false;
 
-        shiled = Mathf.Max(0, shiled-3);  // 另一个方案是每回合衰减3
+        shiled = SaturatingSub(shiled, 3);  // 另一个方案是每回合衰减3
 
         // Async Apply Dots
         yield return ApplyDotsRoutine();
@@ -77,7 +81,7 @@ public abstract class BaseCharacter
         EventCenter.Publish("TurnStart", this);
         IsInTurn = true;
         immuneThisTurn = false;
-        shiled = Mathf.Max(0, shiled-3);
+        shiled = SaturatingSub(shiled, 3);
         ApplyDots(); 
         if (!IsInTurn) return;
         Action();
@@ -95,7 +99,7 @@ public abstract class BaseCharacter
         // 或者我们可以在 BattleManager 中控制 EndTurn 的流程。
         // 为了支持 RougeUI 这种特殊的等待逻辑，我们可以在 Player 中重写 EndTurn。
         
-        ChangeMana(autoManaPerTurn); // 每回合结束增加自动法力值
+        ChangeMana((long)Math.Min(autoManaPerTurn, (ulong)long.MaxValue)); // 每回合结束增加自动法力值
         EventCenter.Publish("CharacterEndedTurn");
     }
 
@@ -187,17 +191,20 @@ public abstract class BaseCharacter
         damageTakenMultiplier = Mathf.Max(0f, multiplier);
     }
 
-    public void ApplyHealthChange(int amount, BaseCharacter source = null)
+    public void ApplyHealthChange(long amount, BaseCharacter source = null)
     {
         if (amount < 0 && immuneThisTurn) return;
         if (amount < 0 && source == this && immuneSelfDamage) return;
 
         if (amount < 0 && damageTakenMultiplier != 1f)
         {
-            int damage = -amount;
-            damage = Mathf.RoundToInt(damage * damageTakenMultiplier);
-            if (damage <= 0) return;
-            amount = -damage;
+            ulong damage = MagnitudeFromSigned(amount);
+            double scaled = damage * damageTakenMultiplier;
+            if (scaled <= 0d) return;
+            if (scaled >= ulong.MaxValue) damage = ulong.MaxValue;
+            else damage = (ulong)Math.Round(scaled);
+            if (damage == 0) return;
+            amount = -(long)Math.Min(damage, (ulong)long.MaxValue);
         }
 
         if (amount < 0)
@@ -211,28 +218,30 @@ public abstract class BaseCharacter
 
         if (amount < 0)
         {
-            int damage = -amount;
+            ulong damage = MagnitudeFromSigned(amount);
             DamageTaken?.Invoke(damage, source);
             source?.DamageDealt?.Invoke(damage, this);
         }
         else if (amount > 0)
         {
-            HealTaken?.Invoke(amount);
-            if (this is Player) EventCenter.Publish("Player_Heal", amount);
+            ulong heal = (ulong)amount;
+            HealTaken?.Invoke(heal);
+            if (this is Player) EventCenter.Publish("Player_Heal", heal);
         }
     }
 
-    public void DealDamage(BaseCharacter target, int amount)
+    public void DealDamage(BaseCharacter target, ulong amount)
     {
-        if (target == null || amount <= 0) return;
-        target.ApplyHealthChange(-amount, this);
+        if (target == null || amount == 0) return;
+        long signedDamage = amount >= (ulong)long.MaxValue ? -long.MaxValue : -(long)amount;
+        target.ApplyHealthChange(signedDamage, this);
     }
 
 
-    public void ApplyOverclock(int factor)
+    public void ApplyOverclock(ulong factor)
     {
         if (factor == 1) return;
-        overclockMultiplier *= factor;
+        overclockMultiplier = SaturatingMultiply(overclockMultiplier, factor);
 
 
         // 新的超频只对玩家手牌生效
@@ -294,11 +303,11 @@ public abstract class BaseCharacter
     }
 
 
-    public BaseCard DrawCard(int cost = 1)
+    public BaseCard DrawCard(ulong cost = 1)
     {
         if (IsHandFull) return null;
         if (mana < cost) return null;  // 抽卡需要消耗法力值
-        ChangeMana(-cost);  // 抽卡消耗指定点法力值
+        ChangeMana(-(long)Math.Min(cost, (ulong)long.MaxValue));  // 抽卡消耗指定点法力值
 
         // 随机从牌库中抽取一张卡牌加入手牌
         BaseCard baseCard;
@@ -324,7 +333,7 @@ public abstract class BaseCharacter
         if (Cards.Contains(card) && mana >= card.Cost)
         {
             // 扣除法力值
-            ChangeMana(-card.Cost);
+            ChangeMana(-(long)Math.Min(card.Cost, (ulong)long.MaxValue));
 
             // 从手牌中移除卡牌
             Cards.Remove(card);
@@ -345,6 +354,33 @@ public abstract class BaseCharacter
         {
             Debug.LogWarning("无法使用卡牌: " + card.Name);
         }
+    }
+
+    public static ulong SaturatingAdd(ulong left, ulong right)
+    {
+        ulong result = left + right;
+        if (result < left) return ulong.MaxValue;
+        return result;
+    }
+
+    public static ulong SaturatingSub(ulong left, ulong right)
+    {
+        if (right >= left) return 0;
+        return left - right;
+    }
+
+    public static ulong SaturatingMultiply(ulong left, ulong right)
+    {
+        if (left == 0 || right == 0) return 0;
+        if (left > ulong.MaxValue / right) return ulong.MaxValue;
+        return left * right;
+    }
+
+    private static ulong MagnitudeFromSigned(long value)
+    {
+        if (value >= 0) return (ulong)value;
+        if (value == long.MinValue) return (ulong)long.MaxValue + 1UL;
+        return (ulong)(-value);
     }
 
     public void RemoveCard(BaseCard card)

@@ -84,25 +84,25 @@ public class DamageEffectManager : MonoBehaviour
         }
     }
 
-    private void OnPlayerHeal(int amount)
+    private void OnPlayerHeal(ulong amount)
     {
         if (playerTransform == null) return;
         ShowHealEffect(playerTransform, amount, playerEffectOffset);
     }
 
-    private void OnEnemyHeal(int amount)
+    private void OnEnemyHeal(ulong amount)
     {
         if (enemyTransform == null) return;
         ShowHealEffect(enemyTransform, amount, enemyEffectOffset);
     }
 
-    private void OnPlayerDamage(int amount, BaseCharacter source)
+    private void OnPlayerDamage(ulong amount, BaseCharacter source)
     {
         if (playerTransform == null) return;
         ShowEffect(playerTransform, amount, playerEffectOffset, source);
     }
 
-    private void OnEnemyDamage(int amount, BaseCharacter source)
+    private void OnEnemyDamage(ulong amount, BaseCharacter source)
     {
         if (enemyTransform == null) return;
         ShowEffect(enemyTransform, amount, enemyEffectOffset, source);
@@ -127,7 +127,7 @@ public class DamageEffectManager : MonoBehaviour
         popup.Setup(text, color);
     }
 
-    private void ShowEffect(Transform targetDetails, int amount, Vector2 offset, BaseCharacter source)
+    private void ShowEffect(Transform targetDetails, ulong amount, Vector2 offset, BaseCharacter source)
     {
         if (targetDetails == null) return;
         bool isPlayerSource = source is Player;
@@ -162,7 +162,7 @@ public class DamageEffectManager : MonoBehaviour
         popup.Setup(amount);
     }
 
-    private void ShowHealEffect(Transform targetDetails, int amount, Vector2 offset)
+    private void ShowHealEffect(Transform targetDetails, ulong amount, Vector2 offset)
     {
         if (targetDetails == null) return;
 

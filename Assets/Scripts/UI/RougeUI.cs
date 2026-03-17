@@ -23,6 +23,8 @@ public class RougeUI : MonoBehaviour
     private BaseCard selectedCard;
     // 要替换的序号
     private int replaceIndex;
+    private static int activePanelCount;
+    public static bool IsPanelOpen => activePanelCount > 0;
 
     void Start()
     {
@@ -57,6 +59,16 @@ public class RougeUI : MonoBehaviour
             this.gameObject.SetActive(true);
             Show();
         });
+    }
+
+    private void OnEnable()
+    {
+        activePanelCount++;
+    }
+
+    private void OnDisable()
+    {
+        activePanelCount = Mathf.Max(0, activePanelCount - 1);
     }
 
 

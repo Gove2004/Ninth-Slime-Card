@@ -35,7 +35,6 @@ public class GMTool : MonoBehaviour
     {
         if (!Application.isPlaying) return;
         var player = BattleManager.Instance.player;
-        if (player == null) return;
         var enemy = BattleManager.Instance.enemy as EnemyBoss;
 
         if (GUILayout.Button(showPanel ? "隐藏" : "显示"))
@@ -48,11 +47,22 @@ public class GMTool : MonoBehaviour
             return;
         }
 
+        if (player == null)
+        {
+            GUILayout.Label("等待战斗开始...");
+            if (!string.IsNullOrEmpty(message))
+            {
+                GUILayout.Label(message);
+            }
+            GUI.DragWindow();
+            return;
+        }
+
         GUILayout.Label("玩家生命值调整(可负数)");
         healthDelta = GUILayout.TextField(healthDelta);
         if (GUILayout.Button("应用生命值"))
         {
-            if (int.TryParse(healthDelta, out var value))
+            if (long.TryParse(healthDelta, out var value))
             {
                 player.ApplyHealthChange(value, player);
                 message = $"生命值调整 {value}";
@@ -67,7 +77,7 @@ public class GMTool : MonoBehaviour
         manaDelta = GUILayout.TextField(manaDelta);
         if (GUILayout.Button("应用法力值"))
         {
-            if (int.TryParse(manaDelta, out var value))
+            if (long.TryParse(manaDelta, out var value))
             {
                 player.ChangeMana(value);
                 message = $"法力值调整 {value}";
@@ -131,7 +141,7 @@ public class GMTool : MonoBehaviour
         if (GUILayout.Button("清空存档"))
         {
             PlayerPrefs.DeleteAll();
-            GameManager.Instance.Load();
+            if (GameManager.Instance != null) GameManager.Instance.Load();
             message = "存档已清空";
         }
 

@@ -17,6 +17,12 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     public Vector2 minSize = new Vector2(200f, 140f);
     public Vector2 maxSize = new Vector2(640f, 480f);
     public float resizeHandleSize = 18f;
+    public Vector2 dotIconSize = new Vector2(24f, 24f);
+    public Vector2 dotIconSpacing = new Vector2(4f, 4f);
+    public int dotGridPaddingLeft = 6;
+    public int dotGridPaddingRight = 6;
+    public int dotGridPaddingTop = 6;
+    public int dotGridPaddingBottom = 6;
 
     private bool isExpanded = true;
     private bool isDragging;
@@ -28,10 +34,12 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     private Vector2 lastExpandedSize;
     private bool draggedSincePointerDown;
     private Vector2 pointerDownScreenPosition;
+    private bool pointerDownInHeader;
     private RectTransform rootRect;
     private RectTransform contentRect;
     private RectTransform viewportRect;
     private Vector2 resizeStartTopLeftLocal;
+    private int gridColumnCount = 1;
 
     void Start()
     {
@@ -68,6 +76,8 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     {
         if (BattleManager.Instance == null) return;
 
+        gridColumnCount = CalculateColumnCount();
+
         if (isPlayer)
         {
             UpdateDotShows(BattleManager.Instance.player?.dotBar);
@@ -92,6 +102,12 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
             RectTransformUtility.ScreenPointToLocalPointInRectangle(rootRect, eventData.position, eventData.pressEventCamera, out resizeStartPointer);
             resizeStartSize = rootRect.sizeDelta;
             resizeStartTopLeftLocal = GetTopLeftLocal(parentRect);
+            return;
+        }
+
+        if (!IsInHeaderArea(eventData))
+        {
+            isDragging = false;
             return;
         }
 
@@ -147,11 +163,13 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     {
         draggedSincePointerDown = false;
         pointerDownScreenPosition = eventData.position;
+        pointerDownInHeader = IsInHeaderArea(eventData);
     }
 
     private void OnToggleClicked()
     {
         if (draggedSincePointerDown) return;
+        if (!pointerDownInHeader) return;
         if ((pointerDownScreenPosition - (Vector2)Input.mousePosition).sqrMagnitude > 4f) return;
         isExpanded = !isExpanded;
         ApplyExpandedState();
@@ -208,16 +226,6 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
             var dotShow = dotListContainer.transform.GetChild(i).GetComponent<DotShow>();
             if (i < dots.Count)
             {
-                var rect = dotShow.transform as RectTransform;
-                if (rect != null)
-                {
-                    rect.anchorMin = new Vector2(0f, 1f);
-                    rect.anchorMax = new Vector2(1f, 1f);
-                    rect.pivot = new Vector2(0.5f, 1f);
-                    rect.sizeDelta = new Vector2(0f, rect.sizeDelta.y);
-                    rect.offsetMin = new Vector2(0f, rect.offsetMin.y);
-                    rect.offsetMax = new Vector2(0f, rect.offsetMax.y);
-                }
                 dotShow.gameObject.SetActive(true);
                 dotShow.SetData(dots[i]);
             }
@@ -228,7 +236,7 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         }
         if (contentRect != null)
         {
-            LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
+            LayoutDotItems(dots.Count);
         }
     }
 
@@ -298,9 +306,11 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         {
             contentRect.anchorMin = new Vector2(0f, 1f);
             contentRect.anchorMax = new Vector2(1f, 1f);
-            contentRect.pivot = new Vector2(0.5f, 1f);
+            contentRect.pivot = new Vector2(0f, 1f);
             contentRect.anchoredPosition = Vector2.zero;
             contentRect.sizeDelta = new Vector2(0f, contentRect.sizeDelta.y);
+            ConfigureDotGrid();
+            gridColumnCount = CalculateColumnCount();
         }
 
         if (viewportRect == null && contentRect != null)
@@ -332,6 +342,97 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
 
         RefreshHeaderLayout();
         RefreshViewportLayout();
+    }
+
+    private void ConfigureDotGrid()
+    {
+        if (contentRect == null) return;
+
+        var verticalLayout = contentRect.GetComponent<VerticalLayoutGroup>();
+        if (verticalLayout != null)
+        {
+            verticalLayout.enabled = false;
+        }
+
+        var horizontalLayout = contentRect.GetComponent<HorizontalLayoutGroup>();
+        if (horizontalLayout != null)
+        {
+            horizontalLayout.enabled = false;
+        }
+
+        var grid = contentRect.GetComponent<GridLayoutGroup>();
+        if (grid != null)
+        {
+            grid.enabled = false;
+        }
+
+        var fitter = contentRect.GetComponent<ContentSizeFitter>();
+        if (fitter != null)
+        {
+            fitter.enabled = false;
+        }
+    }
+
+    private int CalculateColumnCount()
+    {
+        if (contentRect == null) return 1;
+
+        float width = 0f;
+        if (viewportRect != null)
+        {
+            width = viewportRect.rect.width;
+        }
+        if (width <= 0.1f)
+        {
+            width = contentRect.rect.width;
+        }
+        if (width <= 0.1f && rootRect != null)
+        {
+            width = rootRect.rect.width;
+        }
+        if (width <= 0.1f)
+        {
+            width = 200f;
+        }
+
+        float usable = width - dotGridPaddingLeft - dotGridPaddingRight + dotIconSpacing.x;
+        float unit = dotIconSize.x + dotIconSpacing.x;
+        return Mathf.Max(1, Mathf.FloorToInt(usable / Mathf.Max(1f, unit)));
+    }
+
+    private void LayoutDotItems(int activeCount)
+    {
+        if (contentRect == null) return;
+
+        int columns = Mathf.Max(1, gridColumnCount);
+        float cellWidth = dotIconSize.x;
+        float cellHeight = dotIconSize.y;
+        float stepX = cellWidth + dotIconSpacing.x;
+        float stepY = cellHeight + dotIconSpacing.y;
+
+        for (int i = 0; i < activeCount; i++)
+        {
+            var child = dotListContainer.transform.GetChild(i);
+            var rect = child as RectTransform;
+            if (rect == null) continue;
+
+            int row = i / columns;
+            int col = i % columns;
+            float x = dotGridPaddingLeft + col * stepX;
+            float y = -(dotGridPaddingTop + row * stepY);
+
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = dotIconSize;
+        }
+
+        int rows = Mathf.Max(1, Mathf.CeilToInt(activeCount / (float)columns));
+        float contentHeight = dotGridPaddingTop + dotGridPaddingBottom + rows * cellHeight + Mathf.Max(0, rows - 1) * dotIconSpacing.y;
+        contentRect.sizeDelta = new Vector2(contentRect.sizeDelta.x, contentHeight);
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
     }
 
     private void RefreshHeaderLayout()
@@ -389,6 +490,21 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         bool inX = localPoint.x >= rect.xMax - resizeHandleSize;
         bool inY = localPoint.y <= rect.yMin + resizeHandleSize;
         return inX && inY && isExpanded;
+    }
+
+    private bool IsInHeaderArea(PointerEventData eventData)
+    {
+        if (rootRect == null) return false;
+
+        Vector2 localPoint;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(rootRect, eventData.position, eventData.pressEventCamera, out localPoint);
+
+        Rect rect = rootRect.rect;
+        if (!isExpanded) return rect.Contains(localPoint);
+
+        float dragHeaderHeight = Mathf.Clamp(headerHeight, 0f, rect.height);
+        float headerMinY = rect.yMax - dragHeaderHeight;
+        return localPoint.y >= headerMinY && localPoint.y <= rect.yMax;
     }
 
     private Vector2 GetTopLeftLocal(RectTransform parentRect)

@@ -21,7 +21,8 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     // Card数据
     public BaseCard cardData = new 抽牌();
     private string lastDescription = "";
-    private int lastCost = int.MinValue;
+    private ulong lastCost = 0;
+    private bool hasLastCost = false;
     
     private bool dragging;
     public bool IsDragging => dragging; // Public property for CardList to access
@@ -107,10 +108,11 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             cardDescriptionText.text = description;
             lastDescription = description;
         }
-        if (cardData.Cost != lastCost)
+        if (!hasLastCost || cardData.Cost != lastCost)
         {
             costText.text = cardData.Cost.ToString();
             lastCost = cardData.Cost;
+            hasLastCost = true;
         }
     }
 
@@ -177,6 +179,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         }
         costText.text = card.Cost.ToString();
         lastCost = card.Cost;
+        hasLastCost = true;
     }
 
     #region 点击选中卡牌

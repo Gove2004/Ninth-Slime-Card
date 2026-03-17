@@ -21,7 +21,7 @@ public class CardList : MonoBehaviour
     public float yOffset = -50f; // Center card y-position
 
     // 选中的卡牌
-    public bool AblePlay => selectedCard != null && ((Player)BattleManager.Instance?.player)?.mana >= selectedCard.Cost;
+    public bool AblePlay => selectedCard != null && BattleManager.Instance?.player is Player player && player.mana >= selectedCard.Cost;
     public BaseCard selectedCard;
 
     void Start()

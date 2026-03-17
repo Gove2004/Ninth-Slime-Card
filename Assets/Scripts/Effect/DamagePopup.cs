@@ -8,7 +8,7 @@ public class DamagePopup : MonoBehaviour
     private float moveY = 100f; // Upward movement distance
     private float duration = 1f;
 
-    public void Setup(int damageAmount)
+    public void Setup(ulong damageAmount)
     {
         Setup("-" + damageAmount.ToString(), new Color(1f, 0.2f, 0.2f));
     }
