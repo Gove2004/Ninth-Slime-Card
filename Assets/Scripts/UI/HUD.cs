@@ -9,6 +9,7 @@ public class HUD : MonoBehaviour
     public TextMeshProUGUI playerHPText;
     public TextMeshProUGUI playerSPText;
     public TextMeshProUGUI playerMPText;
+    public Image playerHPBgImage;
     public Image playerMPBgImage; // 新增：MP背景图片引用
     public TextMeshProUGUI enemyHPText;
     public TextMeshProUGUI enemySPText;
@@ -43,6 +44,8 @@ public class HUD : MonoBehaviour
     private Sequence enemyHpPulseSequence;
     private Vector3 playerManaBaseScale = Vector3.one;
     private bool hasPlayerManaBaseScale;
+    private Color playerManaBaseColor = Color.white;
+    private bool hasPlayerManaBaseColor;
     private Vector3 playerHpBaseScale = Vector3.one;
     private bool hasPlayerHpBaseScale;
     private Vector3 enemyHpBaseScale = Vector3.one;
@@ -50,6 +53,14 @@ public class HUD : MonoBehaviour
 
     void Start()
     {
+        if (playerHPBgImage == null)
+        {
+            var foundObj = GameObject.Find("PlayerHP_BG");
+            if (foundObj != null)
+            {
+                playerHPBgImage = foundObj.GetComponent<Image>();
+            }
+        }
         // 尝试自动查找 MP 背景
         if (playerMPBgImage == null)
         {
@@ -59,6 +70,11 @@ public class HUD : MonoBehaviour
             {
                 playerMPBgImage = foundObj.GetComponent<Image>();
             }
+        }
+        if (playerMPBgImage != null && !hasPlayerManaBaseColor)
+        {
+            playerManaBaseColor = playerMPBgImage.color;
+            hasPlayerManaBaseColor = true;
         }
         if (enemyHPBgImage == null)
         {
@@ -122,7 +138,7 @@ public class HUD : MonoBehaviour
 
                 if (hasLastPlayerHealth && player.health != lastPlayerHealth)
                 {
-                    PlayHealthTextEffect(playerHPText, ref playerHpPulseSequence, ref hasPlayerHpBaseScale, ref playerHpBaseScale, player.health > lastPlayerHealth);
+                    PlayHealthImageEffect(playerHPBgImage, ref playerHpPulseSequence, ref hasPlayerHpBaseScale, ref playerHpBaseScale);
                 }
                 lastPlayerHealth = player.health;
                 hasLastPlayerHealth = true;
@@ -154,7 +170,7 @@ public class HUD : MonoBehaviour
 
                 if (hasLastEnemyHealth && enemy.health != lastEnemyHealth)
                 {
-                    PlayHealthTextEffect(enemyHPText, ref enemyHpPulseSequence, ref hasEnemyHpBaseScale, ref enemyHpBaseScale, enemy.health > lastEnemyHealth);
+                    PlayHealthImageEffect(enemyHPBgImage, ref enemyHpPulseSequence, ref hasEnemyHpBaseScale, ref enemyHpBaseScale);
                 }
                 lastEnemyHealth = enemy.health;
                 hasLastEnemyHealth = true;
@@ -170,53 +186,50 @@ public class HUD : MonoBehaviour
             playerManaBaseScale = playerMPBgImage.transform.localScale;
             hasPlayerManaBaseScale = true;
         }
+        if (!hasPlayerManaBaseColor)
+        {
+            playerManaBaseColor = playerMPBgImage.color;
+            hasPlayerManaBaseColor = true;
+        }
 
-        Color baseColor = playerMPBgImage.color;
         StopPulse(ref playerManaPulseSequence);
         playerMPBgImage.transform.localScale = playerManaBaseScale;
-        playerMPBgImage.color = baseColor;
+        playerMPBgImage.color = playerManaBaseColor;
 
         playerManaPulseSequence = DOTween.Sequence();
         playerManaPulseSequence.Append(playerMPBgImage.transform.DOScale(playerManaBaseScale * 1.2f, 0.1f).SetEase(Ease.OutQuad));
         playerManaPulseSequence.Join(playerMPBgImage.DOColor(Color.cyan, 0.1f).SetEase(Ease.OutQuad));
         playerManaPulseSequence.Append(playerMPBgImage.transform.DOScale(playerManaBaseScale, 0.14f).SetEase(Ease.InOutQuad));
-        playerManaPulseSequence.Join(playerMPBgImage.DOColor(baseColor, 0.14f).SetEase(Ease.InOutQuad));
+        playerManaPulseSequence.Join(playerMPBgImage.DOColor(playerManaBaseColor, 0.14f).SetEase(Ease.InOutQuad));
         playerManaPulseSequence.OnKill(() =>
         {
             if (playerMPBgImage == null) return;
             playerMPBgImage.transform.localScale = playerManaBaseScale;
-            playerMPBgImage.color = baseColor;
+            playerMPBgImage.color = playerManaBaseColor;
         });
         playerManaPulseSequence.OnComplete(() => playerManaPulseSequence = null);
     }
 
-    private void PlayHealthTextEffect(TextMeshProUGUI hpText, ref Sequence pulseSequence, ref bool hasBaseScale, ref Vector3 baseScale, bool isHeal)
+    private void PlayHealthImageEffect(Image hpImage, ref Sequence pulseSequence, ref bool hasBaseScale, ref Vector3 baseScale)
     {
-        if (hpText == null) return;
+        if (hpImage == null) return;
         if (!hasBaseScale)
         {
-            baseScale = hpText.transform.localScale;
+            baseScale = hpImage.transform.localScale;
             hasBaseScale = true;
         }
 
         Vector3 defaultScale = baseScale;
-        Color baseColor = hpText.color;
-        Color flashColor = isHeal ? new Color(0.45f, 1f, 0.45f, 1f) : new Color(1f, 0.55f, 0.55f, 1f);
-
         StopPulse(ref pulseSequence);
-        hpText.transform.localScale = defaultScale;
-        hpText.color = baseColor;
+        hpImage.transform.localScale = defaultScale;
 
         pulseSequence = DOTween.Sequence();
-        pulseSequence.Append(hpText.transform.DOScale(defaultScale * 1.2f, 0.1f).SetEase(Ease.OutQuad));
-        pulseSequence.Join(DOTween.To(() => hpText.color, c => hpText.color = c, flashColor, 0.1f).SetEase(Ease.OutQuad));
-        pulseSequence.Append(hpText.transform.DOScale(defaultScale, 0.14f).SetEase(Ease.InOutQuad));
-        pulseSequence.Join(DOTween.To(() => hpText.color, c => hpText.color = c, baseColor, 0.14f).SetEase(Ease.InOutQuad));
+        pulseSequence.Append(hpImage.transform.DOScale(defaultScale * 1.2f, 0.1f).SetEase(Ease.OutQuad));
+        pulseSequence.Append(hpImage.transform.DOScale(defaultScale, 0.14f).SetEase(Ease.InOutQuad));
         pulseSequence.OnKill(() =>
         {
-            if (hpText == null) return;
-            hpText.transform.localScale = defaultScale;
-            hpText.color = baseColor;
+            if (hpImage == null) return;
+            hpImage.transform.localScale = defaultScale;
         });
     }
 
