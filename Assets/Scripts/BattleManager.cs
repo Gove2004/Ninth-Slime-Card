@@ -140,6 +140,7 @@ public class BattleManager : MonoBehaviour
         CardFactory.ResetPlayerDeck();
         CardFactory.ResetEnemyDeck();
         献祭.ResetSacrificeBonus();
+        激光.ResetGlobalState();
 
         player = new Player();
         enemy = new EnemyBoss();

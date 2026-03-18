@@ -660,7 +660,8 @@ public class 反伤 : BaseCard
         Action<ulong, BaseCharacter> handler = (amount, source) =>
         {
             if (dot == null || dot.source == null) return;
-            if (dot.target != null) dot.source.DealDamage(dot.target, amount);
+            if (BaseCharacter.IsReflectDamageContext) return;
+            if (dot.target != null) dot.source.DealReflectDamage(dot.target, amount);
         };
 
         user.DamageTaken += handler;
@@ -945,6 +946,12 @@ public class 激光 : BaseCard
     private static ulong globalBonusDamage = 0;
     private static ulong globalExtraCost = 0;
 
+    public static void ResetGlobalState()
+    {
+        globalBonusDamage = 0;
+        globalExtraCost = 0;
+    }
+
     public 激光()
     {
         if (globalExtraCost > 0)
@@ -960,12 +967,6 @@ public class 激光 : BaseCard
 
         globalBonusDamage = BaseCharacter.SaturatingAdd(globalBonusDamage, Value);
         globalExtraCost = BaseCharacter.SaturatingAdd(globalExtraCost, 1);
-
-        if (BattleManager.Instance != null)
-        {
-            CardRuntimeHelper.SetHandCost(BattleManager.Instance.player, globalExtraCost + 1);
-            CardRuntimeHelper.SetHandCost(BattleManager.Instance.enemy, globalExtraCost + 1);
-        }
     }
 }
 

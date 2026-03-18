@@ -21,8 +21,10 @@ public abstract class BaseCharacter
     private ulong drawCountThisTurn = 0;
     private const ulong MaxDrawCostPerTurn = 5;
     private float damageTakenMultiplier = 1f;
+    private static int reflectDamageContextDepth = 0;
     public static BaseCard ActiveCardContext { get; set; }
     public static Dot ActiveDotContext { get; set; }
+    public static bool IsReflectDamageContext => reflectDamageContextDepth > 0;
     public BaseCard LastPlayedCard { get; private set; }
     public BaseCard PreviousPlayedCard { get; private set; }
     public BaseCard LastDamageCard { get; private set; }
@@ -254,6 +256,21 @@ public abstract class BaseCharacter
         if (target == null || amount == 0) return;
         long signedDamage = amount >= (ulong)long.MaxValue ? -long.MaxValue : -(long)amount;
         target.ApplyHealthChange(signedDamage, this);
+    }
+
+    public void DealReflectDamage(BaseCharacter target, ulong amount)
+    {
+        if (target == null || amount == 0) return;
+        long signedDamage = amount >= (ulong)long.MaxValue ? -long.MaxValue : -(long)amount;
+        reflectDamageContextDepth++;
+        try
+        {
+            target.ApplyHealthChange(signedDamage, this);
+        }
+        finally
+        {
+            reflectDamageContextDepth--;
+        }
     }
 
 
