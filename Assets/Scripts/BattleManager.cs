@@ -148,8 +148,6 @@ public class BattleManager : MonoBehaviour
         player.Target = enemy;
         enemy.Target = player;
 
-        player.StartTurn();
-
         player.ChangeHealth(0);  // 触发UI更新
         enemy.ChangeHealth(0);  // 触发UI更新
 

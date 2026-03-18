@@ -69,22 +69,16 @@ public abstract class BaseCharacter
         Action();
     }
 
-    // Deprecated synchronous StartTurn
+    // Backward-compatible entry point: routes to async turn processing.
     public void StartTurn()
     {
-        // Warn: This should not be called directly by BattleManager anymore for turn logic if we want async dots.
-        // But for compatibility, we can just call the routine on a temporary runner if needed, or just run sync logic.
-        // For now, let's keep the logic but we expect BattleManager to call StartTurnRoutine.
-        // To avoid duplication, we might just have this call StartTurnRoutine via a runner if we had one.
-        // But simpler: just implement the old logic synchronously here for fallback.
-        
-        EventCenter.Publish("TurnStart", this);
-        IsInTurn = true;
-        immuneThisTurn = false;
-        shiled = SaturatingSub(shiled, 3);
-        ApplyDots(); 
-        if (!IsInTurn) return;
-        Action();
+        if (BattleManager.Instance != null)
+        {
+            BattleManager.Instance.StartCoroutine(StartTurnRoutine());
+            return;
+        }
+
+        Debug.LogWarning("BattleManager.Instance is null, cannot start async turn routine.");
     }
 
     protected abstract void Action();
@@ -113,15 +107,6 @@ public abstract class BaseCharacter
     // DOT效果
     public List<Dot> dotBar = new List<Dot>();
     
-    // Sync version (legacy/fallback)
-    private void ApplyDots()
-    {
-        foreach (var effect in new List<Dot>(dotBar))
-        {
-            effect.Apply();
-        }
-    }
-
     // Async version
     private IEnumerator ApplyDotsRoutine()
     {
@@ -173,7 +158,33 @@ public abstract class BaseCharacter
     }
     public void TriggerDotsOnce()
     {
-        ApplyDots();
+        if (BattleManager.Instance != null)
+        {
+            BattleManager.Instance.StartCoroutine(ApplyDotsRoutine());
+            return;
+        }
+
+        Debug.LogWarning("BattleManager.Instance is null, cannot trigger async dot routine.");
+    }
+
+    public void TriggerDotsTimes(int times)
+    {
+        if (times <= 0) return;
+        if (BattleManager.Instance != null)
+        {
+            BattleManager.Instance.StartCoroutine(TriggerDotsTimesRoutine(times));
+            return;
+        }
+
+        Debug.LogWarning("BattleManager.Instance is null, cannot trigger async dot routine.");
+    }
+
+    private IEnumerator TriggerDotsTimesRoutine(int times)
+    {
+        for (int i = 0; i < times; i++)
+        {
+            yield return ApplyDotsRoutine();
+        }
     }
 
     public void SetImmuneThisTurn(bool value)

@@ -395,11 +395,8 @@ public class 结算 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         int times = ToInt(Value);
-        for (int i = 0; i < times; i++)
-        {
-            user.TriggerDotsOnce();
-            target?.TriggerDotsOnce();
-        }
+        user.TriggerDotsTimes(times);
+        target?.TriggerDotsTimes(times);
     }
 }
 
