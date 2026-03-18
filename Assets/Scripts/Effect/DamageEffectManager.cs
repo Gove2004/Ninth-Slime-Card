@@ -1,6 +1,8 @@
 using UnityEngine;
 using TMPro;
 using DG.Tweening;
+using System.Collections.Generic;
+using UnityEngine.UI;
 
 public class DamageEffectManager : MonoBehaviour
 {
@@ -17,6 +19,9 @@ public class DamageEffectManager : MonoBehaviour
     [Header("Settings")]
     public Vector2 playerEffectOffset = Vector2.zero;
     public Vector2 enemyEffectOffset = Vector2.zero;
+    [Header("Hit Flash")]
+    public Color hitFlashColor = new Color(1f, 0.35f, 0.35f, 1f);
+    public float hitFlashDuration = 0.16f;
     [Header("Screen Shake")]
     public float minShakeStrength = 0.12f;
     public float maxShakeStrength = 0.65f;
@@ -29,6 +34,10 @@ public class DamageEffectManager : MonoBehaviour
     public bool shakeSnapping = false;
     public float uiShakeStrengthMultiplier = 48f;
     private Tween screenShakeTween;
+    private readonly Dictionary<SpriteRenderer, Color> spriteBaseColors = new Dictionary<SpriteRenderer, Color>();
+    private readonly Dictionary<SpriteRenderer, Tween> spriteHitTweens = new Dictionary<SpriteRenderer, Tween>();
+    private readonly Dictionary<Graphic, Color> graphicBaseColors = new Dictionary<Graphic, Color>();
+    private readonly Dictionary<Graphic, Tween> graphicHitTweens = new Dictionary<Graphic, Tween>();
     private bool hasReparentedCanvasChildren;
     private Vector2 shakeRootBaseAnchoredPosition;
     private bool hasShakeRootBaseAnchoredPosition;
@@ -74,6 +83,7 @@ public class DamageEffectManager : MonoBehaviour
     private void OnDestroy()
     {
         StopScreenShake();
+        KillAllHitFlashTweens();
         if (BattleManager.Instance != null)
         {
             if (BattleManager.Instance.player != null)
@@ -134,13 +144,121 @@ public class DamageEffectManager : MonoBehaviour
     private void OnPlayerDamage(ulong amount, BaseCharacter source)
     {
         if (playerTransform == null) return;
+        PlayHitFlash(playerTransform);
         ShowEffect(playerTransform, amount, playerEffectOffset, source);
     }
 
     private void OnEnemyDamage(ulong amount, BaseCharacter source)
     {
         if (enemyTransform == null) return;
+        PlayHitFlash(enemyTransform);
         ShowEffect(enemyTransform, amount, enemyEffectOffset, source);
+    }
+
+    private void PlayHitFlash(Transform target)
+    {
+        if (target == null) return;
+
+        var sprites = target.GetComponentsInChildren<SpriteRenderer>(true);
+        for (int i = 0; i < sprites.Length; i++)
+        {
+            PlaySpriteHitFlash(sprites[i]);
+        }
+
+        var graphics = target.GetComponentsInChildren<Graphic>(true);
+        for (int i = 0; i < graphics.Length; i++)
+        {
+            PlayGraphicHitFlash(graphics[i]);
+        }
+    }
+
+    private void PlaySpriteHitFlash(SpriteRenderer sprite)
+    {
+        if (sprite == null) return;
+
+        if (!spriteBaseColors.TryGetValue(sprite, out var baseColor))
+        {
+            baseColor = sprite.color;
+            spriteBaseColors[sprite] = baseColor;
+        }
+
+        if (spriteHitTweens.TryGetValue(sprite, out var existing) && existing != null && existing.IsActive())
+        {
+            existing.Kill(false);
+        }
+
+        Color flash = hitFlashColor;
+        flash.a = baseColor.a;
+        float half = Mathf.Max(0.01f, hitFlashDuration * 0.5f);
+
+        sprite.color = baseColor;
+        var seq = DOTween.Sequence();
+        seq.Append(sprite.DOColor(flash, half).SetEase(Ease.OutQuad));
+        seq.Append(sprite.DOColor(baseColor, half).SetEase(Ease.InQuad));
+        seq.OnKill(() =>
+        {
+            if (sprite != null) sprite.color = baseColor;
+            if (spriteHitTweens.ContainsKey(sprite)) spriteHitTweens.Remove(sprite);
+        });
+        seq.OnComplete(() =>
+        {
+            if (sprite != null) sprite.color = baseColor;
+            spriteHitTweens.Remove(sprite);
+        });
+
+        spriteHitTweens[sprite] = seq;
+    }
+
+    private void PlayGraphicHitFlash(Graphic graphic)
+    {
+        if (graphic == null) return;
+
+        if (!graphicBaseColors.TryGetValue(graphic, out var baseColor))
+        {
+            baseColor = graphic.color;
+            graphicBaseColors[graphic] = baseColor;
+        }
+
+        if (graphicHitTweens.TryGetValue(graphic, out var existing) && existing != null && existing.IsActive())
+        {
+            existing.Kill(false);
+        }
+
+        Color flash = hitFlashColor;
+        flash.a = baseColor.a;
+        float half = Mathf.Max(0.01f, hitFlashDuration * 0.5f);
+
+        graphic.color = baseColor;
+        var seq = DOTween.Sequence();
+        seq.Append(graphic.DOColor(flash, half).SetEase(Ease.OutQuad));
+        seq.Append(graphic.DOColor(baseColor, half).SetEase(Ease.InQuad));
+        seq.OnKill(() =>
+        {
+            if (graphic != null) graphic.color = baseColor;
+            if (graphicHitTweens.ContainsKey(graphic)) graphicHitTweens.Remove(graphic);
+        });
+        seq.OnComplete(() =>
+        {
+            if (graphic != null) graphic.color = baseColor;
+            graphicHitTweens.Remove(graphic);
+        });
+
+        graphicHitTweens[graphic] = seq;
+    }
+
+    private void KillAllHitFlashTweens()
+    {
+        foreach (var kv in spriteHitTweens)
+        {
+            if (kv.Value != null && kv.Value.IsActive()) kv.Value.Kill(false);
+        }
+        spriteHitTweens.Clear();
+
+        foreach (var kv in graphicHitTweens)
+        {
+            if (kv.Value != null && kv.Value.IsActive()) kv.Value.Kill(false);
+        }
+        graphicHitTweens.Clear();
     }
 
     public void ShowFloatingText(Transform targetDetails, string text, Color color, Vector3? offsetOverride = null)

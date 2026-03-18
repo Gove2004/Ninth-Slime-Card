@@ -11,9 +11,9 @@ public class Player : BaseCharacter
         int difficultyLevel = GameManager.Instance.difficultyLevel;
         health = difficultyLevel switch
         {
-            1 => 150UL,
-            2 => 100UL,
-            _ => 50UL
+            1 => 10UL,
+            2 => 5UL,
+            _ => 1L
         };
         mana = difficultyLevel >= 3 ? 2UL : 3UL;
         autoManaPerTurn = difficultyLevel >= 3 ? 2UL : 3UL;
