@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using DG.Tweening;
 
 public class DamageEffectManager : MonoBehaviour
 {
@@ -10,10 +11,32 @@ public class DamageEffectManager : MonoBehaviour
     public Transform enemyTransform;
     public Canvas targetCanvas;
     public Camera uiCamera;
+    public Camera shakeCamera;
+    public RectTransform shakeRoot;
 
     [Header("Settings")]
     public Vector2 playerEffectOffset = Vector2.zero;
     public Vector2 enemyEffectOffset = Vector2.zero;
+    [Header("Screen Shake")]
+    public float minShakeStrength = 0.12f;
+    public float maxShakeStrength = 0.65f;
+    public float minShakeDuration = 0.08f;
+    public float maxShakeDuration = 0.2f;
+    public float shakeDamageUpperBound = 120f;
+    public int shakeVibrato = 24;
+    public float shakeRandomness = 90f;
+    public bool shakeFadeOut = true;
+    public bool shakeSnapping = false;
+    public float uiShakeStrengthMultiplier = 48f;
+    private Tween screenShakeTween;
+    private bool hasReparentedCanvasChildren;
+    private Vector2 shakeRootBaseAnchoredPosition;
+    private bool hasShakeRootBaseAnchoredPosition;
+    private RectTransform shakeRectTransform;
+    private Vector2 shakeRectBaseAnchoredPosition;
+    private bool hasShakeRectBaseAnchoredPosition;
+    private Vector3 shakeCameraBasePosition;
+    private bool hasShakeCameraBasePosition;
 
     private void Awake()
     {
@@ -23,10 +46,13 @@ public class DamageEffectManager : MonoBehaviour
     private void Start()
     {
         FindPositions();
+        EnsureShakeRoot();
+        ApplyVibrationSetting(GameSettings.VibrationEnabled);
 
         EventCenter.Register("BattleStarted", (obj) => 
         {
             FindPositions();
+            EnsureShakeRoot();
             SubscribeToCharacters();
         });
         
@@ -37,8 +63,17 @@ public class DamageEffectManager : MonoBehaviour
         }
     }
 
+    public void ApplyVibrationSetting(bool enabled)
+    {
+        if (!enabled)
+        {
+            StopScreenShake();
+        }
+    }
+
     private void OnDestroy()
     {
+        StopScreenShake();
         if (BattleManager.Instance != null)
         {
             if (BattleManager.Instance.player != null)
@@ -114,7 +149,7 @@ public class DamageEffectManager : MonoBehaviour
         if (canvas == null) return;
 
         GameObject popupObj = new GameObject("FloatingText_Center");
-        popupObj.transform.SetParent(canvas.transform, false);
+        popupObj.transform.SetParent(GetEffectParentTransform(canvas), false);
         
         RectTransform rect = popupObj.AddComponent<RectTransform>();
         rect.anchorMin = new Vector2(0, 0.5f);
@@ -135,12 +170,13 @@ public class DamageEffectManager : MonoBehaviour
         string sfxKey = isPlayerSource ? "斩击" : "毒液";
 
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(sfxKey);
+        PlayDamageScreenShake(amount);
 
         var canvas = GetCanvas();
         if (canvas == null) return;
 
         GameObject slashObj = new GameObject("SlashEffect");
-        slashObj.transform.SetParent(canvas.transform, false);
+        slashObj.transform.SetParent(GetEffectParentTransform(canvas), false);
         var slashRect = slashObj.AddComponent<RectTransform>();
         slashRect.sizeDelta = new Vector2(128, 128);
         slashRect.anchoredPosition = GetCanvasPosition(targetDetails.position) + offset;
@@ -154,7 +190,7 @@ public class DamageEffectManager : MonoBehaviour
         slash.Setup();
 
         GameObject popupObj = new GameObject("DamagePopup");
-        popupObj.transform.SetParent(canvas.transform, false);
+        popupObj.transform.SetParent(GetEffectParentTransform(canvas), false);
         var popupRect = popupObj.AddComponent<RectTransform>();
         popupRect.anchoredPosition = GetCanvasPosition(targetDetails.position) + offset;
         
@@ -172,7 +208,7 @@ public class DamageEffectManager : MonoBehaviour
         if (canvas == null) return;
 
         GameObject healObj = new GameObject("HealEffect");
-        healObj.transform.SetParent(canvas.transform, false);
+        healObj.transform.SetParent(GetEffectParentTransform(canvas), false);
         var healRect = healObj.AddComponent<RectTransform>();
         healRect.sizeDelta = new Vector2(128, 128);
         healRect.anchoredPosition = GetCanvasPosition(targetDetails.position) + offset;
@@ -185,7 +221,7 @@ public class DamageEffectManager : MonoBehaviour
         slash.Setup();
 
         GameObject popupObj = new GameObject("HealPopup");
-        popupObj.transform.SetParent(canvas.transform, false);
+        popupObj.transform.SetParent(GetEffectParentTransform(canvas), false);
         var popupRect = popupObj.AddComponent<RectTransform>();
         popupRect.anchoredPosition = GetCanvasPosition(targetDetails.position) + offset;
         
@@ -207,6 +243,187 @@ public class DamageEffectManager : MonoBehaviour
         if (uiCamera != null) return uiCamera;
         if (canvas != null && canvas.worldCamera != null) return canvas.worldCamera;
         return Camera.main;
+    }
+
+    private Camera GetShakeCamera()
+    {
+        if (shakeCamera != null) return shakeCamera;
+        if (Camera.main != null) return Camera.main;
+        if (uiCamera != null) return uiCamera;
+        if (Camera.allCamerasCount > 0)
+        {
+            var cameras = Camera.allCameras;
+            for (int i = 0; i < cameras.Length; i++)
+            {
+                if (cameras[i] != null && cameras[i].enabled) return cameras[i];
+            }
+        }
+        return null;
+    }
+
+    private RectTransform EnsureShakeRoot()
+    {
+        var canvas = GetCanvas();
+        if (canvas == null) return null;
+
+        if (shakeRoot == null)
+        {
+            var existing = canvas.transform.Find("ScreenShakeRoot");
+            if (existing != null) shakeRoot = existing as RectTransform;
+        }
+
+        if (shakeRoot == null)
+        {
+            var rootObj = new GameObject("ScreenShakeRoot");
+            shakeRoot = rootObj.AddComponent<RectTransform>();
+            shakeRoot.SetParent(canvas.transform, false);
+        }
+        var canvasRect = canvas.transform as RectTransform;
+        shakeRoot.anchorMin = new Vector2(0.5f, 0.5f);
+        shakeRoot.anchorMax = new Vector2(0.5f, 0.5f);
+        shakeRoot.pivot = new Vector2(0.5f, 0.5f);
+        shakeRoot.anchoredPosition = Vector2.zero;
+        shakeRoot.localScale = Vector3.one;
+        if (canvasRect != null)
+        {
+            shakeRoot.sizeDelta = canvasRect.rect.size;
+        }
+
+        if (!hasReparentedCanvasChildren)
+        {
+            int childCount = canvas.transform.childCount;
+            var children = new Transform[childCount];
+            for (int i = 0; i < childCount; i++)
+            {
+                children[i] = canvas.transform.GetChild(i);
+            }
+            for (int i = 0; i < children.Length; i++)
+            {
+                var child = children[i];
+                if (child == null || child == shakeRoot) continue;
+                child.SetParent(shakeRoot, true);
+            }
+            hasReparentedCanvasChildren = true;
+        }
+
+        if (!hasShakeRootBaseAnchoredPosition)
+        {
+            shakeRootBaseAnchoredPosition = shakeRoot.anchoredPosition;
+            hasShakeRootBaseAnchoredPosition = true;
+        }
+
+        return shakeRoot;
+    }
+
+    private Transform GetEffectParentTransform(Canvas canvas)
+    {
+        var root = EnsureShakeRoot();
+        if (root != null) return root;
+        return canvas.transform;
+    }
+
+    private RectTransform GetShakeRectTransform()
+    {
+        if (shakeRectTransform != null) return shakeRectTransform;
+        var canvas = GetCanvas();
+        if (canvas == null) return null;
+        shakeRectTransform = canvas.transform as RectTransform;
+        return shakeRectTransform;
+    }
+
+    private static float ClampToFloat(ulong value)
+    {
+        if (value >= (ulong)int.MaxValue) return int.MaxValue;
+        return value;
+    }
+
+    private void PlayDamageScreenShake(ulong damageAmount)
+    {
+        if (damageAmount == 0) return;
+        if (!GameSettings.VibrationEnabled) return;
+
+        float damage = ClampToFloat(damageAmount);
+        float upperBound = Mathf.Max(1f, shakeDamageUpperBound);
+        float t = Mathf.Clamp01(damage / upperBound);
+        float strength = Mathf.Lerp(minShakeStrength, maxShakeStrength, t);
+        float duration = Mathf.Lerp(minShakeDuration, maxShakeDuration, t);
+
+        var shakeRect = EnsureShakeRoot();
+        if (shakeRect == null) shakeRect = GetShakeRectTransform();
+        if (shakeRect != null)
+        {
+            if (!hasShakeRectBaseAnchoredPosition || shakeRectTransform != shakeRect)
+            {
+                shakeRectTransform = shakeRect;
+                if (shakeRect == shakeRoot && hasShakeRootBaseAnchoredPosition)
+                {
+                    shakeRectBaseAnchoredPosition = shakeRootBaseAnchoredPosition;
+                }
+                else
+                {
+                    shakeRectBaseAnchoredPosition = shakeRect.anchoredPosition;
+                }
+                hasShakeRectBaseAnchoredPosition = true;
+            }
+
+            StopScreenShake();
+            shakeRect.anchoredPosition = shakeRectBaseAnchoredPosition;
+            float uiStrength = strength * Mathf.Max(1f, uiShakeStrengthMultiplier);
+            screenShakeTween = shakeRect.DOShakeAnchorPos(duration, uiStrength, shakeVibrato, shakeRandomness, shakeSnapping, shakeFadeOut);
+            screenShakeTween.OnKill(() =>
+            {
+                if (shakeRect == null) return;
+                shakeRect.anchoredPosition = shakeRectBaseAnchoredPosition;
+                if (screenShakeTween != null && !screenShakeTween.IsActive()) screenShakeTween = null;
+            });
+            screenShakeTween.OnComplete(() =>
+            {
+                if (shakeRect == null) return;
+                shakeRect.anchoredPosition = shakeRectBaseAnchoredPosition;
+                screenShakeTween = null;
+            });
+            return;
+        }
+
+        var cam = GetShakeCamera();
+        if (cam == null) return;
+        if (!hasShakeCameraBasePosition || shakeCamera != cam)
+        {
+            shakeCamera = cam;
+            shakeCameraBasePosition = cam.transform.position;
+            hasShakeCameraBasePosition = true;
+        }
+
+        StopScreenShake();
+        cam.transform.position = shakeCameraBasePosition;
+        screenShakeTween = cam.transform.DOShakePosition(duration, strength, shakeVibrato, shakeRandomness, shakeSnapping, shakeFadeOut);
+        screenShakeTween.OnKill(() =>
+        {
+            if (cam == null) return;
+            cam.transform.position = shakeCameraBasePosition;
+            if (screenShakeTween != null && !screenShakeTween.IsActive()) screenShakeTween = null;
+        });
+        screenShakeTween.OnComplete(() =>
+        {
+            if (cam == null) return;
+            cam.transform.position = shakeCameraBasePosition;
+            screenShakeTween = null;
+        });
+    }
+
+    private void StopScreenShake()
+    {
+        if (screenShakeTween == null) return;
+        screenShakeTween.Kill(false);
+        screenShakeTween = null;
+        if (shakeRectTransform != null && hasShakeRectBaseAnchoredPosition)
+        {
+            shakeRectTransform.anchoredPosition = shakeRectBaseAnchoredPosition;
+        }
+        if (shakeCamera != null && hasShakeCameraBasePosition)
+        {
+            shakeCamera.transform.position = shakeCameraBasePosition;
+        }
     }
 
     private Vector2 GetCanvasPosition(Vector3 worldPosition)

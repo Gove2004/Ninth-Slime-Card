@@ -6,6 +6,7 @@ public class MainUI : MonoBehaviour
 {
     public Button startBattleButton;
     public Button introButton;
+    public Button settingsButton;
     public Button teamButton;
     public Button achievementButton;
     public InfoPanel infoPanel;
@@ -18,6 +19,7 @@ public class MainUI : MonoBehaviour
         EnsureReferences();
         if (startBattleButton != null) startBattleButton.onClick.AddListener(OnStartBattleClicked);
         if (introButton != null) introButton.onClick.AddListener(OnIntroClicked);
+        if (settingsButton != null && settingsButton != introButton) settingsButton.onClick.AddListener(OnSettingsClicked);
         if (teamButton != null) teamButton.onClick.AddListener(OnTeamClicked);
         if (achievementButton == null)
         {
@@ -65,6 +67,14 @@ public class MainUI : MonoBehaviour
         }
     }
 
+    private void OnSettingsClicked()
+    {
+        if (infoPanel != null)
+        {
+            infoPanel.ShowSettings();
+        }
+    }
+
     private void OnAchievementClicked()
     {
         if (infoPanel != null)
@@ -96,6 +106,18 @@ public class MainUI : MonoBehaviour
 
     private void EnsureReferences()
     {
+        if (settingsButton == null)
+        {
+            var buttons = FindObjectsOfType<Button>(true);
+            foreach (var button in buttons)
+            {
+                if (button != null && button.gameObject.name == "设置")
+                {
+                    settingsButton = button;
+                    break;
+                }
+            }
+        }
         if (dropdown == null)
         {
             dropdown = GetComponentInChildren<TMP_Dropdown>(true);
