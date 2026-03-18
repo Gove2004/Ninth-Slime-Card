@@ -13,7 +13,9 @@ public class BattleUI : MonoBehaviour
 
     public TextMeshProUGUI turnText;
 
+    private TextMeshProUGUI drawCardButtonText;
     private TextMeshProUGUI endTurnButtonText;
+    private ulong lastDrawCost = ulong.MaxValue;
     private ulong lastAutoMana = 0;
     private bool hasLastAutoMana = false;
 
@@ -28,6 +30,7 @@ public class BattleUI : MonoBehaviour
         if (endTurnButton != null) endTurnButton.onClick.AddListener(OnEndTurnClicked);
         if (exitButton != null) exitButton.onClick.AddListener(OnExitClicked);
 
+        if (drawCardButton != null) drawCardButtonText = drawCardButton.GetComponentInChildren<TextMeshProUGUI>();
         if (endTurnButton != null) endTurnButtonText = endTurnButton.GetComponentInChildren<TextMeshProUGUI>();
 
         EventCenter.Register("TurnStart", (param) => ShowNewTurnInfo());
@@ -179,6 +182,12 @@ public class BattleUI : MonoBehaviour
             if (drawCardButton != null) drawCardButton.interactable = isPlayerTurn && player.mana >= drawCost && player.Cards.Count < Player.HandLimit;
             if (playCardButton != null) playCardButton.interactable = isPlayerTurn && cardList.AblePlay;
             if (endTurnButton != null) endTurnButton.interactable = isPlayerTurn;
+
+            if (drawCardButtonText != null && lastDrawCost != drawCost)
+            {
+                lastDrawCost = drawCost;
+                drawCardButtonText.text = $"抽牌（A）\n(消耗{drawCost}魔力)";
+            }
 
             if (!hasLastAutoMana || player.autoManaPerTurn != lastAutoMana)
             {

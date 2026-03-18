@@ -113,13 +113,16 @@ public abstract class BaseCharacter
     public List<Dot> dotBar = new List<Dot>();
     
     // Async version
-    private IEnumerator ApplyDotsRoutine()
+    private IEnumerator ApplyDotsRoutine(bool fastMode = false)
     {
         var dotsToProcess = new List<Dot>(dotBar);
         if (dotsToProcess.Count > 0)
         {
-            float maxTotalDuration = 10f;
-            float delay = Mathf.Min(0.5f, maxTotalDuration / dotsToProcess.Count);
+            float maxTotalDuration = fastMode ? 0.8f : 2.2f;
+            float minDelayPerDot = fastMode ? 0.01f : 0.03f;
+            float maxDelayPerDot = fastMode ? 0.06f : 0.15f;
+            float delay = Mathf.Clamp(maxTotalDuration / dotsToProcess.Count, minDelayPerDot, maxDelayPerDot);
+            bool showDescription = !fastMode;
 
             Transform targetTransform = null;
             if (DamageEffectManager.Instance != null)
@@ -134,7 +137,7 @@ public abstract class BaseCharacter
             foreach (var effect in dotsToProcess)
             {
                 // Show Description
-                if (targetTransform != null && DamageEffectManager.Instance != null)
+                if (showDescription && targetTransform != null && DamageEffectManager.Instance != null)
                 {
                     DamageEffectManager.Instance.ShowFloatingText(targetTransform, effect.description?.Invoke() ?? "", Color.yellow);
                 }
@@ -165,7 +168,7 @@ public abstract class BaseCharacter
     {
         if (BattleManager.Instance != null)
         {
-            BattleManager.Instance.StartCoroutine(ApplyDotsRoutine());
+            BattleManager.Instance.StartCoroutine(ApplyDotsRoutine(true));
             return;
         }
 
@@ -188,7 +191,7 @@ public abstract class BaseCharacter
     {
         for (int i = 0; i < times; i++)
         {
-            yield return ApplyDotsRoutine();
+            yield return ApplyDotsRoutine(true);
         }
     }
 

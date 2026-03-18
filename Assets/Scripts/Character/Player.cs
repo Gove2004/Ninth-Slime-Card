@@ -12,8 +12,8 @@ public class Player : BaseCharacter
         health = difficultyLevel switch
         {
             1 => 10UL,
-            2 => 5UL,
-            _ => 1L
+            2 => 6UL,
+            _ => 3L
         };
         mana = difficultyLevel >= 3 ? 2UL : 3UL;
         autoManaPerTurn = difficultyLevel >= 3 ? 2UL : 3UL;
