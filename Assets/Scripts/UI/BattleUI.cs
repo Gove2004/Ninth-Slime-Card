@@ -175,7 +175,8 @@ public class BattleUI : MonoBehaviour
         {
             Player player = (Player)BattleManager.Instance.player;
             bool isPlayerTurn = player.isReady;
-            if (drawCardButton != null) drawCardButton.interactable = isPlayerTurn && player.mana >= 1 && player.Cards.Count < Player.HandLimit;
+            ulong drawCost = player.GetCurrentDrawCardCost();
+            if (drawCardButton != null) drawCardButton.interactable = isPlayerTurn && player.mana >= drawCost && player.Cards.Count < Player.HandLimit;
             if (playCardButton != null) playCardButton.interactable = isPlayerTurn && cardList.AblePlay;
             if (endTurnButton != null) endTurnButton.interactable = isPlayerTurn;
 

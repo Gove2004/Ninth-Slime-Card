@@ -6,6 +6,10 @@ using UnityEngine;
 
 public class EnemyBoss : BaseCharacter
 {
+    private const int InitialThinkMinMs = 350;
+    private const int InitialThinkMaxMs = 900;
+    private const int ActionGapMinMs = 220;
+    private const int ActionGapMaxMs = 650;
     private CancellationTokenSource _cts;
     private bool isDead = false;
     public ulong score { get; private set; }
@@ -118,10 +122,10 @@ public class EnemyBoss : BaseCharacter
 
     private static ulong GetThresholdForPhase(int phase)
     {
-        if (phase <= 1) return 30;
-        if (phase == 2) return 50;
-        ulong prev = 30;
-        ulong current = 50;
+        if (phase <= 1) return 3;
+        if (phase == 2) return 5;
+        ulong prev = 3;
+        ulong current = 5;
         for (int i = 3; i <= phase; i++)
         {
             ulong next = SaturatingAdd(prev, current);
@@ -138,7 +142,7 @@ public class EnemyBoss : BaseCharacter
         float manaFactor = Mathf.InverseLerp(3f, 12f, ClampToFloat(mana));
         float handFactor = Mathf.InverseLerp(3f, 10f, Cards.Count);
         float t = Mathf.Clamp01(Mathf.Max(manaFactor, handFactor));
-        return Mathf.Lerp(1f, 0.35f, t);
+        return Mathf.Lerp(0.55f, 0.22f, t);
     }
 
     private static float ClampToFloat(ulong value)
@@ -147,11 +151,11 @@ public class EnemyBoss : BaseCharacter
         return value;
     }
 
-    private async Task WaitRandomSeconds(CancellationToken token, int min = 1000, int max = 3000)
+    private async Task WaitRandomSeconds(CancellationToken token, int min = ActionGapMinMs, int max = ActionGapMaxMs)
     {
         float scale = GetAISpeedScale();
-        int scaledMin = Mathf.Max(200, Mathf.RoundToInt(min * scale));
-        int scaledMax = Mathf.Max(scaledMin + 50, Mathf.RoundToInt(max * scale));
+        int scaledMin = Mathf.Max(120, Mathf.RoundToInt(min * scale));
+        int scaledMax = Mathf.Max(scaledMin + 40, Mathf.RoundToInt(max * scale));
         int delay = Random.Range(scaledMin, scaledMax);
         float duration = delay / 1000f;
         float elapsed = 0f;
@@ -171,7 +175,7 @@ public class EnemyBoss : BaseCharacter
 
     private async Task AIAction(CancellationToken token)
     {
-        await WaitRandomSeconds(token);
+        await WaitRandomSeconds(token, InitialThinkMinMs, InitialThinkMaxMs);
         
         while (!token.IsCancellationRequested)
         {
@@ -200,7 +204,7 @@ public class EnemyBoss : BaseCharacter
 
                     EventCenter.Publish("Enemy_PlayedCard", playable);
 
-                    await WaitRandomSeconds(token);
+                    await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
                     continue;
                 }
             }
@@ -211,7 +215,7 @@ public class EnemyBoss : BaseCharacter
 
                 EventCenter.Publish("Enemy_DrewCard", card);
 
-                await WaitRandomSeconds(token);
+                await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
                 continue;
             }
 

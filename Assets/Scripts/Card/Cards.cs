@@ -239,21 +239,36 @@ public class 闪击 : BaseCard
 public class 重奏 : BaseCard
 {
     protected override int id => 1110;
+    private static bool isResolving;
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
+        if (isResolving) return;
         int times = ToInt(Value);
         if (times <= 0) return;
 
         BaseCard previous = user.PreviousPlayedCard;
         if (previous == null) return;
-
-        for (int i = 0; i < times; i++)
+        if (ReferenceEquals(previous, this) || previous is 重奏)
         {
-            var oldContext = BaseCharacter.ActiveCardContext;
-            BaseCharacter.ActiveCardContext = previous;
-            previous.Execute(user, target);
-            BaseCharacter.ActiveCardContext = oldContext;
+            Debug.LogWarning("重奏无法复制重奏，已跳过以避免递归。");
+            return;
+        }
+
+        isResolving = true;
+        try
+        {
+            for (int i = 0; i < times; i++)
+            {
+                var oldContext = BaseCharacter.ActiveCardContext;
+                BaseCharacter.ActiveCardContext = previous;
+                previous.Execute(user, target);
+                BaseCharacter.ActiveCardContext = oldContext;
+            }
+        }
+        finally
+        {
+            isResolving = false;
         }
     }
 }

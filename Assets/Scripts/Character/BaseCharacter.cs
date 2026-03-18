@@ -18,6 +18,8 @@ public abstract class BaseCharacter
     private bool immuneSelfDamage = false;
     private ulong overclockMultiplier = 1;
     protected int extraCardDuration = 0;
+    private ulong drawCountThisTurn = 0;
+    private const ulong MaxDrawCostPerTurn = 5;
     private float damageTakenMultiplier = 1f;
     public static BaseCard ActiveCardContext { get; set; }
     public static Dot ActiveDotContext { get; set; }
@@ -60,6 +62,7 @@ public abstract class BaseCharacter
 
         IsInTurn = true;
         immuneThisTurn = false;
+        drawCountThisTurn = 0;
 
         shiled = SaturatingSub(shiled, 3);  // 另一个方案是每回合衰减3
 
@@ -318,6 +321,12 @@ public abstract class BaseCharacter
 
     public BaseCard DrawCard(ulong cost = 1)
     {
+        bool useProgressiveCost = cost == 1;
+        if (useProgressiveCost)
+        {
+            cost = GetCurrentDrawCardCost();
+        }
+
         if (IsHandFull) return null;
         if (mana < cost) return null;  // 抽卡需要消耗法力值
         ChangeMana(-(long)Math.Min(cost, (ulong)long.MaxValue));  // 抽卡消耗指定点法力值
@@ -338,7 +347,18 @@ public abstract class BaseCharacter
 
         EventCenter.Publish("CardDrawn", baseCard);
 
+        if (useProgressiveCost)
+        {
+            drawCountThisTurn = SaturatingAdd(drawCountThisTurn, 1);
+        }
+
         return baseCard;
+    }
+
+    public ulong GetCurrentDrawCardCost()
+    {
+        if (drawCountThisTurn >= MaxDrawCostPerTurn) return MaxDrawCostPerTurn;
+        return drawCountThisTurn;
     }
 
     public void PlayCard(BaseCard card)
