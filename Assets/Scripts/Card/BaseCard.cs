@@ -55,6 +55,16 @@ public abstract class BaseCard
         Value = BaseCharacter.SaturatingMultiply(Value, multiplier);
     }
 
+    public void SetCost(ulong cost)
+    {
+        Cost = cost;
+    }
+
+    public void AddCost(ulong amount)
+    {
+        Cost = BaseCharacter.SaturatingAdd(Cost, amount);
+    }
+
     public void AddDuration(int amount)
     {
         if (amount == 0) return;

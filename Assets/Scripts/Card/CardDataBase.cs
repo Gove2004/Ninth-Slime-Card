@@ -11,6 +11,7 @@ public static class CardDatabase
     {
         public int id;
         public string name;
+        public string series;
         public ulong cost;
         public ulong value;
         public int duration;
@@ -140,7 +141,7 @@ public static class CardDatabase
                 
                 // 解析CSV行
                 string[] fields = ParseCsvLine(line);
-                if (fields.Length < 8)
+                if (fields.Length < 7)
                 {
                     Debug.LogWarning($"CSV行字段不足，跳过: {line}");
                     continue;
@@ -153,19 +154,19 @@ public static class CardDatabase
                     Debug.LogWarning($"卡牌ID解析失败: {fields[0]}");
                     continue;
                 }
-                if (!ulong.TryParse(fields[2], out ulong costValue))
+                if (!ulong.TryParse(fields[3], out ulong costValue))
                 {
-                    Debug.LogWarning($"卡牌成本解析失败，ID={idValue}: {fields[2]}");
+                    Debug.LogWarning($"卡牌成本解析失败，ID={idValue}: {fields[3]}");
                     continue;
                 }
-                if (!ulong.TryParse(fields[3], out ulong valueValue))
+                if (!ulong.TryParse(fields[4], out ulong valueValue))
                 {
-                    Debug.LogWarning($"卡牌价值解析失败，ID={idValue}: {fields[3]}");
+                    Debug.LogWarning($"卡牌价值解析失败，ID={idValue}: {fields[4]}");
                     continue;
                 }
-                if (!int.TryParse(fields[4], out int durationValue))
+                if (!int.TryParse(fields[5], out int durationValue))
                 {
-                    Debug.LogWarning($"卡牌持续时间解析失败，ID={idValue}: {fields[4]}");
+                    Debug.LogWarning($"卡牌持续时间解析失败，ID={idValue}: {fields[5]}");
                     continue;
                 }
                 
@@ -173,12 +174,13 @@ public static class CardDatabase
                 {
                     id = idValue,
                     name = fields[1],
+                    series = fields[2],
                     cost = costValue,
                     value = valueValue,
                     duration = durationValue,
-                    effect = fields[5],
-                    imagePath = fields[6],
-                    remark = fields[7]
+                    effect = fields[6],
+                    imagePath = "卡牌/" + fields[1], // 默认图片路径为 "卡牌/卡牌名称"
+                    remark = fields.Length > 8 ? fields[8] : string.Empty
                 };
                 
                 // 添加到字典
@@ -192,18 +194,9 @@ public static class CardDatabase
     // 解析CSV行（简单实现）
     private static string[] ParseCsvLine(string line)
     {
-        // 简单分割并去除字段两端空白（适用于没有逗号的字段）
-        string[] fields = line.Split(',');
-        for (int i = 0; i < fields.Length; i++)
-        {
-            fields[i] = fields[i].Trim();
-        }
-        return fields;
-        
-        /* 如果需要处理引号内的逗号，可以使用更复杂的解析：
         List<string> fields = new List<string>();
         bool inQuotes = false;
-        string currentField = "";
+        string currentField = string.Empty;
         
         for (int i = 0; i < line.Length; i++)
         {
@@ -211,12 +204,20 @@ public static class CardDatabase
             
             if (c == '"')
             {
-                inQuotes = !inQuotes;
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    currentField += '"';
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
             }
             else if (c == ',' && !inQuotes)
             {
-                fields.Add(currentField);
-                currentField = "";
+                fields.Add(currentField.Trim());
+                currentField = string.Empty;
             }
             else
             {
@@ -224,9 +225,8 @@ public static class CardDatabase
             }
         }
         
-        fields.Add(currentField);
+        fields.Add(currentField.Trim());
         return fields.ToArray();
-        */
     }
     
     // 获取卡牌数据

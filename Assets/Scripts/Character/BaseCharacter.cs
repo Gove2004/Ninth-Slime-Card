@@ -21,6 +21,8 @@ public abstract class BaseCharacter
     private float damageTakenMultiplier = 1f;
     public static BaseCard ActiveCardContext { get; set; }
     public static Dot ActiveDotContext { get; set; }
+    public BaseCard LastPlayedCard { get; private set; }
+    public BaseCard PreviousPlayedCard { get; private set; }
     public BaseCard LastDamageCard { get; private set; }
     public Dot LastDamageDot { get; private set; }
     public BaseCharacter LastDamageSource { get; private set; }
@@ -349,6 +351,9 @@ public abstract class BaseCharacter
             // 从手牌中移除卡牌
             Cards.Remove(card);
 
+            PreviousPlayedCard = LastPlayedCard;
+            LastPlayedCard = card;
+
             // 使用卡牌效果
             var previousContext = ActiveCardContext;
             ActiveCardContext = card;
@@ -356,6 +361,7 @@ public abstract class BaseCharacter
             ActiveCardContext = previousContext;
 
             EventCenter.Publish("CardPlayed", card);
+            EventCenter.Publish("Character_PlayCardExecuted", this);
             if (this is Player)
             {
                 EventCenter.Publish("Player_PlayCardExecuted", card);

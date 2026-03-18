@@ -87,10 +87,10 @@ public static class CardFactory
     {
         return new HashSet<string>
         {
-            "偷窃", "偷月", "偷魔",
-            "恢复", "吸取", "生命彩票", "反伤", "吸血", "增援未来", "暴食", "急救",
+            "偷窃", "偷梁", "偷魔",
+            "恢复", "吸血", "命签", "反伤", "血契", "未来", "暴食", "急救",
             "逃避", "傲慢",
-            "七宗罪"
+            "七罪"
         };
     }
 
@@ -125,9 +125,10 @@ public static class CardFactory
     // 这是玩家的牌组, 是一个权重字典
     private static List<BaseCard> playerDeck = new()
     {
-        new 流血(), new 流血(), new 流血(), new 流血(),
-        new 恢复(), new 恢复(), new 恢复(), new 恢复(),
-        new 入魔(), new 入魔()
+        new 流血(), new 流血(), new 流血(),
+        new 恢复(), new 恢复(), new 恢复(),
+        new 入魔(), new 入魔(),
+        new 抽牌(), new 抽牌()
     };
 
     // 从中抽取一张
@@ -155,9 +156,10 @@ public static class CardFactory
     {
         playerDeck = new List<BaseCard>
         {
-            new 流血(), new 流血(), new 流血(), new 流血(),
-            new 恢复(), new 恢复(), new 恢复(), new 恢复(),
-            new 入魔(), new 入魔()
+            new 流血(), new 流血(), new 流血(),
+            new 恢复(), new 恢复(), new 恢复(),
+            new 入魔(), new 入魔(),
+            new 抽牌(), new 抽牌()
         };
     }
 
