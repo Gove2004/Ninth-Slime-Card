@@ -5,6 +5,7 @@ using UnityEngine;
 public class AchievementManager : MonoBehaviour
 {
     public static AchievementManager Instance { get; private set; }
+    public const string AchievementUnlockedEvent = "Achievement_Unlocked";
 
     public enum AchievementType
     {
@@ -33,6 +34,13 @@ public class AchievementManager : MonoBehaviour
         public bool completed;
     }
 
+    public class AchievementUnlockedInfo
+    {
+        public string id;
+        public string name;
+        public string description;
+    }
+
     private const string TotalScoreKey = "Achievement_TotalScore";
     private const string TotalDrawKey = "Achievement_TotalDraw";
     private const string TotalPlayKey = "Achievement_TotalPlay";
@@ -48,6 +56,96 @@ public class AchievementManager : MonoBehaviour
 
     private readonly List<AchievementDefinition> definitions = new();
     private readonly HashSet<string> customCompleted = new();
+    private static readonly ulong[] NumericMilestones =
+    {
+        10UL,
+        100UL,
+        1000UL,
+        10000UL,
+        100000UL,
+        1000000UL,
+        10000000UL,
+        100000000UL,
+        1000000000UL,
+        10000000000UL,
+        100000000000UL,
+        1000000000000UL
+    };
+    private static readonly string[] ScoreTitles =
+    {
+        "小试牛刀",
+        "越打越顺",
+        "火力全开",
+        "刀刀见血",
+        "战意沸腾",
+        "人形轰炸机",
+        "势不可挡",
+        "毁灭节拍",
+        "战场主宰",
+        "一击清屏",
+        "神挡杀神",
+        "牛逼哄哄"
+    };
+    private static readonly string[] DrawTitles =
+    {
+        "摸牌起手",
+        "牌感在线",
+        "连抽不断",
+        "手速飞快",
+        "牌库老友",
+        "抽牌成瘾",
+        "过牌机器",
+        "卡海漫游",
+        "抽到手软",
+        "牌局导演",
+        "天胡常客",
+        "万牌归宗"
+    };
+    private static readonly string[] PlayTitles =
+    {
+        "初次落子",
+        "连招入门",
+        "出牌流畅",
+        "节奏拉满",
+        "回合艺术家",
+        "操作怪",
+        "手牌指挥官",
+        "连锁反应",
+        "战术宗师",
+        "一回合剧本",
+        "牌局编年史",
+        "万法归一"
+    };
+    private static readonly string[] ManaTitles =
+    {
+        "蓝量起步",
+        "法力汹涌",
+        "源能奔流",
+        "魔潮涌动",
+        "能量暴涨",
+        "法力熔炉",
+        "奥术引擎",
+        "无穷供能",
+        "蓝海翻腾",
+        "永动核心",
+        "星核供电",
+        "法力天灾"
+    };
+    private static readonly string[] HealTitles =
+    {
+        "止血成功",
+        "小有起色",
+        "稳住阵脚",
+        "起死回生",
+        "再战三百回",
+        "续航怪物",
+        "血条重铸",
+        "不灭意志",
+        "生机洪流",
+        "永生错觉",
+        "涅槃往复",
+        "不朽之躯"
+    };
     private Action onDrawUnsub;
     private Action onPlayUnsub;
     private Action onManaUnsub;
@@ -56,6 +154,7 @@ public class AchievementManager : MonoBehaviour
     private Action onSevenSinsUnsub;
     private Action onOverheatUnsub;
     private Action onStolenKillUnsub;
+    private Action onEnemyDeadUnsub;
 
     private void Awake()
     {
@@ -71,6 +170,7 @@ public class AchievementManager : MonoBehaviour
         BuildDefinitions();
         LoadCustom();
         RegisterEvents();
+        AchievementToast.EnsureInstance();
     }
 
     private void OnDestroy()
@@ -83,40 +183,51 @@ public class AchievementManager : MonoBehaviour
         onSevenSinsUnsub?.Invoke();
         onOverheatUnsub?.Invoke();
         onStolenKillUnsub?.Invoke();
+        onEnemyDeadUnsub?.Invoke();
     }
 
     public void AddScore(ulong amount)
     {
         if (amount == 0) return;
+        ulong before = TotalScore;
         TotalScore = BaseCharacter.SaturatingAdd(TotalScore, amount);
+        TryNotifyNumericUnlock(AchievementType.Score, before, TotalScore);
         Save();
     }
 
     public void AddDraw(ulong amount)
     {
         if (amount == 0) return;
+        ulong before = TotalDraw;
         TotalDraw = BaseCharacter.SaturatingAdd(TotalDraw, amount);
+        TryNotifyNumericUnlock(AchievementType.Draw, before, TotalDraw);
         Save();
     }
 
     public void AddPlay(ulong amount)
     {
         if (amount == 0) return;
+        ulong before = TotalPlay;
         TotalPlay = BaseCharacter.SaturatingAdd(TotalPlay, amount);
+        TryNotifyNumericUnlock(AchievementType.Play, before, TotalPlay);
         Save();
     }
 
     public void AddMana(ulong amount)
     {
         if (amount == 0) return;
+        ulong before = TotalMana;
         TotalMana = BaseCharacter.SaturatingAdd(TotalMana, amount);
+        TryNotifyNumericUnlock(AchievementType.Mana, before, TotalMana);
         Save();
     }
 
     public void AddHeal(ulong amount)
     {
         if (amount == 0) return;
+        ulong before = TotalHeal;
         TotalHeal = BaseCharacter.SaturatingAdd(TotalHeal, amount);
+        TryNotifyNumericUnlock(AchievementType.Heal, before, TotalHeal);
         Save();
     }
 
@@ -155,41 +266,55 @@ public class AchievementManager : MonoBehaviour
             if (obj is BaseCard card && card.Cost >= 1024) UnlockCustom("overheat");
         });
         onStolenKillUnsub = EventCenter.Register("Achievement_KilledByStolenCard", (obj) => UnlockCustom("double_agent"));
+        onEnemyDeadUnsub = EventCenter.Register("EnemyDead", (obj) =>
+        {
+            if (GameManager.Instance == null) return;
+
+            switch (GameManager.Instance.difficultyLevel)
+            {
+                case 1:
+                    UnlockCustom("clear_easy");
+                    break;
+                case 2:
+                    UnlockCustom("clear_hard");
+                    break;
+                case 3:
+                    UnlockCustom("clear_hell");
+                    break;
+            }
+        });
     }
 
     private void BuildDefinitions()
     {
         if (definitions.Count > 0) return;
 
-        AddDef("score_10", "初窥门径", AchievementType.Score, 10);
-        AddDef("score_100", "小有成就", AchievementType.Score, 100);
-        AddDef("score_1000", "得分专家", AchievementType.Score, 1000);
-        AddDef("score_10000", "登峰造极", AchievementType.Score, 10000);
-
-        AddDef("draw_1", "抽牌新手", AchievementType.Draw, 1);
-        AddDef("draw_10", "抽牌熟练", AchievementType.Draw, 10);
-        AddDef("draw_100", "抽牌达人", AchievementType.Draw, 100);
-        AddDef("draw_1000", "抽牌大师", AchievementType.Draw, 1000);
-
-        AddDef("play_1", "出牌新手", AchievementType.Play, 1);
-        AddDef("play_10", "出牌熟练", AchievementType.Play, 10);
-        AddDef("play_100", "出牌达人", AchievementType.Play, 100);
-        AddDef("play_1000", "出牌大师", AchievementType.Play, 1000);
-
-        AddDef("mana_5", "法力涌动", AchievementType.Mana, 5);
-        AddDef("mana_50", "法力奔流", AchievementType.Mana, 50);
-        AddDef("mana_500", "法力洪流", AchievementType.Mana, 500);
-        AddDef("mana_5000", "法力无尽", AchievementType.Mana, 5000);
-
-        AddDef("heal_20", "小愈合", AchievementType.Heal, 20);
-        AddDef("heal_200", "疗愈者", AchievementType.Heal, 200);
-        AddDef("heal_2000", "生命回响", AchievementType.Heal, 2000);
-        AddDef("heal_20000", "不灭之躯", AchievementType.Heal, 20000);
+        AddPowerOfTenDefs("score", "伤害", AchievementType.Score, ScoreTitles);
+        AddPowerOfTenDefs("draw", "抽牌", AchievementType.Draw, DrawTitles);
+        AddPowerOfTenDefs("play", "出牌", AchievementType.Play, PlayTitles);
+        AddPowerOfTenDefs("mana", "法力", AchievementType.Mana, ManaTitles);
+        AddPowerOfTenDefs("heal", "治疗", AchievementType.Heal, HealTitles);
 
         AddDef("draw_draw", "抽抽爆", AchievementType.Custom, 1, "用“抽牌”抽到“抽牌”");
         AddDef("seven_sins_all", "罪无可赦", AchievementType.Custom, 1, "使一张七宗罪触发其全部效果");
         AddDef("overheat", "过热", AchievementType.Custom, 1, "打出一张魔力消耗不小于1024的卡牌");
         AddDef("double_agent", "双面间谍", AchievementType.Custom, 1, "被从对手处偷到的卡牌或dot杀死");
+        
+        AddDef("clear_easy", "初战告捷", AchievementType.Custom, 1, "完成简单模式");
+        AddDef("clear_hard", "逆境破局", AchievementType.Custom, 1, "完成困难模式");
+        AddDef("clear_hell", "地狱征服者", AchievementType.Custom, 1, "完成地狱模式");
+    }
+
+    private void AddPowerOfTenDefs(string idPrefix, string displayPrefix, AchievementType type, string[] titles)
+    {
+        for (int i = 0; i < NumericMilestones.Length; i++)
+        {
+            var threshold = NumericMilestones[i];
+            string title = (titles != null && i < titles.Length && !string.IsNullOrWhiteSpace(titles[i]))
+                ? titles[i]
+                : $"{displayPrefix}里程碑 {threshold}";
+            AddDef($"{idPrefix}_{threshold}", title, type, threshold);
+        }
     }
 
     private void AddDef(string id, string name, AchievementType type, ulong threshold, string description = null)
@@ -224,7 +349,7 @@ public class AchievementManager : MonoBehaviour
         if (!string.IsNullOrEmpty(def.description)) return def.description;
         return def.type switch
         {
-            AchievementType.Score => $"累计得分达到{def.threshold}",
+            AchievementType.Score => $"累计造成伤害达到{def.threshold}",
             AchievementType.Draw => $"累计抽牌达到{def.threshold}",
             AchievementType.Play => $"累计出牌达到{def.threshold}",
             AchievementType.Mana => $"累计获得魔力达到{def.threshold}",
@@ -270,8 +395,34 @@ public class AchievementManager : MonoBehaviour
         if (string.IsNullOrEmpty(id)) return;
         if (customCompleted.Contains(id)) return;
         customCompleted.Add(id);
+        var def = definitions.Find(d => d.id == id);
+        NotifyAchievementUnlocked(def);
         PlayerPrefs.SetInt(CustomAchievementPrefix + id, 1);
         PlayerPrefs.Save();
+    }
+
+    private void TryNotifyNumericUnlock(AchievementType type, ulong beforeValue, ulong afterValue)
+    {
+        if (afterValue <= beforeValue) return;
+        foreach (var def in definitions)
+        {
+            if (def.type != type) continue;
+            if (beforeValue < def.threshold && afterValue >= def.threshold)
+            {
+                NotifyAchievementUnlocked(def);
+            }
+        }
+    }
+
+    private void NotifyAchievementUnlocked(AchievementDefinition def)
+    {
+        if (def == null) return;
+        EventCenter.Publish(AchievementUnlockedEvent, new AchievementUnlockedInfo
+        {
+            id = def.id,
+            name = def.name,
+            description = GetDescription(def)
+        });
     }
 
     private static ulong ParseUlongOrZero(string value)

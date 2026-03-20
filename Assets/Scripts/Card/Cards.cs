@@ -552,13 +552,23 @@ public class 轮盘 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (UnityEngine.Random.Range(0, 6) == 0)
-        {
-            user.DealDamage(target, Value);
-            return;
-        }
+        if (Duration <= 0) return;
+        ulong hitValue = Value;
+        ulong selfDamage = Value / 6;
 
-        user.DealDamage(user, 1);
+        Dot dot = null;
+        dot = new Dot(user, target, Duration, d =>
+        {
+            if (UnityEngine.Random.Range(0, 6) == 0)
+            {
+                d.source.DealDamage(d.target, hitValue);
+                return;
+            }
+
+            d.source.DealDamage(d.source, selfDamage);
+        }, null, () => $"1/6概率对敌造成{hitValue}伤害，否则对自己造成{selfDamage}伤害，剩余{dot.duration}回合");
+
+        user.dotBar.Add(dot);
     }
 }
 
@@ -764,7 +774,7 @@ public class 偷魔 : BaseCard
     }
 }
 
-public class 偷梁 : BaseCard
+public class 偷月 : BaseCard
 {
     protected override int id => 1502;
 
@@ -878,7 +888,11 @@ public class 制衡 : BaseCard
         CardRuntimeHelper.DiscardAllCards(user);
         for (int i = 0; i < discardCount; i++)
         {
-            user.GainRandomCard();
+            var card = user.DrawCard(0);
+            if (card != null && user is Player)
+            {
+                EventCenter.Publish("Player_DrawCard", card);
+            }
         }
     }
 }

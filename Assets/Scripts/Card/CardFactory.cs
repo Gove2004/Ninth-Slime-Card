@@ -87,15 +87,16 @@ public static class CardFactory
     {
         return new HashSet<string>
         {
-            "偷窃", "偷梁", "偷魔",
-            "恢复", "吸血", "命签", "反伤", "血契", "未来", "暴食", "急救",
+            "偷窃", "偷月", "偷魔",
+            // 允许敌人抽到回复牌；在无尽模式中，回血会转为护盾，直接影响战斗节奏与得分效率。
+            "反伤",
             "逃避", "傲慢",
-            "七罪"
+            "嫉妒"
         };
     }
 
     /// <summary>
-    /// 随机获取一张敌人可用的卡牌（排除偷窃、回血、无敌类）
+    /// 随机获取一张敌人可用的卡牌（排除偷窃、无敌与高风险特殊牌）
     /// </summary>
     /// <returns></returns>
     public static BaseCard GetRandomEnemyCard()

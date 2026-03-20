@@ -102,6 +102,8 @@ public abstract class BaseCard
             .Replace("[费用]", Cost.ToString())
             .Replace("[数值×20]", BaseCharacter.SaturatingMultiply(Value, 20).ToString())
             .Replace("[数值×2]", BaseCharacter.SaturatingMultiply(Value, 2).ToString())
+            .Replace("[数值/1+数值]", $"{Value}/{BaseCharacter.SaturatingAdd(Value, 1)}")
+            .Replace("[数值/6]", (Value / 6).ToString())
             .Replace("[数值/10]", (Value / 10).ToString())
             .Replace("[数值]", Value.ToString())
             .Replace("[持续时间]", Duration.ToString());
