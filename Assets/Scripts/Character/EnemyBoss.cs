@@ -18,9 +18,9 @@ public class EnemyBoss : BaseCharacter
     {
         return difficultyLevel switch
         {
-            1 => 10000,
-            2 => 10000_0000,
-            3 => 10000_0000_0000,
+            1 => 9999,
+            2 => 9999_9999,
+            3 => 9999_9999_9999,
             _ => ulong.MaxValue  // 无尽模式Boss生命值极高，基本上不可能被击败，玩家的目标是尽可能地得分
         };
     }

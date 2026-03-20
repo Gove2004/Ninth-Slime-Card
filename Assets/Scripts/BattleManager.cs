@@ -49,6 +49,14 @@ public class BattleManager : MonoBehaviour
             dem.enemyTransform = enemyTransformRef;
         }
 
+        // 自动添加回合镜头专注（UI偏移）控制器
+        var focusController = GetComponent<TurnFocusCameraUI>();
+        if (focusController == null)
+        {
+            focusController = gameObject.AddComponent<TurnFocusCameraUI>();
+        }
+        focusController.BindTargets(playerTransformRef, enemyTransformRef);
+
         // 自动添加音频管理器
         var audioMgr = FindObjectOfType<AudioManager>();
         if (audioMgr == null)

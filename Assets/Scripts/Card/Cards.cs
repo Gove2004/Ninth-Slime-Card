@@ -686,6 +686,10 @@ public class 血契 : BaseCard
     {
         if (Duration <= 0) return;
         BaseCharacter effectTarget = target ?? user?.Target;
+        if (effectTarget == null && BattleManager.Instance != null)
+        {
+            effectTarget = user == BattleManager.Instance.player ? BattleManager.Instance.enemy : BattleManager.Instance.player;
+        }
 
         Dot dot = null;
         Action<ulong> handler = amount =>
