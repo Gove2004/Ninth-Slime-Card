@@ -685,22 +685,23 @@ public class 血契 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (Duration <= 0) return;
+        BaseCharacter effectTarget = target ?? user?.Target;
 
         Dot dot = null;
-        Action<ulong, BaseCharacter> handler = (amount, victim) =>
+        Action<ulong> handler = amount =>
         {
             if (dot == null || dot.source == null) return;
-            dot.source.ApplyHealthChange(ToLong(amount), dot.source);
+            dot.source.DealDamage(dot.target, amount);
         };
 
-        user.DamageDealt += handler;
-        dot = new Dot(user, user, Duration, d => { }, d =>
+        user.HealTaken += handler;
+        dot = new Dot(user, effectTarget, Duration, d => { }, d =>
         {
-            if (d.source != null) d.source.DamageDealt -= handler;
-        }, () => $"造成伤害时吸血，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
+            if (d.source != null) d.source.HealTaken -= handler;
+        }, () => $"恢复生命时造成等量伤害，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
         {
-            if (oldSource != null) oldSource.DamageDealt -= handler;
-            if (d.source != null) d.source.DamageDealt += handler;
+            if (oldSource != null) oldSource.HealTaken -= handler;
+            if (d.source != null) d.source.HealTaken += handler;
         });
 
         user.dotBar.Add(dot);
