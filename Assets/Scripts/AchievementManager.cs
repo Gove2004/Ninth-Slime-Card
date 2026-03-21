@@ -296,7 +296,6 @@ public class AchievementManager : MonoBehaviour
         AddPowerOfTenDefs("heal", "治疗", AchievementType.Heal, HealTitles);
 
         AddDef("draw_draw", "抽抽爆", AchievementType.Custom, 1, "用“抽牌”抽到“抽牌”");
-        AddDef("seven_sins_all", "罪无可赦", AchievementType.Custom, 1, "使一张七宗罪触发其全部效果");
         AddDef("overheat", "过热", AchievementType.Custom, 1, "打出一张魔力消耗不小于1024的卡牌");
         AddDef("double_agent", "双面间谍", AchievementType.Custom, 1, "被从对手处偷到的卡牌或dot杀死");
         

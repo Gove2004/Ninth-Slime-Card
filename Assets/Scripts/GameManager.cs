@@ -74,7 +74,7 @@ public class GameManager : MonoBehaviour
 
         if (IsBattle) // 进入Battle
         {
-            // battleUI.gameObject.SetActive(true);
+            battleUI.gameObject.SetActive(true);
             mainUI.gameObject.SetActive(false);
 
             if (AudioManager.Instance != null)
@@ -84,7 +84,7 @@ public class GameManager : MonoBehaviour
         }
         else  // 回到主界面
         {
-            // battleUI.gameObject.SetActive(false);
+            battleUI.gameObject.SetActive(false);
             mainUI.gameObject.SetActive(true);
 
             if (AudioManager.Instance != null)

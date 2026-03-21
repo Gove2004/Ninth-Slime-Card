@@ -395,7 +395,7 @@ public class CardCollectionView : MonoBehaviour
             detailOverlayRoot.offsetMin = Vector2.zero;
             detailOverlayRoot.offsetMax = Vector2.zero;
             var overlayImage = overlayObj.GetComponent<Image>();
-            overlayImage.color = new Color(0f, 0f, 0f, 0.65f);
+            overlayImage.color = new Color(0f, 0f, 0f, 0.95f);
             var closeButton = overlayObj.GetComponent<Button>();
             closeButton.onClick.AddListener(HideDetailOverlay);
 
@@ -411,15 +411,15 @@ public class CardCollectionView : MonoBehaviour
             var remarkObj = new GameObject("趣闻文本", typeof(RectTransform), typeof(Text));
             remarkObj.transform.SetParent(overlayObj.transform, false);
             var remarkRect = remarkObj.GetComponent<RectTransform>();
-            remarkRect.anchorMin = new Vector2(0.62f, 0.22f);
-            remarkRect.anchorMax = new Vector2(0.96f, 0.78f);
-            remarkRect.pivot = new Vector2(0.5f, 0.5f);
-            remarkRect.sizeDelta = Vector2.zero;
-            remarkRect.anchoredPosition = Vector2.zero;
+            remarkRect.anchorMin = new Vector2(0.5f, 0.5f);
+            remarkRect.anchorMax = new Vector2(0.5f, 0.5f);
+            remarkRect.pivot = new Vector2(0.5f, 1f);
+            remarkRect.sizeDelta = new Vector2(760f, 220f);
+            remarkRect.anchoredPosition = new Vector2(0f, -128f);
             detailRemarkText = remarkObj.GetComponent<Text>();
             detailRemarkText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             detailRemarkText.fontSize = 24;
-            detailRemarkText.alignment = TextAnchor.UpperLeft;
+            detailRemarkText.alignment = TextAnchor.UpperCenter;
             detailRemarkText.horizontalOverflow = HorizontalWrapMode.Wrap;
             detailRemarkText.verticalOverflow = VerticalWrapMode.Overflow;
             detailRemarkText.color = Color.white;
