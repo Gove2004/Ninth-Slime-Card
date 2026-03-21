@@ -467,13 +467,14 @@ public class 骰子 : BaseCard
         int duration = CardRuntimeHelper.GetRandomDurationFromValue(Duration);
         if (duration <= 0) return;
         ulong upper = Value;
+        int maxDuration = Duration;
 
         Dot dot = null;
         dot = new Dot(user, target, duration, d =>
         {
             ulong damage = (ulong)UnityEngine.Random.Range(0, ToRandomUpperExclusive(upper));
             d.source.DealDamage(d.target, damage);
-        }, null, () => $"每回合随机造成0~{upper}点伤害，剩余{dot.duration}回合");
+        }, null, () => $"每回合随机造成0~{upper}点伤害，持续1~{maxDuration}回合，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
@@ -488,13 +489,14 @@ public class 命签 : BaseCard
         int duration = CardRuntimeHelper.GetRandomDurationFromValue(Duration);
         if (duration <= 0) return;
         ulong upper = Value;
+        int maxDuration = Duration;
 
         Dot dot = null;
         dot = new Dot(user, user, duration, d =>
         {
             ulong heal = (ulong)UnityEngine.Random.Range(0, ToRandomUpperExclusive(upper));
             d.source.ApplyHealthChange(ToLong(heal), d.source);
-        }, null, () => $"每回合随机恢复0~{upper}点生命，剩余{dot.duration}回合");
+        }, null, () => $"每回合随机恢复0~{upper}点生命，持续1~{maxDuration}回合，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
@@ -509,13 +511,14 @@ public class 运势 : BaseCard
         int duration = CardRuntimeHelper.GetRandomDurationFromValue(Duration);
         if (duration <= 0) return;
         ulong upper = Value;
+        int maxDuration = Duration;
 
         Dot dot = null;
         dot = new Dot(user, user, duration, d =>
         {
             ulong gain = (ulong)UnityEngine.Random.Range(0, ToRandomUpperExclusive(upper));
             d.source.ChangeMana(ToLong(gain));
-        }, null, () => $"每回合随机获得0~{upper}点魔力，剩余{dot.duration}回合");
+        }, null, () => $"每回合随机获得0~{upper}点魔力，持续1~{maxDuration}回合，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
@@ -649,12 +652,22 @@ public class 卖血 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        user.ApplyHealthChange(NegToLong(Value), user);
-        var card = user.DrawCard(0);
-        if (card != null && user is Player)
+        int duration = Duration;
+        ulong value = Value;
+        if (duration <= 0) return;
+
+        Dot dot = null;
+        dot = new Dot(user, user, duration, d =>
         {
-            EventCenter.Publish("Player_DrawCard", card);
-        }
+            d.source.ApplyHealthChange(NegToLong(value), d.source);
+            var card = d.source.DrawCard(0);
+            if (card != null && d.source is Player)
+            {
+                EventCenter.Publish("Player_DrawCard", card);
+            }
+        }, null, () => $"每回合失{value}点生命并抽1张牌，剩余{dot.duration}回合");
+
+        user.dotBar.Add(dot);
     }
 }
 
@@ -1007,21 +1020,31 @@ public class 奇点 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (BattleManager.Instance == null || Duration <= 0) return;
-        ulong fixedCost = Value;
+        if (BattleManager.Instance == null) return;
+        BattleManager.Instance.player.dotBar.Clear();
+        BattleManager.Instance.enemy.dotBar.Clear();
+    }
+}
 
-        CardRuntimeHelper.SetHandCost(BattleManager.Instance.player, fixedCost);
-        CardRuntimeHelper.SetHandCost(BattleManager.Instance.enemy, fixedCost);
+public class 时域 : BaseCard
+{
+    protected override int id => 1802;
 
-        Dot dot = null;
-        dot = new Dot(user, user, Duration, d =>
+    public override void Execute(BaseCharacter user, BaseCharacter target)
+    {
+        if (user == null) return;
+
+        BaseCharacter effectTarget = target ?? user.Target;
+        if (effectTarget == null && BattleManager.Instance != null)
         {
-            if (BattleManager.Instance == null) return;
-            CardRuntimeHelper.SetHandCost(BattleManager.Instance.player, fixedCost);
-            CardRuntimeHelper.SetHandCost(BattleManager.Instance.enemy, fixedCost);
-        }, null, () => $"双方手牌费用固定为{fixedCost}，剩余{dot.duration}回合");
+            effectTarget = user == BattleManager.Instance.player ? BattleManager.Instance.enemy : BattleManager.Instance.player;
+        }
 
-        user.dotBar.Add(dot);
+        ulong spentMana = user.mana;
+        if (spentMana == 0) return;
+
+        user.ChangeMana(NegToLong(spentMana));
+        effectTarget?.ChangeMana(NegToLong(spentMana));
     }
 }
 

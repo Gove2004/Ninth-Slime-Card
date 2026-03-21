@@ -191,9 +191,46 @@ public abstract class BaseCharacter
 
     private IEnumerator TriggerDotsTimesRoutine(int times)
     {
+        // 快照当前的DOT列表，防止期间新添加的DOT被多次触发
+        var snapshotDots = new List<Dot>(dotBar);
+        
         for (int i = 0; i < times; i++)
         {
-            yield return ApplyDotsRoutine(true);
+            yield return ApplySpecificDotsRoutine(snapshotDots, true);
+        }
+    }
+    
+    private IEnumerator ApplySpecificDotsRoutine(List<Dot> dotsToProcess, bool fastMode = false)
+    {
+        if (dotsToProcess.Count > 0)
+        {
+            float maxTotalDuration = fastMode ? 0.8f : 2.2f;
+            float minDelayPerDot = fastMode ? 0.01f : 0.03f;
+            float maxDelayPerDot = fastMode ? 0.06f : 0.15f;
+            float delay = Mathf.Clamp(maxTotalDuration / dotsToProcess.Count, minDelayPerDot, maxDelayPerDot);
+            bool showDescription = !fastMode;
+
+            Transform targetTransform = null;
+            if (DamageEffectManager.Instance != null)
+            {
+                if (this == BattleManager.Instance.player) targetTransform = DamageEffectManager.Instance.playerTransform;
+                else if (this == BattleManager.Instance.enemy) targetTransform = DamageEffectManager.Instance.enemyTransform;
+            }
+
+            foreach (var effect in dotsToProcess)
+            {
+                // 检查该DOT是否仍然存在于当前dotBar中（可能被驱散等移除）
+                if (!dotBar.Contains(effect)) continue;
+                
+                if (showDescription && targetTransform != null && DamageEffectManager.Instance != null)
+                {
+                    DamageEffectManager.Instance.ShowFloatingText(targetTransform, effect.description?.Invoke() ?? "", Color.yellow);
+                }
+
+                effect.Apply();
+                
+                yield return new WaitForSeconds(delay);
+            }
         }
     }
 
