@@ -8,8 +8,10 @@ public class InfoPanel : MonoBehaviour
     public GameObject settingsObj;
     public GameObject teamObj;
     public GameObject achievementObj;
+    public GameObject collectionObj;
     public AchievementsPanel achievementsPanel;
     public Button closeButton;
+    public Button collectionBackButton;
     public Slider musicVolumeSlider;
     public Slider sfxVolumeSlider;
     public Toggle vibrationToggle;
@@ -22,6 +24,11 @@ public class InfoPanel : MonoBehaviour
         SyncSettingsUI();
         BindSettingEvents();
         if (closeButton != null) closeButton.onClick.AddListener(ClosePanel);
+        if (collectionBackButton != null)
+        {
+            collectionBackButton.onClick.RemoveListener(ClosePanel);
+            collectionBackButton.onClick.AddListener(ClosePanel);
+        }
         // 初始时隐藏面板，除非已经在编辑器中设置为隐藏
         gameObject.SetActive(false);
     }
@@ -53,6 +60,12 @@ public class InfoPanel : MonoBehaviour
         EnsureAchievementReferences();
         ShowSection(achievementObj);
         if (achievementsPanel != null) achievementsPanel.Refresh();
+    }
+
+    public void ShowCollection()
+    {
+        EnsureReferences();
+        ShowSection(collectionObj);
     }
 
     public void ClosePanel()
@@ -89,6 +102,10 @@ public class InfoPanel : MonoBehaviour
         {
             teamObj = FindChildByNameCandidates(new[] { "团队", "制作组", "Team", "team" });
         }
+        if (collectionObj == null)
+        {
+            collectionObj = FindChildByNameCandidates(new[] { "图鉴", "收藏", "Collection", "collection" });
+        }
         if (closeButton == null)
         {
             var buttons = GetComponentsInChildren<Button>(true);
@@ -103,6 +120,20 @@ public class InfoPanel : MonoBehaviour
                 }
             }
             if (closeButton == null && buttons.Length == 1) closeButton = buttons[0];
+        }
+        if (collectionBackButton == null && collectionObj != null)
+        {
+            var buttons = collectionObj.GetComponentsInChildren<Button>(true);
+            foreach (var button in buttons)
+            {
+                if (button == null) continue;
+                var name = button.gameObject.name;
+                if (name.Contains("返回") || name.Contains("Back") || name.Contains("back"))
+                {
+                    collectionBackButton = button;
+                    break;
+                }
+            }
         }
         if (introObj == null)
         {
@@ -221,10 +252,17 @@ public class InfoPanel : MonoBehaviour
     {
         gameObject.SetActive(true);
         var closeRoot = GetCloseButtonRootObject();
+        bool isCollection = target != null && target == collectionObj;
+        if (collectionBackButton != null)
+        {
+            collectionBackButton.gameObject.SetActive(isCollection);
+            collectionBackButton.onClick.RemoveListener(ClosePanel);
+            collectionBackButton.onClick.AddListener(ClosePanel);
+        }
         for (int i = 0; i < transform.childCount; i++)
         {
             var child = transform.GetChild(i).gameObject;
-            bool keepVisible = child == target || (closeRoot != null && child == closeRoot);
+            bool keepVisible = child == target || (!isCollection && closeRoot != null && child == closeRoot);
             child.SetActive(keepVisible);
         }
     }

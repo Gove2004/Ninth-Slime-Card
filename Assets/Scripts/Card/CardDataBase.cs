@@ -21,6 +21,7 @@ public static class CardDatabase
     }
     
     private static readonly Dictionary<int, CardData> cardDataDict = new();
+    private static readonly List<CardData> cardDataList = new();
     
     // 硬编码的CSV相对路径
     private const string CSV_RELATIVE_PATH = "cards.csv";
@@ -123,6 +124,7 @@ public static class CardDatabase
     private static void ParseCsvContent(string csvContent)
     {
         cardDataDict.Clear();
+        cardDataList.Clear();
         
         using (StringReader reader = new(csvContent))
         {
@@ -185,6 +187,7 @@ public static class CardDatabase
                 
                 // 添加到字典
                 cardDataDict[data.id] = data;
+                cardDataList.Add(data);
             }
         }
         
@@ -239,5 +242,10 @@ public static class CardDatabase
         
         Debug.LogError($"未找到卡牌数据: ID={id}");
         return null;
+    }
+
+    public static List<CardData> GetAllCardData()
+    {
+        return new List<CardData>(cardDataList);
     }
 }

@@ -9,6 +9,7 @@ public class MainUI : MonoBehaviour
     public Button settingsButton;
     public Button teamButton;
     public Button achievementButton;
+    public Button collectionButton;
     public InfoPanel infoPanel;
     public TextMeshProUGUI maxScoreText;
     public TMP_Dropdown dropdown;
@@ -36,6 +37,22 @@ public class MainUI : MonoBehaviour
         if (achievementButton != null)
         {
             achievementButton.onClick.AddListener(OnAchievementClicked);
+        }
+        if (collectionButton == null)
+        {
+            var buttons = FindObjectsOfType<Button>(true);
+            foreach (var button in buttons)
+            {
+                if (button != null && button.gameObject.name == "图鉴")
+                {
+                    collectionButton = button;
+                    break;
+                }
+            }
+        }
+        if (collectionButton != null)
+        {
+            collectionButton.onClick.AddListener(OnCollectionClicked);
         }
 
         if (dropdown != null)
@@ -80,6 +97,14 @@ public class MainUI : MonoBehaviour
         if (infoPanel != null)
         {
             infoPanel.ShowAchievements();
+        }
+    }
+
+    private void OnCollectionClicked()
+    {
+        if (infoPanel != null)
+        {
+            infoPanel.ShowCollection();
         }
     }
 

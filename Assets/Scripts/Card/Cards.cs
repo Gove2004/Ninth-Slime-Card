@@ -704,6 +704,7 @@ public class 反伤 : BaseCard
 public class 血契 : BaseCard
 {
     protected override int id => 1404;
+    private static int triggerDepth = 0;
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
@@ -717,8 +718,18 @@ public class 血契 : BaseCard
         Dot dot = null;
         Action<ulong> handler = amount =>
         {
-            if (dot == null || dot.source == null) return;
-            dot.source.DealDamage(dot.target, amount);
+            if (dot == null || dot.source == null || dot.target == null) return;
+            if (amount == 0) return;
+            if (triggerDepth > 0) return;
+            triggerDepth++;
+            try
+            {
+                dot.source.DealDamage(dot.target, amount);
+            }
+            finally
+            {
+                triggerDepth--;
+            }
         };
 
         user.HealTaken += handler;
