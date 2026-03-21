@@ -184,6 +184,7 @@ public class AchievementToast : MonoBehaviour
 
         var bg = panelObj.AddComponent<Image>();
         bg.color = new Color(0.08f, 0.1f, 0.14f, 0.95f);
+        bg.raycastTarget = false;
 
         var outline = panelObj.AddComponent<Outline>();
         outline.effectColor = new Color(0.28f, 0.75f, 0.35f, 0.85f);
@@ -212,6 +213,7 @@ public class AchievementToast : MonoBehaviour
         text.fontSize = fontSize;
         text.fontStyle = style;
         text.color = color;
+        text.raycastTarget = false;
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.overflowMode = TextOverflowModes.Ellipsis;
         return text;
