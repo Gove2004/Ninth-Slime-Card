@@ -35,6 +35,21 @@ public class AchievementToast : MonoBehaviour
         instance = toastObj.AddComponent<AchievementToast>();
     }
 
+    public static void SetPanelVisible(bool visible)
+    {
+        if (instance == null)
+        {
+            instance = FindFirstObjectByType<AchievementToast>(FindObjectsInactive.Include);
+        }
+        if (instance == null || instance.panel == null) return;
+
+        instance.panel.gameObject.SetActive(visible);
+        if (!visible && instance.canvasGroup != null)
+        {
+            instance.canvasGroup.alpha = 0f;
+        }
+    }
+
     private readonly Queue<AchievementManager.AchievementUnlockedInfo> queue = new();
     private Action onUnlockedUnsub;
 

@@ -182,7 +182,7 @@ public static class CardDatabase
                     duration = durationValue,
                     effect = fields[6],
                     imagePath = "卡牌/" + fields[1], // 默认图片路径为 "卡牌/卡牌名称"
-                    remark = fields.Length > 8 ? fields[8] : string.Empty
+                    remark = fields.Length > 7 ? fields[7] : string.Empty
                 };
                 
                 // 添加到字典

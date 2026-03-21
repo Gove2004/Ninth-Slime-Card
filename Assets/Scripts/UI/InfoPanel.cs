@@ -70,6 +70,7 @@ public class InfoPanel : MonoBehaviour
 
     public void ClosePanel()
     {
+        AchievementToast.SetPanelVisible(true);
         gameObject.SetActive(false);
     }
 
@@ -252,18 +253,25 @@ public class InfoPanel : MonoBehaviour
     {
         gameObject.SetActive(true);
         var closeRoot = GetCloseButtonRootObject();
+        var backRoot = GetCollectionBackButtonRootObject();
         bool isCollection = target != null && target == collectionObj;
+        AchievementToast.SetPanelVisible(!isCollection);
         if (collectionBackButton != null)
         {
             collectionBackButton.gameObject.SetActive(isCollection);
             collectionBackButton.onClick.RemoveListener(ClosePanel);
             collectionBackButton.onClick.AddListener(ClosePanel);
+            collectionBackButton.interactable = true;
         }
         for (int i = 0; i < transform.childCount; i++)
         {
             var child = transform.GetChild(i).gameObject;
-            bool keepVisible = child == target || (!isCollection && closeRoot != null && child == closeRoot);
+            bool keepVisible = child == target || (!isCollection && closeRoot != null && child == closeRoot) || (isCollection && backRoot != null && child == backRoot);
             child.SetActive(keepVisible);
+        }
+        if (isCollection && backRoot != null)
+        {
+            backRoot.transform.SetAsLastSibling();
         }
     }
 
@@ -288,6 +296,17 @@ public class InfoPanel : MonoBehaviour
     {
         if (closeButton == null) return null;
         var current = closeButton.transform;
+        while (current != null && current.parent != transform)
+        {
+            current = current.parent;
+        }
+        return current != null ? current.gameObject : null;
+    }
+
+    private GameObject GetCollectionBackButtonRootObject()
+    {
+        if (collectionBackButton == null) return null;
+        var current = collectionBackButton.transform;
         while (current != null && current.parent != transform)
         {
             current = current.parent;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public class CardCollectionView : MonoBehaviour
 {
@@ -22,6 +23,7 @@ public class CardCollectionView : MonoBehaviour
     private readonly List<GameObject> cardItems = new();
     private readonly Dictionary<string, Button> seriesButtons = new();
     private readonly Dictionary<string, Button> manaButtons = new();
+    private readonly Dictionary<GameObject, CardDatabase.CardData> itemCardMap = new();
     private List<CardDatabase.CardData> allCards = new();
     private List<CardDatabase.CardData> filteredCards = new();
     private string selectedSeries = "全部";
@@ -29,6 +31,13 @@ public class CardCollectionView : MonoBehaviour
     private string searchText = string.Empty;
     private int pageIndex;
     private bool initialized;
+    private RectTransform hoverTooltipRoot;
+    private Text hoverTooltipText;
+    private RectTransform detailOverlayRoot;
+    private RectTransform detailCardAnchor;
+    private Text detailRemarkText;
+    private GameObject detailCardInstance;
+    private CardDatabase.CardData hoveredCard;
 
     private void Awake()
     {
@@ -45,7 +54,39 @@ public class CardCollectionView : MonoBehaviour
             BindEvents();
             initialized = true;
         }
+        EnsureReturnButtonVisible();
+        EnsureOverlayUI();
         ReloadAndRender();
+    }
+
+    private void OnDisable()
+    {
+        HideHoverTooltip();
+        HideDetailOverlay();
+    }
+
+    private void Update()
+    {
+        if (hoverTooltipRoot != null && hoverTooltipRoot.gameObject.activeSelf)
+        {
+            Vector2 localPoint;
+            var rootRect = transform as RectTransform;
+            if (rootRect != null && RectTransformUtility.ScreenPointToLocalPointInRectangle(rootRect, Input.mousePosition, null, out localPoint))
+            {
+                var desired = localPoint;
+                var size = hoverTooltipRoot.sizeDelta;
+                var pivot = hoverTooltipRoot.pivot;
+                float minX = rootRect.rect.xMin + size.x * pivot.x;
+                float maxX = rootRect.rect.xMax - size.x * (1f - pivot.x);
+                float minY = rootRect.rect.yMin + size.y * pivot.y;
+                float maxY = rootRect.rect.yMax - size.y * (1f - pivot.y);
+                if (minX > maxX) (minX, maxX) = (maxX, minX);
+                if (minY > maxY) (minY, maxY) = (maxY, minY);
+                hoverTooltipRoot.anchoredPosition = new Vector2(
+                    Mathf.Clamp(desired.x, minX, maxX),
+                    Mathf.Clamp(desired.y, minY, maxY));
+            }
+        }
     }
 
     private void BindEvents()
@@ -166,6 +207,7 @@ public class CardCollectionView : MonoBehaviour
         int totalPages = Mathf.Max(1, Mathf.CeilToInt(filteredCards.Count / (float)pageSize));
         pageIndex = Mathf.Clamp(pageIndex, 0, totalPages - 1);
         EnsureCardItemPool();
+        itemCardMap.Clear();
         int start = pageIndex * pageSize;
         for (int i = 0; i < pageSize; i++)
         {
@@ -174,11 +216,14 @@ public class CardCollectionView : MonoBehaviour
             if (index >= filteredCards.Count)
             {
                 item.SetActive(false);
+                BindCardItemEvents(item, null);
                 continue;
             }
             item.SetActive(true);
             var card = filteredCards[index];
             ApplyCardItemData(item.transform, card);
+            itemCardMap[item] = card;
+            BindCardItemEvents(item, card);
         }
         if (pageText != null)
         {
@@ -237,7 +282,209 @@ public class CardCollectionView : MonoBehaviour
 
         SetTextByNameOrIndex(root, "名称", card.name, 0);
         SetTextByNameOrIndex(root, "费用", card.cost.ToString(), 1);
-        SetTextByNameOrIndex(root, "描述", card.effect, 2);
+        SetTextByNameOrIndex(root, "描述", GetCardDescription(card), 2);
+    }
+
+    private void BindCardItemEvents(GameObject item, CardDatabase.CardData card)
+    {
+        if (item == null) return;
+        var trigger = item.GetComponent<EventTrigger>();
+        if (trigger == null) trigger = item.AddComponent<EventTrigger>();
+        trigger.triggers.Clear();
+        if (card == null) return;
+
+        AddTriggerEntry(trigger, EventTriggerType.PointerEnter, _ => OnCardPointerEnter(card));
+        AddTriggerEntry(trigger, EventTriggerType.PointerExit, _ => OnCardPointerExit(card));
+        AddTriggerEntry(trigger, EventTriggerType.PointerClick, _ => OnCardPointerClick(card));
+    }
+
+    private void AddTriggerEntry(EventTrigger trigger, EventTriggerType type, Action<BaseEventData> callback)
+    {
+        var entry = new EventTrigger.Entry { eventID = type };
+        entry.callback.AddListener(data => callback?.Invoke(data));
+        trigger.triggers.Add(entry);
+    }
+
+    private void OnCardPointerEnter(CardDatabase.CardData card)
+    {
+        hoveredCard = card;
+        ShowHoverTooltip(card);
+    }
+
+    private void OnCardPointerExit(CardDatabase.CardData card)
+    {
+        if (hoveredCard == card) hoveredCard = null;
+        HideHoverTooltip();
+    }
+
+    private void OnCardPointerClick(CardDatabase.CardData card)
+    {
+        ShowDetailOverlay(card);
+    }
+
+    private void ShowHoverTooltip(CardDatabase.CardData card)
+    {
+        EnsureOverlayUI();
+        if (hoverTooltipRoot == null || hoverTooltipText == null || card == null) return;
+        var description = GetCardDescription(card);
+        hoverTooltipText.text = string.IsNullOrWhiteSpace(description) ? "无描述" : description;
+        hoverTooltipRoot.gameObject.SetActive(true);
+    }
+
+    private void HideHoverTooltip()
+    {
+        if (hoverTooltipRoot != null)
+        {
+            hoverTooltipRoot.gameObject.SetActive(false);
+        }
+    }
+
+    private void ShowDetailOverlay(CardDatabase.CardData card)
+    {
+        EnsureOverlayUI();
+        if (detailOverlayRoot == null || detailCardAnchor == null || detailRemarkText == null || card == null) return;
+        detailOverlayRoot.gameObject.SetActive(true);
+        detailRemarkText.text = string.IsNullOrWhiteSpace(card.remark) ? "暂无趣闻" : card.remark;
+        CreateOrRefreshDetailCard(card);
+    }
+
+    private void HideDetailOverlay()
+    {
+        if (detailOverlayRoot != null)
+        {
+            detailOverlayRoot.gameObject.SetActive(false);
+        }
+    }
+
+    private void CreateOrRefreshDetailCard(CardDatabase.CardData card)
+    {
+        EnsureCardPrefab();
+        if (cardPrefab == null || detailCardAnchor == null || card == null) return;
+        if (detailCardInstance == null)
+        {
+            detailCardInstance = Instantiate(cardPrefab, detailCardAnchor);
+            detailCardInstance.name = "图鉴详情卡牌";
+            var rect = detailCardInstance.transform as RectTransform;
+            if (rect != null)
+            {
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.anchoredPosition = Vector2.zero;
+                rect.localScale = Vector3.one * 1.45f;
+            }
+        }
+        detailCardInstance.SetActive(true);
+        ApplyCardItemData(detailCardInstance.transform, card);
+        BindCardItemEvents(detailCardInstance, card);
+    }
+
+    private void EnsureOverlayUI()
+    {
+        if (detailOverlayRoot != null && hoverTooltipRoot != null) return;
+        var rootRect = transform as RectTransform;
+        if (rootRect == null) return;
+
+        if (detailOverlayRoot == null)
+        {
+            var overlayObj = new GameObject("图鉴详情遮罩", typeof(RectTransform), typeof(Image), typeof(Button));
+            overlayObj.transform.SetParent(transform, false);
+            detailOverlayRoot = overlayObj.GetComponent<RectTransform>();
+            detailOverlayRoot.anchorMin = Vector2.zero;
+            detailOverlayRoot.anchorMax = Vector2.one;
+            detailOverlayRoot.offsetMin = Vector2.zero;
+            detailOverlayRoot.offsetMax = Vector2.zero;
+            var overlayImage = overlayObj.GetComponent<Image>();
+            overlayImage.color = new Color(0f, 0f, 0f, 0.65f);
+            var closeButton = overlayObj.GetComponent<Button>();
+            closeButton.onClick.AddListener(HideDetailOverlay);
+
+            var cardAnchorObj = new GameObject("详情卡牌锚点", typeof(RectTransform));
+            cardAnchorObj.transform.SetParent(overlayObj.transform, false);
+            detailCardAnchor = cardAnchorObj.GetComponent<RectTransform>();
+            detailCardAnchor.anchorMin = new Vector2(0.5f, 0.5f);
+            detailCardAnchor.anchorMax = new Vector2(0.5f, 0.5f);
+            detailCardAnchor.pivot = new Vector2(0.5f, 0.5f);
+            detailCardAnchor.sizeDelta = new Vector2(240f, 360f);
+            detailCardAnchor.anchoredPosition = Vector2.zero;
+
+            var remarkObj = new GameObject("趣闻文本", typeof(RectTransform), typeof(Text));
+            remarkObj.transform.SetParent(overlayObj.transform, false);
+            var remarkRect = remarkObj.GetComponent<RectTransform>();
+            remarkRect.anchorMin = new Vector2(0.62f, 0.22f);
+            remarkRect.anchorMax = new Vector2(0.96f, 0.78f);
+            remarkRect.pivot = new Vector2(0.5f, 0.5f);
+            remarkRect.sizeDelta = Vector2.zero;
+            remarkRect.anchoredPosition = Vector2.zero;
+            detailRemarkText = remarkObj.GetComponent<Text>();
+            detailRemarkText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            detailRemarkText.fontSize = 24;
+            detailRemarkText.alignment = TextAnchor.UpperLeft;
+            detailRemarkText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            detailRemarkText.verticalOverflow = VerticalWrapMode.Overflow;
+            detailRemarkText.color = Color.white;
+            detailRemarkText.raycastTarget = false;
+
+            detailOverlayRoot.gameObject.SetActive(false);
+        }
+
+        if (hoverTooltipRoot == null)
+        {
+            var tooltipObj = new GameObject("图鉴悬停描述", typeof(RectTransform), typeof(Image));
+            tooltipObj.transform.SetParent(transform, false);
+            hoverTooltipRoot = tooltipObj.GetComponent<RectTransform>();
+            hoverTooltipRoot.anchorMin = new Vector2(0.5f, 0.5f);
+            hoverTooltipRoot.anchorMax = new Vector2(0.5f, 0.5f);
+            hoverTooltipRoot.pivot = new Vector2(1f, 0f);
+            hoverTooltipRoot.sizeDelta = new Vector2(360f, 170f);
+            var tooltipBg = tooltipObj.GetComponent<Image>();
+            tooltipBg.color = new Color(0f, 0f, 0f, 0.82f);
+            tooltipBg.raycastTarget = false;
+
+            var textObj = new GameObject("文本", typeof(RectTransform), typeof(Text));
+            textObj.transform.SetParent(tooltipObj.transform, false);
+            var textRect = textObj.GetComponent<RectTransform>();
+            textRect.anchorMin = new Vector2(0f, 0f);
+            textRect.anchorMax = new Vector2(1f, 1f);
+            textRect.offsetMin = new Vector2(12f, 12f);
+            textRect.offsetMax = new Vector2(-12f, -12f);
+            hoverTooltipText = textObj.GetComponent<Text>();
+            hoverTooltipText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            hoverTooltipText.fontSize = 20;
+            hoverTooltipText.alignment = TextAnchor.MiddleCenter;
+            hoverTooltipText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            hoverTooltipText.verticalOverflow = VerticalWrapMode.Overflow;
+            hoverTooltipText.color = Color.white;
+            hoverTooltipText.raycastTarget = false;
+
+            hoverTooltipRoot.gameObject.SetActive(false);
+        }
+    }
+
+    private string GetCardDescription(CardDatabase.CardData card)
+    {
+        if (card == null) return string.Empty;
+        BaseCard baseCard = CardFactory.GetThisCard(card.name);
+        if (baseCard != null)
+        {
+            return baseCard.GetDynamicDescription();
+        }
+        return card.effect;
+    }
+
+    private void EnsureReturnButtonVisible()
+    {
+        var buttons = transform.GetComponentsInChildren<Button>(true);
+        foreach (var button in buttons)
+        {
+            if (button == null) continue;
+            var name = button.gameObject.name;
+            if (name.Contains("返回") || name.Contains("Back") || name.Contains("back"))
+            {
+                button.gameObject.SetActive(true);
+                break;
+            }
+        }
     }
 
     private void EnsureCardPrefab()
