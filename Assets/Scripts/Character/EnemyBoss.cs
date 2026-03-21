@@ -122,10 +122,10 @@ public class EnemyBoss : BaseCharacter
 
     private static ulong GetThresholdForPhase(int phase)
     {
-        if (phase <= 1) return 3;
-        if (phase == 2) return 5;
-        ulong prev = 3;
-        ulong current = 5;
+        if (phase <= 1) return 5;
+        if (phase == 2) return 8;
+        ulong prev = 5;
+        ulong current = 8;
         for (int i = 3; i <= phase; i++)
         {
             ulong next = SaturatingAdd(prev, current);

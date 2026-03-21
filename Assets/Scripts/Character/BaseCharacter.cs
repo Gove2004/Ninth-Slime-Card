@@ -121,9 +121,9 @@ public abstract class BaseCharacter
         if (dotsToProcess.Count > 0)
         {
             float maxTotalDuration = fastMode ? 0.8f : 2.2f;
-            float minDelayPerDot = fastMode ? 0.01f : 0.03f;
             float maxDelayPerDot = fastMode ? 0.06f : 0.15f;
-            float delay = Mathf.Clamp(maxTotalDuration / dotsToProcess.Count, minDelayPerDot, maxDelayPerDot);
+            // Keep a strict total-time cap even when DOT count is very large.
+            float delay = Mathf.Min(maxDelayPerDot, maxTotalDuration / dotsToProcess.Count);
             bool showDescription = !fastMode;
 
             Transform targetTransform = null;
@@ -147,7 +147,14 @@ public abstract class BaseCharacter
                 effect.Apply();
                 
                 // Wait
-                yield return new WaitForSeconds(delay);
+                if (delay > 0f)
+                {
+                    yield return new WaitForSeconds(delay);
+                }
+                else
+                {
+                    yield return null;
+                }
             }
         }
     }
@@ -205,9 +212,9 @@ public abstract class BaseCharacter
         if (dotsToProcess.Count > 0)
         {
             float maxTotalDuration = fastMode ? 0.8f : 2.2f;
-            float minDelayPerDot = fastMode ? 0.01f : 0.03f;
             float maxDelayPerDot = fastMode ? 0.06f : 0.15f;
-            float delay = Mathf.Clamp(maxTotalDuration / dotsToProcess.Count, minDelayPerDot, maxDelayPerDot);
+            // Keep a strict total-time cap even when DOT count is very large.
+            float delay = Mathf.Min(maxDelayPerDot, maxTotalDuration / dotsToProcess.Count);
             bool showDescription = !fastMode;
 
             Transform targetTransform = null;
@@ -229,7 +236,14 @@ public abstract class BaseCharacter
 
                 effect.Apply();
                 
-                yield return new WaitForSeconds(delay);
+                if (delay > 0f)
+                {
+                    yield return new WaitForSeconds(delay);
+                }
+                else
+                {
+                    yield return null;
+                }
             }
         }
     }
