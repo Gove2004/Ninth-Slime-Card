@@ -88,10 +88,7 @@ public static class CardFactory
         return new HashSet<string>
         {
             "偷窃", "偷月", "偷魔",
-            // 允许敌人抽到回复牌；在无尽模式中，回血会转为护盾，直接影响战斗节奏与得分效率。
-            "反伤",
-            "逃避", "傲慢",
-            "嫉妒"
+            "反伤", "傲慢", "嫉妒"
         };
     }
 
@@ -179,6 +176,8 @@ public static class CardFactory
         enemyDeck = new List<BaseCard>
         {
             new 流血(),
+            new 恢复(),
+            new 抽牌(),
             new 入魔()
         };
     }

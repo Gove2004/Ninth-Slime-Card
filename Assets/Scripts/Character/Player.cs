@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Player : BaseCharacter
 {
-    public const int HandLimit = 8;
+    public const int HandLimit = 0;
 
     public Player()
     {
