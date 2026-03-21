@@ -311,7 +311,8 @@ public abstract class BaseCharacter
     // 卡牌逻辑
     public List<BaseCard> Cards = new List<BaseCard>();
     protected virtual int MaxHandSize => int.MaxValue;
-    private bool IsHandFull => false;  // 解除手牌上限限制
+    private bool IsHandFull => MaxHandSize > 0 && Cards.Count >= MaxHandSize;
+
 
     public BaseCard GainRandomCard()
     {

@@ -158,12 +158,12 @@ public class HUD : MonoBehaviour
                 if (isEndless)
                 {
                     RestoreEnemyHpStyle();
-                    enemyHPText.text = $"{enemyBoss.score}";
+                    enemyHPText.text = FormatEnemyHpWithShield(enemyBoss.score, enemy.shiled);
                 }
                 else
                 {
                     ApplyEnemyHpStyleForNonEndless();
-                    enemyHPText.text = $"{enemy.health}";
+                    enemyHPText.text = FormatEnemyHpWithShield(enemy.health, enemy.shiled);
                 }
                 enemySPText.text = $"SP={enemy.shiled}";
                 enemyMPText.text = $"MP={enemy.mana}";
@@ -238,6 +238,12 @@ public class HUD : MonoBehaviour
         if (sequence == null) return;
         sequence.Kill(false);
         sequence = null;
+    }
+
+    private static string FormatEnemyHpWithShield(ulong hpValue, ulong shieldValue)
+    {
+        if (shieldValue == 0) return hpValue.ToString();
+        return $"<color=#9AA0AA><size=70%>{shieldValue}+</size></color> {hpValue}";
     }
 
     private void OnDestroy()
