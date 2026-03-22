@@ -1,0 +1,53 @@
+using System;
+using TapSDK.Login;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class LoginUI : MonoBehaviour
+{
+    public Button loginButton;
+    public TextMeshProUGUI loginTipText;
+
+    void Start()
+    {
+        loginButton.onClick.AddListener(OnLoginButtonClicked);
+    }
+
+    public void OnLoginButtonClicked()
+    {
+        // 这里可以调用 TapTapLogin.Instance.Login() 来触发登录流程
+        // 登录成功后，TapTapLogin 会通过回调通知登录结果
+        loginButton.interactable = false; // 禁用登录按钮，防止重复点击
+        _ = TapTapSdk.Instance.LoginAsync(OnLoginSuccess, OnLoginCancel, OnLoginFailure); // 确保 SDK 已经初始化
+        Debug.Log("登录按钮被点击，正在触发登录流程...");
+    }
+
+
+
+    private void OnLoginSuccess(TapTapAccount result)
+    {
+        // 登录成功，result 包含用户信息等数据
+        Debug.Log($"登录成功，用户ID：{result.openId}，用户名：{result.name}");
+        loginTipText.text = $"登录成功，欢迎 {result.name}！";
+
+        // 界面跳转
+        this.gameObject.SetActive(false); // 隐藏登录界面
+    }
+
+
+    private void OnLoginFailure(Exception exception)
+    {
+        // 登录失败，errorCode 和 errorMsg 提供错误信息
+        Debug.Log($"登录失败，出现异常：{exception}");
+        loginTipText.text = $"登录失败，出现异常：{exception.Message}";
+    }
+
+
+    private void OnLoginCancel()
+    {
+        // 登录被用户取消
+        Debug.Log("登录被用户取消");
+        loginTipText.text = "登录被取消";
+    }
+}
