@@ -10,6 +10,39 @@
       },
       "hash": "ec25df8f791e01508353c1c39b02ecf5f427f149"
     },
+    "com.google.external-dependency-manager": {
+      "version": "1.2.179",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://package.openupm.com"
+    },
+    "com.taptap.sdk.achievement": {
+      "version": "https://github.com/taptap/tapsdk-unity-dist.git?path=/Achievement#4.10.0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.taptap.sdk.core": "4.10.0",
+        "com.taptap.sdk.login": "4.10.0"
+      },
+      "hash": "73c599f1933080020c73dd25a845fc2ec0a3ebd3"
+    },
+    "com.taptap.sdk.core": {
+      "version": "https://github.com/taptap/tapsdk-unity-dist.git?path=/Core#4.10.0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "73c599f1933080020c73dd25a845fc2ec0a3ebd3"
+    },
+    "com.taptap.sdk.login": {
+      "version": "https://github.com/taptap/tapsdk-unity-dist.git?path=/Login#4.10.0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.taptap.sdk.core": "4.10.0"
+      },
+      "hash": "73c599f1933080020c73dd25a845fc2ec0a3ebd3"
+    },
     "com.unity.2d.animation": {
       "version": "10.2.1",
       "depth": 1,
@@ -203,7 +236,7 @@
     },
     "com.unity.nuget.newtonsoft-json": {
       "version": "3.2.1",
-      "depth": 1,
+      "depth": 0,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
