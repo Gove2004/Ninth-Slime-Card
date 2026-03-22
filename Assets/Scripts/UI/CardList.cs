@@ -72,6 +72,13 @@ public class CardList : MonoBehaviour
         {
             RefreshCard(param as BaseCard);
         });
+
+        EventCenter.Register("BattleStarted", (param) =>
+        {
+            SyncFromBattleHand();
+        });
+
+        SyncFromBattleHand();
     }
 
     void Update()
@@ -213,6 +220,16 @@ public class CardList : MonoBehaviour
         }
         cardUIItems.Clear();
         selectedCard = null;
+    }
+
+    private void SyncFromBattleHand()
+    {
+        Clear();
+        if (BattleManager.Instance?.player == null) return;
+        foreach (var card in BattleManager.Instance.player.Cards)
+        {
+            DrawCard(card);
+        }
     }
 
 

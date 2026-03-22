@@ -189,7 +189,8 @@ public class BattleManager : MonoBehaviour
             NextTurn();
         });
 
-        for (int i = 0; i < GameManager.Instance.difficultyLevel; i++)
+        int initialHandCount = Mathf.Clamp(5 - GameManager.Instance.difficultyLevel, 1, 4);
+        for (int i = 0; i < initialHandCount; i++)
         {
             var card = player.DrawCard(0);
             if (card != null)
