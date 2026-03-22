@@ -4,6 +4,9 @@ using UnityEngine;
 
 public class EnemyCardPlayUI : MonoBehaviour
 {
+    private const string EnemyAnimationCompletedEvent = "Enemy_ActionAnimationCompleted";
+    private const string EnemyPlayAnimationTag = "play";
+    private const string EnemyDrawAnimationTag = "draw";
     private Action disposablePlay;
     private Action disposableDraw;
     private CardUIItem cardUI;
@@ -44,7 +47,8 @@ public class EnemyCardPlayUI : MonoBehaviour
         float manaFactor = Mathf.InverseLerp(3f, 12f, ClampToFloat(enemy.mana));
         float handFactor = Mathf.InverseLerp(3f, 10f, enemy.Cards.Count);
         float t = Mathf.Clamp01(Mathf.Max(manaFactor, handFactor));
-        return Mathf.Lerp(1f, 0.35f, t);
+        float aiScale = Mathf.Lerp(1f, 0.35f, t);
+        return aiScale * GameSettings.GetSettlementDelayScale();
     }
 
     private static float ClampToFloat(ulong value)
@@ -60,6 +64,11 @@ public class EnemyCardPlayUI : MonoBehaviour
         cardUI.transform.DOKill(false);
     }
 
+    private void PublishAnimationCompleted(string tag)
+    {
+        EventCenter.Publish(EnemyAnimationCompletedEvent, tag);
+    }
+
     private void ShowPlayAnimation()
     {
         // 这里可以添加显示动画等效果
@@ -73,17 +82,28 @@ public class EnemyCardPlayUI : MonoBehaviour
         float holdDuration = Mathf.Max(0.08f, 0.33f * scale);
         float collapseDuration = Mathf.Max(0.1f, 0.33f * scale);
 
+        bool notified = false;
         var sequence = DOTween.Sequence();
         sequence.Append(cardUI.transform.DOScale(Vector3.one, expandDuration).SetEase(Ease.OutBack));
         sequence.AppendInterval(holdDuration);
         sequence.Append(cardUI.transform.DOScale(Vector3.zero, collapseDuration).SetEase(Ease.InBack));
         sequence.OnComplete(() =>
         {
+            if (!notified)
+            {
+                notified = true;
+                PublishAnimationCompleted(EnemyPlayAnimationTag);
+            }
             cardUI.gameObject.SetActive(false);
             currentAnimation = null;
         });
         sequence.OnKill(() =>
         {
+            if (!notified)
+            {
+                notified = true;
+                PublishAnimationCompleted(EnemyPlayAnimationTag);
+            }
             if (currentAnimation == sequence) currentAnimation = null;
         });
         currentAnimation = sequence;
@@ -100,13 +120,24 @@ public class EnemyCardPlayUI : MonoBehaviour
 
         cardUI.transform.localScale = Vector3.one;
         cardUI.transform.localRotation = Quaternion.identity;
+        bool notified = false;
         var tween = cardUI.transform.DORotate(new Vector3(0, 360, 0), rotateDuration, RotateMode.FastBeyond360).SetEase(Ease.Linear).OnComplete(() =>
         {
+            if (!notified)
+            {
+                notified = true;
+                PublishAnimationCompleted(EnemyDrawAnimationTag);
+            }
             cardUI.gameObject.SetActive(false);
             currentAnimation = null;
         });
         tween.OnKill(() =>
         {
+            if (!notified)
+            {
+                notified = true;
+                PublishAnimationCompleted(EnemyDrawAnimationTag);
+            }
             if (currentAnimation == tween) currentAnimation = null;
         });
         currentAnimation = tween;

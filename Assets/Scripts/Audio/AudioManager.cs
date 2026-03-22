@@ -203,15 +203,18 @@ public static class GameSettings
     private const string MusicVolumeKey = "Setting_MusicVolume";
     private const string SfxVolumeKey = "Setting_SfxVolume";
     private const string VibrationEnabledKey = "Setting_VibrationEnabled";
+    private const string SettlementSpeedKey = "Setting_SettlementSpeed";
 
     public const float DefaultMusicVolume = 0.8f;
     public const float DefaultSfxVolume = 0.8f;
     public const bool DefaultVibrationEnabled = true;
+    public const float DefaultSettlementSpeed = 0.5f;
 
     private static bool initialized;
     private static float musicVolume = DefaultMusicVolume;
     private static float sfxVolume = DefaultSfxVolume;
     private static bool vibrationEnabled = DefaultVibrationEnabled;
+    private static float settlementSpeed = DefaultSettlementSpeed;
 
     public static float MusicVolume
     {
@@ -240,12 +243,22 @@ public static class GameSettings
         }
     }
 
+    public static float SettlementSpeed
+    {
+        get
+        {
+            EnsureInitialized();
+            return settlementSpeed;
+        }
+    }
+
     public static void Initialize()
     {
         if (initialized) return;
         musicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(MusicVolumeKey, DefaultMusicVolume));
         sfxVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, DefaultSfxVolume));
         vibrationEnabled = PlayerPrefs.GetInt(VibrationEnabledKey, DefaultVibrationEnabled ? 1 : 0) == 1;
+        settlementSpeed = Mathf.Clamp01(PlayerPrefs.GetFloat(SettlementSpeedKey, DefaultSettlementSpeed));
         initialized = true;
     }
 
@@ -271,6 +284,26 @@ public static class GameSettings
         vibrationEnabled = enabled;
         PlayerPrefs.SetInt(VibrationEnabledKey, vibrationEnabled ? 1 : 0);
         PlayerPrefs.Save();
+    }
+
+    public static void SetSettlementSpeed(float value)
+    {
+        EnsureInitialized();
+        settlementSpeed = Mathf.Clamp01(value);
+        PlayerPrefs.SetFloat(SettlementSpeedKey, settlementSpeed);
+    }
+
+    public static float GetSettlementDelayScale()
+    {
+        EnsureInitialized();
+        if (settlementSpeed <= 0.5f)
+        {
+            return Mathf.Lerp(2.4f, 1f, settlementSpeed / 0.5f);
+        }
+
+        float t = (settlementSpeed - 0.5f) / 0.5f;
+        float eased = t * t;
+        return Mathf.Lerp(1f, 0.35f, eased);
     }
 
     private static void EnsureInitialized()
