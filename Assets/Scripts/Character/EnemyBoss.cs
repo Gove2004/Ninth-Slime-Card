@@ -202,7 +202,28 @@ public class EnemyBoss : BaseCharacter
         return rotateDuration;
     }
 
-    private async Task WaitForAnimationThenGap(CancellationToken token, string animationTag)
+    private bool CanTakeAnyAction()
+    {
+        if (AllowDraw && mana > 0)
+        {
+            return true;
+        }
+
+        if (AllowPlay)
+        {
+            foreach (var card in Cards)
+            {
+                if (card.Cost <= mana)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private async Task WaitForAnimationCompletion(CancellationToken token, string animationTag)
     {
         bool completed = false;
         var unlisten = EventCenter.Register(EnemyAnimationCompletedEvent, param =>
@@ -231,8 +252,6 @@ public class EnemyBoss : BaseCharacter
         }
 
         unlisten?.Invoke();
-        if (token.IsCancellationRequested) return;
-        await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
     }
 
 
@@ -267,7 +286,14 @@ public class EnemyBoss : BaseCharacter
 
                     EventCenter.Publish("Enemy_PlayedCard", playable);
 
-                    await WaitForAnimationThenGap(token, EnemyPlayAnimationTag);
+                    await WaitForAnimationCompletion(token, EnemyPlayAnimationTag);
+                    if (token.IsCancellationRequested) return;
+                    if (!CanTakeAnyAction())
+                    {
+                        EndTurn();
+                        return;
+                    }
+                    await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
                     continue;
                 }
             }
@@ -278,7 +304,14 @@ public class EnemyBoss : BaseCharacter
 
                 EventCenter.Publish("Enemy_DrewCard", card);
 
-                await WaitForAnimationThenGap(token, EnemyDrawAnimationTag);
+                await WaitForAnimationCompletion(token, EnemyDrawAnimationTag);
+                if (token.IsCancellationRequested) return;
+                if (!CanTakeAnyAction())
+                {
+                    EndTurn();
+                    return;
+                }
+                await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
                 continue;
             }
 
