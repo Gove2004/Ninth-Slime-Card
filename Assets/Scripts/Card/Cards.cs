@@ -1148,19 +1148,60 @@ public class 镜像 : BaseCard
 public class 激光 : BaseCard
 {
     protected override int id => 1702;
-    private static ulong globalBonusDamage = 0;
+    private static ulong playerBonusDamage = 0;
+    private static ulong enemyBonusDamage = 0;
 
     public static void ResetGlobalState()
     {
-        globalBonusDamage = 0;
+        playerBonusDamage = 0;
+        enemyBonusDamage = 0;
+    }
+
+    private static bool IsPlayerCharacter(BaseCharacter character)
+    {
+        if (character == null) return true;
+        if (character is Player) return true;
+        if (character is EnemyBoss) return false;
+        if (BattleManager.Instance == null) return true;
+        if (ReferenceEquals(character, BattleManager.Instance.player)) return true;
+        if (ReferenceEquals(character, BattleManager.Instance.enemy)) return false;
+        return true;
+    }
+
+    private static ulong GetBonusForCharacter(BaseCharacter character)
+    {
+        return IsPlayerCharacter(character) ? playerBonusDamage : enemyBonusDamage;
+    }
+
+    private static void IncreaseBonusForCharacter(BaseCharacter character)
+    {
+        if (IsPlayerCharacter(character))
+        {
+            playerBonusDamage = BaseCharacter.SaturatingAdd(playerBonusDamage, 1);
+            return;
+        }
+        enemyBonusDamage = BaseCharacter.SaturatingAdd(enemyBonusDamage, 1);
+    }
+
+    private ulong GetDisplayDamage()
+    {
+        return BaseCharacter.SaturatingAdd(Value, GetBonusForCharacter(OwningCharacter));
+    }
+
+    public override string GetDynamicDescription()
+    {
+        if (string.IsNullOrEmpty(Description)) return Description;
+        return Description
+            .Replace("[费用]", Cost.ToString())
+            .Replace("[数值]", GetDisplayDamage().ToString())
+            .Replace("[持续时间]", Duration.ToString());
     }
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        ulong damage = BaseCharacter.SaturatingAdd(Value, globalBonusDamage);
+        ulong damage = BaseCharacter.SaturatingAdd(Value, GetBonusForCharacter(user));
         user.DealDamage(target, damage);
-
-        globalBonusDamage = BaseCharacter.SaturatingAdd(globalBonusDamage, 1);
+        IncreaseBonusForCharacter(user);
     }
 }
 

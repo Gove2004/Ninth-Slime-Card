@@ -117,25 +117,18 @@ public class Player : BaseCharacter
         var enemy = BattleManager.Instance.enemy as EnemyBoss;
         if (enemy != null)
         {
-            // 循环检测，直到不再满足升级条件
-            while (enemy.score >= enemy.nextPhaseHealthThreshold)
+            if (enemy.score >= enemy.nextPhaseHealthThreshold)
             {
                 Debug.Log($"回合结束结算：当前分数 {enemy.score} >= 阈值 {enemy.nextPhaseHealthThreshold}，触发升级。");
                 
-                // 触发升级事件
                 enemy.TriggerPhaseChange();
                 
-                // 等待 RougeUI 显示并完成选择
-                // RougeUI 在 TriggerPhaseChange 触发的事件中会设置 Time.timeScale = 0
                 yield return null; 
                 
-                // 等待直到游戏恢复正常（RougeUI 关闭）
                 while (Time.timeScale == 0f)
                 {
                     yield return null;
                 }
-                
-                // 选择完成后，循环继续，再次检查当前分数是否还高于新的阈值
             }
         }
 

@@ -45,6 +45,7 @@ public abstract class BaseCard
     public int Duration { get; private set; }
     public string Description { get; private set; }
     public string ImagePath { get; private set; }
+    public BaseCharacter OwningCharacter { get; private set; }
     public bool IsStolenFromOpponent { get; private set; }
     public static ulong OverclockMultiplier { get; private set; } = 1;
 
@@ -84,6 +85,11 @@ public abstract class BaseCard
     public void MarkStolenFromOpponent()
     {
         IsStolenFromOpponent = true;
+    }
+
+    public void SetOwningCharacter(BaseCharacter character)
+    {
+        OwningCharacter = character;
     }
 
     public static void ResetOverclock()

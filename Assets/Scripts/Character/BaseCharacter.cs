@@ -412,6 +412,7 @@ public abstract class BaseCharacter
         BaseCard newCard = this is Player ? CardFactory.GetRandomCard() : CardFactory.GetRandomEnemyCard();
         if (newCard == null) return null;
         ApplyBuffsToCard(newCard);
+        newCard.SetOwningCharacter(this);
         Cards.Add(newCard);
         if (this is Player) EventCenter.Publish("Player_DrawCard", newCard);
         return newCard;
@@ -426,6 +427,7 @@ public abstract class BaseCharacter
         if (card == null) return;
         if (IsHandFull) return;
         ApplyBuffsToCard(card);
+        card.SetOwningCharacter(this);
         Cards.Add(card);
         if (this is Player) EventCenter.Publish("Player_DrawCard", card);
     }
@@ -455,6 +457,7 @@ public abstract class BaseCharacter
         }
         if (baseCard == null) return null;
         ApplyBuffsToCard(baseCard);
+        baseCard.SetOwningCharacter(this);
         Cards.Add(baseCard);
 
         EventCenter.Publish("CardDrawn", baseCard);
@@ -485,6 +488,7 @@ public abstract class BaseCharacter
 
             PreviousPlayedCard = LastPlayedCard;
             LastPlayedCard = card;
+            card.SetOwningCharacter(this);
 
             // 使用卡牌效果
             var previousContext = ActiveCardContext;

@@ -70,17 +70,17 @@ public class EnemyBoss : BaseCharacter
         }
         else
         {
-            ulong damage = amount == long.MinValue ? (ulong)long.MaxValue + 1UL : (ulong)(-amount);
-            ulong damageToShield = shiled < damage ? shiled : damage;
+            ulong totalDamage = amount == long.MinValue ? (ulong)long.MaxValue + 1UL : (ulong)(-amount);
+            ulong damageToShield = shiled < totalDamage ? shiled : totalDamage;
             shiled = SaturatingSub(shiled, damageToShield);
-            damage = SaturatingSub(damage, damageToShield);
+            ulong damageToHealth = SaturatingSub(totalDamage, damageToShield);
 
-            if (damage > 0)
+            if (totalDamage > 0)
             {
-                score = SaturatingAdd(score, damage);
+                score = SaturatingAdd(score, totalDamage);
                 if (!IsEndlessMode)
                 {
-                    health = SaturatingSub(health, damage);
+                    health = SaturatingSub(health, damageToHealth);
                     if (health == 0 && !isDead)
                     {
                         health = 0;
@@ -125,15 +125,13 @@ public class EnemyBoss : BaseCharacter
 
     private static ulong GetThresholdForPhase(int phase)
     {
-        if (phase <= 1) return 5;
-        if (phase == 2) return 8;
-        ulong prev = 5;
-        ulong current = 8;
-        for (int i = 3; i <= phase; i++)
+        if (phase <= 1) return 10;
+        ulong current = 10;
+        ulong delta = 5;
+        for (int i = 2; i <= phase; i++)
         {
-            ulong next = SaturatingAdd(prev, current);
-            prev = current;
-            current = next;
+            current = SaturatingAdd(current, delta);
+            delta = SaturatingAdd(delta, 1);
         }
         return current;
     }
@@ -170,10 +168,7 @@ public class EnemyBoss : BaseCharacter
         {
             if (token.IsCancellationRequested) return;
 
-            if (Time.timeScale > 0)
-            {
-                elapsed += Time.deltaTime;
-            }
+            elapsed += Time.unscaledDeltaTime;
             await Task.Yield();
         }
     }
@@ -223,13 +218,9 @@ public class EnemyBoss : BaseCharacter
                 return;
             }
 
-            if (Time.timeScale > 0)
-            {
-                elapsed += Time.deltaTime;
-            }
+            elapsed += Time.unscaledDeltaTime;
             await Task.Yield();
         }
-
         unlisten?.Invoke();
         if (token.IsCancellationRequested) return;
         await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
@@ -238,52 +229,64 @@ public class EnemyBoss : BaseCharacter
 
     private async Task AIAction(CancellationToken token)
     {
-        await WaitRandomSeconds(token, InitialThinkMinMs, InitialThinkMaxMs);
-        
-        while (!token.IsCancellationRequested)
+        try
         {
-            // 有10%概率直接结束回合, 这是负面的， 假装很智能的样子
-            if (Random.value < 0.1f)
+            await WaitRandomSeconds(token, InitialThinkMinMs, InitialThinkMaxMs);
+            
+            while (!token.IsCancellationRequested)
             {
+                if (Random.value < 0.1f)
+                {
+                    EndTurn();
+                    return;
+                }
+
+
+                if (AllowPlay)
+                {
+                    BaseCard playable = null;
+                    foreach (var card in Cards)
+                    {
+                        if (card.Cost <= mana)
+                        {
+                            playable = card;
+                            break;
+                        }
+                    }
+                    if (playable != null)
+                    {
+                        PlayCard(playable);
+
+                        EventCenter.Publish("Enemy_PlayedCard", playable);
+
+                        await WaitForAnimationThenGap(token, EnemyPlayAnimationTag);
+                        continue;
+                    }
+                }
+
+                if (AllowDraw && mana > 0)
+                {
+                    var card = DrawCard();
+                    if (card != null)
+                    {
+                        EventCenter.Publish("Enemy_DrewCard", card);
+
+                        await WaitForAnimationThenGap(token, EnemyDrawAnimationTag);
+                        continue;
+                    }
+                }
+
                 EndTurn();
                 return;
             }
-
-
-            if (AllowPlay)
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"EnemyBoss AIAction failed: {ex}");
+            if (!token.IsCancellationRequested && IsInTurn)
             {
-                BaseCard playable = null;
-                foreach (var card in Cards)
-                {
-                    if (card.Cost <= mana)
-                    {
-                        playable = card;
-                        break;
-                    }
-                }
-                if (playable != null)
-                {
-                    PlayCard(playable);
-
-                    EventCenter.Publish("Enemy_PlayedCard", playable);
-
-                    await WaitForAnimationThenGap(token, EnemyPlayAnimationTag);
-                    continue;
-                }
+                EndTurn();
             }
-
-            if (AllowDraw && mana > 0)
-            {
-                var card = DrawCard();
-
-                EventCenter.Publish("Enemy_DrewCard", card);
-
-                await WaitForAnimationThenGap(token, EnemyDrawAnimationTag);
-                continue;
-            }
-
-            EndTurn();
-            return;
         }
     }
 }
