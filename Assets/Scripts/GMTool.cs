@@ -5,13 +5,14 @@ public class GMTool : MonoBehaviour
     private string healthDelta = "0";
     private string manaDelta = "0";
     private string cardId = "1000";
+    private string cardName = "重奏";
     private string message = "";
     private bool enemyAllowPlay = true;
     private bool enemyAllowDraw = true;
     private bool enemyToggleInitialized = false;
     private bool showPanel = true;
-    private Rect windowRect = new Rect(10, 10, 260, 420);
-    private const int FullHeight = 420;
+    private Rect windowRect = new Rect(10, 10, 260, 470);
+    private const int FullHeight = 470;
     private const int CollapsedHeight = 70;
 
     public void ResetEnemyAIFlags()
@@ -124,6 +125,30 @@ public class GMTool : MonoBehaviour
             else
             {
                 message = "卡牌ID输入无效";
+            }
+        }
+
+        GUILayout.Label("获取指定名称卡牌");
+        cardName = GUILayout.TextField(cardName);
+        if (GUILayout.Button("按名称获取卡牌"))
+        {
+            string trimmedName = string.IsNullOrWhiteSpace(cardName) ? string.Empty : cardName.Trim();
+            if (string.IsNullOrEmpty(trimmedName))
+            {
+                message = "卡牌名称不能为空";
+            }
+            else
+            {
+                var card = CardFactory.GetThisCard(trimmedName);
+                if (card != null)
+                {
+                    player.GainCard(card);
+                    message = $"已获得卡牌 {card.Name}";
+                }
+                else
+                {
+                    message = $"未找到名称为 {trimmedName} 的卡牌";
+                }
             }
         }
 

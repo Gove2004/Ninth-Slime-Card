@@ -1,4 +1,4 @@
-
+using System.Text.RegularExpressions;
 
 /// <summary>
 /// 卡牌的基类, 定义了卡牌的基本属性和方法。
@@ -60,6 +60,16 @@ public abstract class BaseCard
         Cost = cost;
     }
 
+    public void SetValue(ulong value)
+    {
+        Value = value;
+    }
+
+    public void SetDuration(int duration)
+    {
+        Duration = duration;
+    }
+
     public void AddCost(ulong amount)
     {
         Cost = BaseCharacter.SaturatingAdd(Cost, amount);
@@ -98,16 +108,49 @@ public abstract class BaseCard
     public virtual string GetDynamicDescription()
     {
         if (string.IsNullOrEmpty(Description)) return Description;
-        return Description
+        string result = Description
             .Replace("[费用]", Cost.ToString())
-            .Replace("[数值×20]", BaseCharacter.SaturatingMultiply(Value, 20).ToString())
-            .Replace("[数值×2]", BaseCharacter.SaturatingMultiply(Value, 2).ToString())
             .Replace("[数值/1+数值]", $"{Value}/{BaseCharacter.SaturatingAdd(Value, 1)}")
-            .Replace("[数值/6]", (Value / 6).ToString())
-            .Replace("[数值/10]", (Value / 10).ToString())
             .Replace("[数值]", Value.ToString())
             .Replace("[持续时间]", Duration.ToString());
+
+        result = Regex.Replace(result, @"\[数值[×xX\*](\d+)\]", match =>
+        {
+            if (!ulong.TryParse(match.Groups[1].Value, out ulong factor))
+            {
+                return match.Value;
+            }
+            return BaseCharacter.SaturatingMultiply(Value, factor).ToString();
+        });
+
+        result = Regex.Replace(result, @"\[数值/(\d+)\]", match =>
+        {
+            if (!ulong.TryParse(match.Groups[1].Value, out ulong divisor) || divisor == 0)
+            {
+                return match.Value;
+            }
+            return (Value / divisor).ToString();
+        });
+
+        return result;
     }
+
+    public virtual string GetDisplayName()
+    {
+        return Name;
+    }
+
+    public virtual ulong GetDisplayCost()
+    {
+        return Cost;
+    }
+
+    public virtual string GetDisplayImagePath()
+    {
+        return ImagePath;
+    }
+
+    public virtual bool IsMirageCard => false;
 
     /// <summary>
     /// 使用卡牌的效果

@@ -21,8 +21,17 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     // Card数据
     public BaseCard cardData = new 抽牌();
     private string lastDescription = "";
+    private string lastDisplayName = "";
+    private string lastImagePath = "";
     private ulong lastCost = 0;
     private bool hasLastCost = false;
+    private bool lastMirageState = false;
+    private Color defaultNameColor;
+    private Color defaultCostColor;
+    private Color defaultImageColor;
+    private readonly Color mirageNameColor = new(0.72f, 0.92f, 1f, 1f);
+    private readonly Color mirageCostColor = new(0.75f, 0.96f, 1f, 1f);
+    private readonly Color mirageImageColor = new(0.78f, 0.9f, 1f, 1f);
     
     private bool dragging;
     public bool IsDragging => dragging; // Public property for CardList to access
@@ -50,6 +59,9 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         originalTooltipAnchored = tooltipRect.anchoredPosition;
         tooltip.SetActive(false);
         outline.enabled = false;
+        defaultNameColor = cardNameText.color;
+        defaultCostColor = costText.color;
+        defaultImageColor = image.color;
 
         SetData(cardData);
     }
@@ -108,11 +120,29 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             cardDescriptionText.text = description;
             lastDescription = description;
         }
-        if (!hasLastCost || cardData.Cost != lastCost)
+        string displayName = cardData.GetDisplayName();
+        if (displayName != lastDisplayName)
         {
-            costText.text = cardData.Cost.ToString();
-            lastCost = cardData.Cost;
+            cardNameText.text = displayName;
+            lastDisplayName = displayName;
+        }
+        ulong displayCost = cardData.GetDisplayCost();
+        if (!hasLastCost || displayCost != lastCost)
+        {
+            costText.text = displayCost.ToString();
+            lastCost = displayCost;
             hasLastCost = true;
+        }
+        string displayImagePath = cardData.GetDisplayImagePath();
+        if (displayImagePath != lastImagePath)
+        {
+            TryLoadCardImage(displayImagePath);
+            lastImagePath = displayImagePath;
+        }
+        if (lastMirageState != cardData.IsMirageCard)
+        {
+            lastMirageState = cardData.IsMirageCard;
+            ApplyMirageVisual(lastMirageState);
         }
     }
 
@@ -166,20 +196,38 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             return;
         }
 
-        cardNameText.text = card.Name;
+        cardNameText.text = card.GetDisplayName();
         cardDescriptionText.text = card.GetDynamicDescription();
         lastDescription = cardDescriptionText.text;
+        lastDisplayName = cardNameText.text;
+        string displayImagePath = card.GetDisplayImagePath();
+        TryLoadCardImage(displayImagePath);
+        lastImagePath = displayImagePath;
+        ulong displayCost = card.GetDisplayCost();
+        costText.text = displayCost.ToString();
+        lastCost = displayCost;
+        hasLastCost = true;
+        lastMirageState = card.IsMirageCard;
+        ApplyMirageVisual(lastMirageState);
+    }
+
+    private void TryLoadCardImage(string imagePath)
+    {
         try
         {
-            image.sprite = Resources.Load<Sprite>(card.ImagePath);
+            image.sprite = Resources.Load<Sprite>(imagePath);
         }
         catch
         {
-            Debug.LogWarning($"无法加载卡牌图片: {card.ImagePath}");
+            Debug.LogWarning($"无法加载卡牌图片: {imagePath}");
         }
-        costText.text = card.Cost.ToString();
-        lastCost = card.Cost;
-        hasLastCost = true;
+    }
+
+    private void ApplyMirageVisual(bool mirage)
+    {
+        cardNameText.color = mirage ? mirageNameColor : defaultNameColor;
+        costText.color = mirage ? mirageCostColor : defaultCostColor;
+        image.color = mirage ? mirageImageColor : defaultImageColor;
     }
 
     #region 点击选中卡牌

@@ -138,17 +138,23 @@ public class 吸血 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        int duration = Duration;
-        ulong value = Value;
-        if (duration <= 0) return;
-
+        if (Duration <= 0) return;
         Dot dot = null;
-        dot = new Dot(user, target, duration, d =>
+        Action<ulong, BaseCharacter> handler = (amount, victim) =>
         {
-            d.source.DealDamage(d.target, value);
-            d.source.ApplyHealthChange(ToLong(value), d.source);
-        }, null, () => $"每回合造成{value}点伤害并恢复{value}点生命，剩余{dot.duration}回合");
+            if (dot == null || dot.source == null) return;
+            dot.source.ApplyHealthChange(ToLong(amount), dot.source);
+        };
 
+        user.DamageDealt += handler;
+        dot = new Dot(user, target, Duration, d => { }, d =>
+        {
+            if (d.source != null) d.source.DamageDealt -= handler;
+        }, () => $"造成伤害后恢复等量生命，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
+        {
+            if (oldSource != null) oldSource.DamageDealt -= handler;
+            if (d.source != null) d.source.DamageDealt += handler;
+        });
         user.dotBar.Add(dot);
     }
 }
@@ -161,7 +167,7 @@ public class 加速 : BaseCard
     {
         if (Duration <= 0) return;
         ulong startDamage = Value;
-        ulong growth = 1;
+        ulong growth = BaseCharacter.SaturatingMultiply(Value, 2);
 
         Dot dot = null;
         dot = new Dot(user, target, Duration, d =>
@@ -222,7 +228,7 @@ public class 急救 : BaseCard
     {
         ulong value = Value;
         user.ChangeMana(ToLong(value));
-        user.ApplyHealthChange(ToLong(value), user);
+        user.ApplyHealthChange(ToLong(BaseCharacter.SaturatingMultiply(value, 3)), user);
     }
 }
 
@@ -239,38 +245,69 @@ public class 闪击 : BaseCard
 public class 重奏 : BaseCard
 {
     protected override int id => 1110;
-    private static bool isResolving;
+    private BaseCard mirroredCard;
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (isResolving) return;
-        int times = ToInt(Value);
-        if (times <= 0) return;
-
-        BaseCard previous = user.PreviousPlayedCard;
-        if (previous == null) return;
-        if (ReferenceEquals(previous, this) || previous is 重奏)
-        {
-            Debug.LogWarning("重奏无法复制重奏，已跳过以避免递归。");
-            return;
-        }
-
-        isResolving = true;
-        try
-        {
-            for (int i = 0; i < times; i++)
-            {
-                var oldContext = BaseCharacter.ActiveCardContext;
-                BaseCharacter.ActiveCardContext = previous;
-                previous.Execute(user, target);
-                BaseCharacter.ActiveCardContext = oldContext;
-            }
-        }
-        finally
-        {
-            isResolving = false;
-        }
+        if (mirroredCard == null) return;
+        mirroredCard.Execute(user, target);
     }
+
+    public void TransformInto(BaseCard sourceCard)
+    {
+        if (sourceCard == null) return;
+        BaseCard effectiveSource = sourceCard;
+        if (effectiveSource is 重奏 reprise)
+        {
+            BaseCard repriseMirror = reprise.GetMirroredCard();
+            if (repriseMirror == null) return;
+            effectiveSource = repriseMirror;
+        }
+
+        BaseCard nextMirror = CardFactory.GetThisCard(effectiveSource.Name);
+        if (nextMirror == null) return;
+
+        nextMirror.SetCost(effectiveSource.Cost);
+        nextMirror.SetValue(effectiveSource.Value);
+        nextMirror.SetDuration(effectiveSource.Duration);
+        if (effectiveSource.IsStolenFromOpponent) nextMirror.MarkStolenFromOpponent();
+
+        mirroredCard = nextMirror;
+        SetCost(nextMirror.Cost);
+        SetValue(nextMirror.Value);
+        SetDuration(nextMirror.Duration);
+    }
+
+    public BaseCard GetMirroredCard()
+    {
+        return mirroredCard;
+    }
+
+    public override string GetDisplayName()
+    {
+        if (mirroredCard == null) return Name;
+        return $"{mirroredCard.Name}·重奏";
+    }
+
+    public override string GetDynamicDescription()
+    {
+        if (mirroredCard == null) return base.GetDynamicDescription();
+        return $"{mirroredCard.GetDynamicDescription()}\n重奏";
+    }
+
+    public override ulong GetDisplayCost()
+    {
+        if (mirroredCard == null) return Cost;
+        return mirroredCard.Cost;
+    }
+
+    public override string GetDisplayImagePath()
+    {
+        if (mirroredCard == null) return ImagePath;
+        return mirroredCard.ImagePath;
+    }
+
+    public override bool IsMirageCard => mirroredCard != null;
 }
 
 public class 七罪 : BaseCard
@@ -281,6 +318,13 @@ public class 七罪 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (Duration <= 0) return;
+        int gainCount = ToInt(Value);
+        int initialGain = Mathf.Min(gainCount, SinNames.Length);
+        for (int i = 0; i < initialGain; i++)
+        {
+            var initialCard = CardFactory.GetThisCard(SinNames[i]);
+            if (initialCard != null) user.GainCard(initialCard);
+        }
 
         Dot dot = null;
         dot = new Dot(user, user, Duration, d =>
@@ -300,20 +344,14 @@ public class 暴怒 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (Duration <= 0) return;
         ulong value = Value;
-
-        Dot dot = null;
-        dot = new Dot(user, target, Duration, d =>
+        if (value == 0) return;
+        user.DealDamage(target, value);
+        float selfDamageProbability = Mathf.Clamp01(ToFloat(value) / 100f);
+        if (UnityEngine.Random.value < selfDamageProbability)
         {
-            d.source.DealDamage(d.target, value);
-            if (UnityEngine.Random.value < 0.77f)
-            {
-                d.source.DealDamage(d.source, value);
-            }
-        }, null, () => $"每回合造成{value}点伤害，并有77%概率反噬，剩余{dot.duration}回合");
-
-        user.dotBar.Add(dot);
+            user.DealDamage(user, value);
+        }
     }
 }
 
@@ -323,15 +361,28 @@ public class 傲慢 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        user.ChangeMana(NegToLong(user.mana));
-        user.SetImmuneThisTurn(true);
-
         int duration = Mathf.Max(1, Duration);
+        int remainingHits = Mathf.Max(0, ToInt(Value));
+        if (remainingHits <= 0) return;
+
         Dot dot = null;
-        dot = new Dot(user, user, duration, d => d.source.SetImmuneThisTurn(true), d =>
+        Action<ulong, BaseCharacter> handler = (amount, source) =>
         {
-            if (d.source != null) d.source.SetImmuneThisTurn(false);
-        }, () => $"免疫伤害，剩余{dot.duration}回合");
+            if (dot == null || dot.source == null) return;
+            if (remainingHits <= 0 || amount == 0) return;
+            dot.source.ApplyHealthChange(ToLong(amount), dot.source);
+            remainingHits--;
+        };
+
+        user.DamageTaken += handler;
+        dot = new Dot(user, user, duration, d => { }, d =>
+        {
+            if (d.source != null) d.source.DamageTaken -= handler;
+        }, () => $"剩余免疫{remainingHits}次，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
+        {
+            if (oldSource != null) oldSource.DamageTaken -= handler;
+            if (d.source != null) d.source.DamageTaken += handler;
+        });
 
         user.dotBar.Add(dot);
     }
@@ -344,23 +395,51 @@ public class 嫉妒 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (target == null) return;
+        ulong maxSteal = Value;
+        ulong actualSteal = user.mana < maxSteal ? user.mana : maxSteal;
+        if (actualSteal == 0) return;
+        user.ChangeMana(NegToLong(actualSteal));
 
-        var userDots = new List<Dot>(user.dotBar);
-        var targetDots = new List<Dot>(target.dotBar);
-
-        user.dotBar.Clear();
-        target.dotBar.Clear();
-
-        foreach (var dot in userDots)
+        for (ulong i = 0; i < actualSteal; i++)
         {
-            dot.TransferTo(target);
-            target.dotBar.Add(dot);
-        }
+            List<int> available = new();
+            if (target.Cards.Count > 0) available.Add(0);
+            if (target.mana > 0) available.Add(1);
+            if (target.dotBar.Count > 0) available.Add(2);
+            if (target.health > 0) available.Add(3);
+            if (available.Count == 0) break;
 
-        foreach (var dot in targetDots)
-        {
-            dot.TransferTo(user);
-            user.dotBar.Add(dot);
+            int stealType = available[UnityEngine.Random.Range(0, available.Count)];
+            if (stealType == 0)
+            {
+                int index = UnityEngine.Random.Range(0, target.Cards.Count);
+                BaseCard stolen = target.Cards[index];
+                stolen.MarkStolenFromOpponent();
+                target.RemoveCard(stolen);
+                user.GainCard(stolen);
+                continue;
+            }
+
+            if (stealType == 1)
+            {
+                target.ChangeMana(-1);
+                user.ChangeMana(1);
+                continue;
+            }
+
+            if (stealType == 2)
+            {
+                int index = UnityEngine.Random.Range(0, target.dotBar.Count);
+                Dot stolen = target.dotBar[index];
+                target.dotBar.RemoveAt(index);
+                stolen.TransferTo(user);
+                stolen.MarkStolenFromOpponent();
+                user.dotBar.Add(stolen);
+                continue;
+            }
+
+            target.ApplyHealthChange(-1, user);
+            user.ApplyHealthChange(1, user);
         }
     }
 }
@@ -371,10 +450,18 @@ public class 贪婪 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        int discardCount = user.Cards.Count;
+        int maxDiscard = Mathf.Max(0, ToInt(Value));
+        int discardCount = Mathf.Min(maxDiscard, user.Cards.Count);
         if (discardCount <= 0) return;
-        CardRuntimeHelper.DiscardAllCards(user);
-        user.ChangeMana(ToLong((ulong)(discardCount * 2)));
+        for (int i = 0; i < discardCount; i++)
+        {
+            if (user.Cards.Count == 0) break;
+            BaseCard card = user.Cards[0];
+            user.RemoveCard(card);
+            if (user is Player) EventCenter.Publish("Player_PlayCard", card);
+        }
+        user.ChangeMana(discardCount);
+        user.DealDamage(target, (ulong)discardCount);
     }
 }
 
@@ -384,7 +471,16 @@ public class 懒惰 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        for (int i = 0; i < 7; i++)
+        ulong spend = user.mana < Value ? user.mana : Value;
+        if (spend == 0)
+        {
+            user.EndTurn();
+            return;
+        }
+
+        user.ChangeMana(NegToLong(spend));
+        int drawCount = ToInt(spend);
+        for (int i = 0; i < drawCount; i++)
         {
             var card = user.DrawCard(0);
             if (card != null && user is Player)
@@ -402,19 +498,21 @@ public class 色欲 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (BattleManager.Instance == null) return;
+        int addDuration = ToInt(Value);
+        if (addDuration <= 0 || BattleManager.Instance == null) return;
         var player = BattleManager.Instance.player;
         var enemy = BattleManager.Instance.enemy;
         if (player == null || enemy == null) return;
 
-        foreach (var dot in player.dotBar)
-        {
-            dot.duration = 7;
-        }
+        List<Dot> allDots = new();
+        allDots.AddRange(player.dotBar);
+        allDots.AddRange(enemy.dotBar);
+        if (allDots.Count == 0) return;
 
-        foreach (var dot in enemy.dotBar)
+        Dot randomDot = allDots[UnityEngine.Random.Range(0, allDots.Count)];
+        if (randomDot != null)
         {
-            dot.duration = 7;
+            randomDot.duration += addDuration;
         }
     }
 }
@@ -425,25 +523,16 @@ public class 暴食 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (Duration <= 0) return;
         ulong value = Value;
-
-        user.SetDamageTakenMultiplier(2f);
-        Dot dot = null;
-        dot = new Dot(user, user, Duration, d =>
+        int eatCount = Mathf.Min(ToInt(value), user.Cards.Count);
+        if (eatCount <= 0) return;
+        for (int i = 0; i < eatCount; i++)
         {
-            d.source.ApplyHealthChange(ToLong(value), d.source);
-            d.source.SetDamageTakenMultiplier(2f);
-        }, d =>
-        {
-            if (d.source != null) d.source.SetDamageTakenMultiplier(1f);
-        }, () => $"每回合恢复{value}点生命且受伤翻倍，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
-        {
-            if (oldSource != null) oldSource.SetDamageTakenMultiplier(1f);
-            if (d.source != null) d.source.SetDamageTakenMultiplier(2f);
-        });
-
-        user.dotBar.Add(dot);
+            BaseCard card = user.Cards[0];
+            user.RemoveCard(card);
+            if (user is Player) EventCenter.Publish("Player_PlayCard", card);
+            user.ApplyHealthChange(ToLong(value), user);
+        }
     }
 }
 
@@ -455,6 +544,23 @@ public class 种子 : BaseCard
     {
         int seed = Guid.NewGuid().GetHashCode();
         UnityEngine.Random.InitState(seed);
+        if (IsPrime(Mathf.Abs(seed)))
+        {
+            user.ChangeMana(999);
+        }
+    }
+
+    private static bool IsPrime(int value)
+    {
+        if (value <= 1) return false;
+        if (value == 2) return true;
+        if ((value & 1) == 0) return false;
+        int limit = (int)Math.Sqrt(value);
+        for (int i = 3; i <= limit; i += 2)
+        {
+            if (value % i == 0) return false;
+        }
+        return true;
     }
 }
 
@@ -533,18 +639,18 @@ public class 赌徒 : BaseCard
     {
         ulong value = Value;
         float p = value <= 0 ? 0f : (float)value / (value + 1f);
+        if (p <= 0f) return;
         int safety = 64;
 
         while (safety-- > 0)
         {
-            string name = RandomSeriesNames[UnityEngine.Random.Range(0, RandomSeriesNames.Length)];
-            var card = CardFactory.GetThisCard(name);
-            if (card != null) user.GainCard(card);
-
             if (UnityEngine.Random.value > p)
             {
                 break;
             }
+            string name = RandomSeriesNames[UnityEngine.Random.Range(0, RandomSeriesNames.Length)];
+            var card = CardFactory.GetThisCard(name);
+            if (card != null) user.GainCard(card);
         }
     }
 }
@@ -556,7 +662,7 @@ public class 轮盘 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (Duration <= 0) return;
-        ulong hitValue = Value;
+        ulong hitValue = BaseCharacter.SaturatingMultiply(Value, 6);
         ulong selfDamage = Value / 6;
 
         Dot dot = null;
@@ -632,13 +738,18 @@ public class 献祭 : BaseCard
     {
         if (Duration <= 0) return;
         ulong baseValue = Value;
+        BaseCharacter effectTarget = target ?? user.Target;
+        if (effectTarget == null && BattleManager.Instance != null)
+        {
+            effectTarget = user == BattleManager.Instance.player ? BattleManager.Instance.enemy : BattleManager.Instance.player;
+        }
 
         Dot dot = null;
-        dot = new Dot(user, user, Duration, d =>
+        dot = new Dot(user, effectTarget, Duration, d =>
         {
             ulong damage = BaseCharacter.SaturatingAdd(baseValue, sacrificeBonus);
             d.source.DealDamage(d.source, damage);
-            if (d.target != null) d.source.DealDamage(d.target, damage);
+            if (d.target != null && !ReferenceEquals(d.target, d.source)) d.source.DealDamage(d.target, damage);
             sacrificeBonus = BaseCharacter.SaturatingAdd(sacrificeBonus, 1);
         }, null, () => $"每回合对双方造成{CurrentDamage}点伤害（献祭永久+1），剩余{dot.duration}回合");
 
@@ -654,18 +765,22 @@ public class 卖血 : BaseCard
     {
         int duration = Duration;
         ulong value = Value;
+        int drawCount = ToInt(value / 2);
         if (duration <= 0) return;
 
         Dot dot = null;
         dot = new Dot(user, user, duration, d =>
         {
             d.source.ApplyHealthChange(NegToLong(value), d.source);
-            var card = d.source.DrawCard(0);
-            if (card != null && d.source is Player)
+            for (int i = 0; i < drawCount; i++)
             {
-                EventCenter.Publish("Player_DrawCard", card);
+                var card = d.source.DrawCard(0);
+                if (card != null && d.source is Player)
+                {
+                    EventCenter.Publish("Player_DrawCard", card);
+                }
             }
-        }, null, () => $"每回合失{value}点生命并抽1张牌，剩余{dot.duration}回合");
+        }, null, () => $"每回合失{value}点生命并抽{drawCount}张牌，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
@@ -790,8 +905,10 @@ public class 偷魔 : BaseCard
         dot = new Dot(user, target, duration, d =>
         {
             if (d.target == null || d.target.mana <= 0) return;
-            d.target.ChangeMana(NegToLong(value));
-            d.source.ChangeMana(ToLong(value));
+            ulong stolen = d.target.mana < value ? d.target.mana : value;
+            if (stolen == 0) return;
+            d.target.ChangeMana(NegToLong(stolen));
+            d.source.ChangeMana(ToLong(stolen));
         }, null, () => $"每回合偷取{value}点魔力，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
@@ -804,30 +921,28 @@ public class 偷月 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (target == null) return;
+        if (target == null || Duration <= 0) return;
         int count = ToInt(Value);
         if (count <= 0) return;
 
-        var positiveDots = new List<Dot>();
-        foreach (var dot in target.dotBar)
+        Dot dot = null;
+        dot = new Dot(user, target, Duration, d =>
         {
-            if (dot.target == target) positiveDots.Add(dot);
-        }
+            if (d.target == null || d.target.dotBar.Count == 0) return;
+            int stealCount = Mathf.Min(count, d.target.dotBar.Count);
+            for (int i = 0; i < stealCount; i++)
+            {
+                if (d.target.dotBar.Count == 0) break;
+                int index = UnityEngine.Random.Range(0, d.target.dotBar.Count);
+                Dot stolen = d.target.dotBar[index];
+                d.target.dotBar.RemoveAt(index);
+                stolen.TransferTo(d.source);
+                stolen.MarkStolenFromOpponent();
+                d.source.dotBar.Add(stolen);
+            }
+        }, null, () => $"每回合偷取{count}个效果，剩余{dot.duration}回合");
 
-        if (positiveDots.Count == 0) return;
-
-        int stealCount = Mathf.Min(count, positiveDots.Count);
-        for (int i = 0; i < stealCount; i++)
-        {
-            if (positiveDots.Count == 0) break;
-            int index = UnityEngine.Random.Range(0, positiveDots.Count);
-            Dot stolen = positiveDots[index];
-            positiveDots.RemoveAt(index);
-            target.dotBar.Remove(stolen);
-            stolen.TransferTo(user);
-            stolen.MarkStolenFromOpponent();
-            user.dotBar.Add(stolen);
-        }
+        user.dotBar.Add(dot);
     }
 }
 
@@ -837,7 +952,7 @@ public class 未来 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        int delay = Duration;
+        int delay = 3;
         int sustain = Duration;
         ulong value = Value;
         if (delay <= 0 || sustain <= 0) return;
@@ -987,29 +1102,18 @@ public class 激光 : BaseCard
 {
     protected override int id => 1702;
     private static ulong globalBonusDamage = 0;
-    private static ulong globalExtraCost = 0;
 
     public static void ResetGlobalState()
     {
         globalBonusDamage = 0;
-        globalExtraCost = 0;
-    }
-
-    public 激光()
-    {
-        if (globalExtraCost > 0)
-        {
-            AddCost(globalExtraCost);
-        }
     }
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        ulong damage = BaseCharacter.SaturatingAdd(1, globalBonusDamage);
+        ulong damage = BaseCharacter.SaturatingAdd(Value, globalBonusDamage);
         user.DealDamage(target, damage);
 
-        globalBonusDamage = BaseCharacter.SaturatingAdd(globalBonusDamage, Value);
-        globalExtraCost = BaseCharacter.SaturatingAdd(globalExtraCost, 1);
+        globalBonusDamage = BaseCharacter.SaturatingAdd(globalBonusDamage, 1);
     }
 }
 
