@@ -22,6 +22,7 @@ public abstract class BaseCharacter
     private const ulong MaxDrawCostPerTurn = 5;
     private float damageTakenMultiplier = 1f;
     private static int reflectDamageContextDepth = 0;
+    private static readonly List<string> nestedTriggerCardNames = new();
     public static BaseCard ActiveCardContext { get; set; }
     public static Dot ActiveDotContext { get; set; }
     public static bool IsReflectDamageContext => reflectDamageContextDepth > 0;
@@ -120,8 +121,11 @@ public abstract class BaseCharacter
         var dotsToProcess = new List<Dot>(dotBar);
         if (dotsToProcess.Count > 0)
         {
+            float settlementScale = GameSettings.GetSettlementDelayScale();
             float maxTotalDuration = fastMode ? 0.8f : 2.2f;
             float maxDelayPerDot = fastMode ? 0.06f : 0.15f;
+            maxTotalDuration *= settlementScale;
+            maxDelayPerDot *= settlementScale;
             // Keep a strict total-time cap even when DOT count is very large.
             float delay = Mathf.Min(maxDelayPerDot, maxTotalDuration / dotsToProcess.Count);
             bool showDescription = !fastMode;
@@ -211,8 +215,11 @@ public abstract class BaseCharacter
     {
         if (dotsToProcess.Count > 0)
         {
+            float settlementScale = GameSettings.GetSettlementDelayScale();
             float maxTotalDuration = fastMode ? 0.8f : 2.2f;
             float maxDelayPerDot = fastMode ? 0.06f : 0.15f;
+            maxTotalDuration *= settlementScale;
+            maxDelayPerDot *= settlementScale;
             // Keep a strict total-time cap even when DOT count is very large.
             float delay = Mathf.Min(maxDelayPerDot, maxTotalDuration / dotsToProcess.Count);
             bool showDescription = !fastMode;
@@ -321,6 +328,40 @@ public abstract class BaseCharacter
         finally
         {
             reflectDamageContextDepth--;
+        }
+    }
+
+    public static bool TryEnterNestedTrigger(BaseCard triggerCard, out BaseCard previousContext)
+    {
+        previousContext = ActiveCardContext;
+        if (triggerCard == null) return true;
+
+        string triggerName = triggerCard.Name;
+        if (!string.IsNullOrEmpty(triggerName))
+        {
+            if (nestedTriggerCardNames.Contains(triggerName))
+            {
+                return false;
+            }
+            nestedTriggerCardNames.Add(triggerName);
+        }
+
+        ActiveCardContext = triggerCard;
+        return true;
+    }
+
+    public static void ExitNestedTrigger(BaseCard triggerCard, BaseCard previousContext)
+    {
+        ActiveCardContext = previousContext;
+        if (triggerCard == null) return;
+
+        string triggerName = triggerCard.Name;
+        if (string.IsNullOrEmpty(triggerName)) return;
+        for (int i = nestedTriggerCardNames.Count - 1; i >= 0; i--)
+        {
+            if (nestedTriggerCardNames[i] != triggerName) continue;
+            nestedTriggerCardNames.RemoveAt(i);
+            break;
         }
     }
 

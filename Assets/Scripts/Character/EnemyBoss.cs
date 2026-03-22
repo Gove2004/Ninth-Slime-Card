@@ -10,6 +10,9 @@ public class EnemyBoss : BaseCharacter
     private const int InitialThinkMaxMs = 900;
     private const int ActionGapMinMs = 220;
     private const int ActionGapMaxMs = 650;
+    private const string EnemyAnimationCompletedEvent = "Enemy_ActionAnimationCompleted";
+    private const string EnemyPlayAnimationTag = "play";
+    private const string EnemyDrawAnimationTag = "draw";
     private CancellationTokenSource _cts;
     private bool isDead = false;
     public ulong score { get; private set; }
@@ -153,9 +156,12 @@ public class EnemyBoss : BaseCharacter
 
     private async Task WaitRandomSeconds(CancellationToken token, int min = ActionGapMinMs, int max = ActionGapMaxMs)
     {
-        float scale = GetAISpeedScale();
-        int scaledMin = Mathf.Max(120, Mathf.RoundToInt(min * scale));
-        int scaledMax = Mathf.Max(scaledMin + 40, Mathf.RoundToInt(max * scale));
+        float settlementScale = GameSettings.GetSettlementDelayScale();
+        float scale = GetAISpeedScale() * settlementScale;
+        int minFloor = Mathf.Max(20, Mathf.RoundToInt(120f * settlementScale));
+        int maxGapFloor = Mathf.Max(12, Mathf.RoundToInt(40f * settlementScale));
+        int scaledMin = Mathf.Max(minFloor, Mathf.RoundToInt(min * scale));
+        int scaledMax = Mathf.Max(scaledMin + maxGapFloor, Mathf.RoundToInt(max * scale));
         int delay = Random.Range(scaledMin, scaledMax);
         float duration = delay / 1000f;
         float elapsed = 0f;
@@ -170,6 +176,63 @@ public class EnemyBoss : BaseCharacter
             }
             await Task.Yield();
         }
+    }
+
+    private float GetEnemyAnimationScale()
+    {
+        float manaFactor = Mathf.InverseLerp(3f, 12f, ClampToFloat(mana));
+        float handFactor = Mathf.InverseLerp(3f, 10f, Cards.Count);
+        float t = Mathf.Clamp01(Mathf.Max(manaFactor, handFactor));
+        float aiScale = Mathf.Lerp(1f, 0.35f, t);
+        return aiScale * GameSettings.GetSettlementDelayScale();
+    }
+
+    private float GetExpectedAnimationDurationSeconds(string animationTag)
+    {
+        float scale = GetEnemyAnimationScale();
+        if (animationTag == EnemyPlayAnimationTag)
+        {
+            float expandDuration = Mathf.Max(0.1f, 0.33f * scale);
+            float holdDuration = Mathf.Max(0.08f, 0.33f * scale);
+            float collapseDuration = Mathf.Max(0.1f, 0.33f * scale);
+            return expandDuration + holdDuration + collapseDuration;
+        }
+
+        float rotateDuration = Mathf.Max(0.12f, 0.5f * scale);
+        return rotateDuration;
+    }
+
+    private async Task WaitForAnimationThenGap(CancellationToken token, string animationTag)
+    {
+        bool completed = false;
+        var unlisten = EventCenter.Register(EnemyAnimationCompletedEvent, param =>
+        {
+            if (param is string completedTag && completedTag == animationTag)
+            {
+                completed = true;
+            }
+        });
+
+        float timeout = Mathf.Max(0.2f, GetExpectedAnimationDurationSeconds(animationTag) + 0.35f);
+        float elapsed = 0f;
+        while (!completed && elapsed < timeout)
+        {
+            if (token.IsCancellationRequested)
+            {
+                unlisten?.Invoke();
+                return;
+            }
+
+            if (Time.timeScale > 0)
+            {
+                elapsed += Time.deltaTime;
+            }
+            await Task.Yield();
+        }
+
+        unlisten?.Invoke();
+        if (token.IsCancellationRequested) return;
+        await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
     }
 
 
@@ -204,7 +267,7 @@ public class EnemyBoss : BaseCharacter
 
                     EventCenter.Publish("Enemy_PlayedCard", playable);
 
-                    await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
+                    await WaitForAnimationThenGap(token, EnemyPlayAnimationTag);
                     continue;
                 }
             }
@@ -215,7 +278,7 @@ public class EnemyBoss : BaseCharacter
 
                 EventCenter.Publish("Enemy_DrewCard", card);
 
-                await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
+                await WaitForAnimationThenGap(token, EnemyDrawAnimationTag);
                 continue;
             }
 

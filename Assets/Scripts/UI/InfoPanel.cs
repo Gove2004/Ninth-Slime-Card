@@ -1,4 +1,3 @@
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -14,6 +13,7 @@ public class InfoPanel : MonoBehaviour
     public Button collectionBackButton;
     public Slider musicVolumeSlider;
     public Slider sfxVolumeSlider;
+    public Slider settlementSpeedSlider;
     public Toggle vibrationToggle;
     private bool updatingSettingsUI;
 
@@ -153,7 +153,7 @@ public class InfoPanel : MonoBehaviour
     private void EnsureSettingReferences()
     {
         var settingRoot = settingsObj != null ? settingsObj.transform : transform;
-        if (musicVolumeSlider == null || sfxVolumeSlider == null)
+        if (musicVolumeSlider == null || sfxVolumeSlider == null || settlementSpeedSlider == null)
         {
             var sliders = settingRoot.GetComponentsInChildren<Slider>(true);
             foreach (var slider in sliders)
@@ -162,6 +162,7 @@ public class InfoPanel : MonoBehaviour
                 var name = slider.gameObject.name;
                 if (musicVolumeSlider == null && name.Contains("音乐音量")) musicVolumeSlider = slider;
                 if (sfxVolumeSlider == null && name.Contains("音效音量")) sfxVolumeSlider = slider;
+                if (settlementSpeedSlider == null && name.Contains("结算速度")) settlementSpeedSlider = slider;
             }
         }
 
@@ -209,6 +210,12 @@ public class InfoPanel : MonoBehaviour
             sfxVolumeSlider.onValueChanged.AddListener(OnSfxVolumeChanged);
         }
 
+        if (settlementSpeedSlider != null)
+        {
+            settlementSpeedSlider.onValueChanged.RemoveListener(OnSettlementSpeedChanged);
+            settlementSpeedSlider.onValueChanged.AddListener(OnSettlementSpeedChanged);
+        }
+
         if (vibrationToggle != null)
         {
             vibrationToggle.interactable = true;
@@ -223,6 +230,7 @@ public class InfoPanel : MonoBehaviour
         GameSettings.Initialize();
         if (musicVolumeSlider != null) musicVolumeSlider.SetValueWithoutNotify(GameSettings.MusicVolume);
         if (sfxVolumeSlider != null) sfxVolumeSlider.SetValueWithoutNotify(GameSettings.SfxVolume);
+        if (settlementSpeedSlider != null) settlementSpeedSlider.SetValueWithoutNotify(GameSettings.SettlementSpeed);
         if (vibrationToggle != null) vibrationToggle.SetIsOnWithoutNotify(GameSettings.VibrationEnabled);
         updatingSettingsUI = false;
     }
@@ -237,6 +245,12 @@ public class InfoPanel : MonoBehaviour
     {
         if (updatingSettingsUI) return;
         GameSettings.SetSfxVolume(value);
+    }
+
+    private void OnSettlementSpeedChanged(float value)
+    {
+        if (updatingSettingsUI) return;
+        GameSettings.SetSettlementSpeed(value);
     }
 
     private void OnVibrationChanged(bool isOn)

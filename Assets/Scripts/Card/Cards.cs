@@ -143,7 +143,15 @@ public class 吸血 : BaseCard
         Action<ulong, BaseCharacter> handler = (amount, victim) =>
         {
             if (dot == null || dot.source == null) return;
-            dot.source.ApplyHealthChange(ToLong(amount), dot.source);
+            if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
+            try
+            {
+                dot.source.ApplyHealthChange(ToLong(amount), dot.source);
+            }
+            finally
+            {
+                BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
+            }
         };
 
         user.DamageDealt += handler;
@@ -370,8 +378,16 @@ public class 傲慢 : BaseCard
         {
             if (dot == null || dot.source == null) return;
             if (remainingHits <= 0 || amount == 0) return;
-            dot.source.ApplyHealthChange(ToLong(amount), dot.source);
-            remainingHits--;
+            if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
+            try
+            {
+                dot.source.ApplyHealthChange(ToLong(amount), dot.source);
+                remainingHits--;
+            }
+            finally
+            {
+                BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
+            }
         };
 
         user.DamageTaken += handler;
@@ -696,7 +712,15 @@ public class 苦修 : BaseCard
         {
             if (dot == null || dot.source == null) return;
             if (source != dot.source) return;
-            dot.source.ChangeMana(ToLong(value));
+            if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
+            try
+            {
+                dot.source.ChangeMana(ToLong(value));
+            }
+            finally
+            {
+                BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
+            }
         };
 
         user.DamageTaken += handler;
@@ -799,7 +823,16 @@ public class 反伤 : BaseCard
         {
             if (dot == null || dot.source == null) return;
             if (BaseCharacter.IsReflectDamageContext) return;
-            if (dot.target != null) dot.source.DealReflectDamage(dot.target, amount);
+            if (dot.target == null) return;
+            if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
+            try
+            {
+                dot.source.DealReflectDamage(dot.target, amount);
+            }
+            finally
+            {
+                BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
+            }
         };
 
         user.DamageTaken += handler;
@@ -819,7 +852,6 @@ public class 反伤 : BaseCard
 public class 血契 : BaseCard
 {
     protected override int id => 1404;
-    private static int triggerDepth = 0;
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
@@ -835,15 +867,14 @@ public class 血契 : BaseCard
         {
             if (dot == null || dot.source == null || dot.target == null) return;
             if (amount == 0) return;
-            if (triggerDepth > 0) return;
-            triggerDepth++;
+            if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
             try
             {
                 dot.source.DealDamage(dot.target, amount);
             }
             finally
             {
-                triggerDepth--;
+                BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
             }
         };
 
@@ -1050,7 +1081,15 @@ public class 诅咒 : BaseCard
         {
             if (dot == null || dot.target == null) return;
             if (!ReferenceEquals(obj, dot.target)) return;
-            dot.source.DealDamage(dot.target, value);
+            if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
+            try
+            {
+                dot.source.DealDamage(dot.target, value);
+            }
+            finally
+            {
+                BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
+            }
         };
 
         EventCenter.Register("Character_PlayCardExecuted", handler);
@@ -1081,7 +1120,15 @@ public class 镜像 : BaseCard
         {
             if (dot == null || dot.source == null || dot.target == null) return;
             if (!ReferenceEquals(obj, dot.source)) return;
-            dot.source.DealDamage(dot.target, value);
+            if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
+            try
+            {
+                dot.source.DealDamage(dot.target, value);
+            }
+            finally
+            {
+                BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
+            }
         };
 
         EventCenter.Register("Character_PlayCardExecuted", handler);
