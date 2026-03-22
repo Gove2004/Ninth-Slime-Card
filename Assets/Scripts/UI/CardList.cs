@@ -67,6 +67,11 @@ public class CardList : MonoBehaviour
         {
             PlayCard(param as BaseCard); // 复用 PlayCard 的逻辑来移除 UI
         });
+
+        EventCenter.Register("Player_RefreshCard", (param) =>
+        {
+            RefreshCard(param as BaseCard);
+        });
     }
 
     void Update()
@@ -191,6 +196,13 @@ public class CardList : MonoBehaviour
             cardUIItems.Remove(cui);
             Destroy(cui.gameObject);
         }
+    }
+
+    public void RefreshCard(BaseCard card)
+    {
+        var cui = Card2UIItem(card);
+        if (cui == null) return;
+        cui.SetData(card);
     }
 
     public void Clear()

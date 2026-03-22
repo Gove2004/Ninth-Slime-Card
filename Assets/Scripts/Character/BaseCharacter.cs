@@ -450,6 +450,7 @@ public abstract class BaseCharacter
             ActiveCardContext = card;
             card.Execute(this, Target);
             ActiveCardContext = previousContext;
+            TransformRepriseCardsInHand(card);
 
             EventCenter.Publish("CardPlayed", card);
             EventCenter.Publish("Character_PlayCardExecuted", this);
@@ -461,6 +462,21 @@ public abstract class BaseCharacter
         else
         {
             Debug.LogWarning("无法使用卡牌: " + card.Name);
+        }
+    }
+
+    private void TransformRepriseCardsInHand(BaseCard playedCard)
+    {
+        if (playedCard == null || Cards.Count == 0) return;
+        for (int i = 0; i < Cards.Count; i++)
+        {
+            BaseCard current = Cards[i];
+            if (current is not 重奏 reprise) continue;
+            reprise.TransformInto(playedCard);
+            if (this is Player)
+            {
+                EventCenter.Publish("Player_RefreshCard", current);
+            }
         }
     }
 

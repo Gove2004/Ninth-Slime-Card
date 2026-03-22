@@ -80,9 +80,13 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         currentDot = dot;
 
         Sprite icon = null;
-        if (dot != null && dot.sourceCard != null && !string.IsNullOrEmpty(dot.sourceCard.ImagePath))
+        if (dot != null && dot.sourceCard != null)
         {
-            icon = Resources.Load<Sprite>(dot.sourceCard.ImagePath);
+            string displayImagePath = dot.sourceCard.GetDisplayImagePath();
+            if (!string.IsNullOrEmpty(displayImagePath))
+            {
+                icon = Resources.Load<Sprite>(displayImagePath);
+            }
         }
 
         if (image != null)
