@@ -128,19 +128,17 @@ public class BattleUI : MonoBehaviour
 
     void Update()
     {
-        // 根据当前回合状态更新按钮的可交互性
         IsPlayerTurn();
 
-        // 快捷键
-        if (Input.GetKeyDown(KeyCode.A))
+        if (Input.GetKeyDown(KeyCode.A) && CanUseDraw())
         {
             OnDrawCardClicked();
         }
-        if (Input.GetKeyDown(KeyCode.W))
+        if (Input.GetKeyDown(KeyCode.W) && CanUsePlay())
         {
             OnPlayCardClicked();
         }
-        if (Input.GetKeyDown(KeyCode.D))
+        if (Input.GetKeyDown(KeyCode.D) && CanUseEndTurn())
         {
             OnEndTurnClicked();
         }
@@ -148,16 +146,19 @@ public class BattleUI : MonoBehaviour
 
     private void OnDrawCardClicked()
     {
+        if (!CanUseDraw()) return;
         ((Player)BattleManager.Instance.player).UI_DrawCard();
     }
 
     private void OnPlayCardClicked()
     {
+        if (!CanUsePlay()) return;
         ((Player)BattleManager.Instance.player).UI_PlayCard(cardList.selectedCard);
     }
 
     private void OnEndTurnClicked()
     {
+        if (!CanUseEndTurn()) return;
         ((Player)BattleManager.Instance.player).UI_EndTurn();
     }
 
@@ -199,5 +200,20 @@ public class BattleUI : MonoBehaviour
                 }
             }
         }
+    }
+
+    private bool CanUseDraw()
+    {
+        return drawCardButton != null && drawCardButton.interactable;
+    }
+
+    private bool CanUsePlay()
+    {
+        return playCardButton != null && playCardButton.interactable;
+    }
+
+    private bool CanUseEndTurn()
+    {
+        return endTurnButton != null && endTurnButton.interactable;
     }
 }

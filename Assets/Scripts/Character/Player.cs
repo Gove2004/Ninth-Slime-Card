@@ -21,6 +21,7 @@ public class Player : BaseCharacter
 
 
     public bool isReady { get; set; } = false;
+    private bool isEndingTurn = false;
     protected override int MaxHandSize => HandLimit;
 
     protected override void Action()
@@ -90,12 +91,24 @@ public class Player : BaseCharacter
     // UI：调用结束回合
     public void UI_EndTurn()
     {
-        if (isReady)
+        EndTurn();
+    }
+
+    public override void EndTurn()
+    {
+        if (!isReady || isEndingTurn) return;
+
+        isReady = false;
+        isEndingTurn = true;
+
+        if (BattleManager.Instance != null)
         {
-            isReady = false;
-            // 启动协程来处理结束回合逻辑（包括等待 RougeUI）
             BattleManager.Instance.StartCoroutine(EndTurnRoutine());
+            return;
         }
+
+        isEndingTurn = false;
+        base.EndTurn();
     }
 
     private System.Collections.IEnumerator EndTurnRoutine()
@@ -131,6 +144,7 @@ public class Player : BaseCharacter
         // BattleManager 监听了这个事件并增加了 player.autoManaPerTurn
         // 所以这里调用 EndTurn 时的 ChangeMana 已经是增加了之后的数值
         base.EndTurn();
+        isEndingTurn = false;
     }
 
 
