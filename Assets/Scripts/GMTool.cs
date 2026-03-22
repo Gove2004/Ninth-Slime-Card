@@ -1,5 +1,8 @@
 using UnityEngine;
 
+
+
+
 public class GMTool : MonoBehaviour
 {
     private string healthDelta = "0";
@@ -23,7 +26,7 @@ public class GMTool : MonoBehaviour
         EnemyBoss.AllowPlay = true;
         EnemyBoss.AllowDraw = true;
     }
-
+#if UNITY_EDITOR
     private void Update()
     {
         // 按 R 清除 PlayerPrefs
@@ -33,6 +36,12 @@ public class GMTool : MonoBehaviour
             if (GameManager.Instance != null) GameManager.Instance.Load();
             message = "存档已清空";
             
+        }
+
+
+        if (Input.GetKeyDown(KeyCode.D))
+        {
+            TapTapSdk.Instance.IncrementAchievement("test", 1);
         }
     }
 
@@ -198,4 +207,6 @@ public class GMTool : MonoBehaviour
 
         GUI.DragWindow();
     }
+#endif
 }
+

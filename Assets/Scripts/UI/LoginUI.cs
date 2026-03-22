@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using TapSDK.Login;
 using TMPro;
 using UnityEngine;
@@ -12,6 +13,8 @@ public class LoginUI : MonoBehaviour
     void Start()
     {
         loginButton.onClick.AddListener(OnLoginButtonClicked);
+
+        _ = ChackLoginToken();
     }
 
     public void OnLoginButtonClicked()
@@ -23,6 +26,18 @@ public class LoginUI : MonoBehaviour
         Debug.Log("登录按钮被点击，正在触发登录流程...");
     }
 
+
+    private async Task ChackLoginToken()
+    {
+        TapTapAccount account = await TapTapLogin.Instance.GetCurrentTapAccount();
+        if (account == null) {
+            // 用户未登录
+            Debug.Log("用户未登录");
+        } else {
+            // 用户已登录
+            OnLoginSuccess(account);
+        }
+    }
 
 
     private void OnLoginSuccess(TapTapAccount result)
