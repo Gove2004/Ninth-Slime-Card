@@ -48,6 +48,8 @@ public class AchievementManager : MonoBehaviour
     private const string TotalHealKey = "Achievement_TotalHeal";
     private const string CustomAchievementPrefix = "Achievement_Custom_";
     private const float TapTapFlushIntervalSeconds = 5f;
+    private const ulong TapTapStepAchievementMaxThreshold = 100000000UL;
+    private const int TapTapIncrementChunkMaxStep = 10000;
 
     public ulong TotalScore { get; private set; }
     public ulong TotalDraw { get; private set; }
@@ -58,6 +60,7 @@ public class AchievementManager : MonoBehaviour
     private readonly List<AchievementDefinition> definitions = new();
     private readonly HashSet<string> customCompleted = new();
     private readonly Dictionary<string, ulong> pendingTapTapIncrements = new();
+    private bool pendingStartupTapTapResync = true;
     private float nextTapTapFlushTime;
     private static readonly ulong[] NumericMilestones =
     {
@@ -179,6 +182,11 @@ public class AchievementManager : MonoBehaviour
 
     private void Update()
     {
+        if (pendingStartupTapTapResync && TryResyncCompletedAchievementsToTapTapOnStartup())
+        {
+            pendingStartupTapTapResync = false;
+        }
+
         if (Time.unscaledTime < nextTapTapFlushTime) return;
         FlushPendingTapTapIncrements();
         nextTapTapFlushTime = Time.unscaledTime + TapTapFlushIntervalSeconds;
@@ -473,16 +481,42 @@ public class AchievementManager : MonoBehaviour
     {
         if (afterValue <= beforeValue) return;
 
-        if (type != AchievementType.Score) return;
-        // 测试
-
-        ulong delta = afterValue - beforeValue;
         foreach (var def in definitions)
         {
             if (def.type != type) continue;
-            if (beforeValue >= def.threshold) continue;
+            if (def.type == AchievementType.Custom) continue;
+            if (def.threshold > TapTapStepAchievementMaxThreshold) continue;
+
+            ulong clampedBefore = beforeValue >= def.threshold ? def.threshold : beforeValue;
+            ulong clampedAfter = afterValue >= def.threshold ? def.threshold : afterValue;
+            if (clampedAfter <= clampedBefore) continue;
+
+            ulong delta = clampedAfter - clampedBefore;
             QueueTapTapIncrement(def.id, delta);
         }
+    }
+
+    private bool TryResyncCompletedAchievementsToTapTapOnStartup()
+    {
+        if (TapTapSdk.Instance == null) return false;
+
+        foreach (var def in definitions)
+        {
+            if (!IsCompleted(def)) continue;
+
+            try
+            {
+                if (def.type != AchievementType.Custom) continue;
+                TapTapSdk.Instance.UnlockAchievement(def.id);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"启动时重同步 TapTap 成就失败：{def.id}，错误：{ex.Message}");
+            }
+        }
+
+        FlushPendingTapTapIncrements();
+        return true;
     }
 
     private void QueueTapTapIncrement(string achievementId, ulong delta)
@@ -504,35 +538,48 @@ public class AchievementManager : MonoBehaviour
         if (pendingTapTapIncrements.Count == 0) return;
         if (TapTapSdk.Instance == null) return;
 
-        var completedIds = new List<string>();
-        foreach (var pair in pendingTapTapIncrements)
+        var keys = new List<string>(pendingTapTapIncrements.Keys);
+        foreach (string id in keys)
         {
-            try
+            if (!pendingTapTapIncrements.TryGetValue(id, out ulong delta) || delta == 0)
             {
-                IncrementTapTapByChunks(pair.Key, pair.Value);
-                completedIds.Add(pair.Key);
+                pendingTapTapIncrements.Remove(id);
+                continue;
             }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"同步 TapTap 数值成就进度失败：{pair.Key}，错误：{ex.Message}");
-            }
-        }
 
-        foreach (string id in completedIds)
-        {
-            pendingTapTapIncrements.Remove(id);
+            ulong remaining = IncrementTapTapByChunks(id, delta);
+            if (remaining == 0)
+            {
+                pendingTapTapIncrements.Remove(id);
+            }
+            else
+            {
+                pendingTapTapIncrements[id] = remaining;
+            }
         }
     }
 
-    private void IncrementTapTapByChunks(string achievementId, ulong delta)
+    private ulong IncrementTapTapByChunks(string achievementId, ulong delta)
     {
-        if (string.IsNullOrEmpty(achievementId)) return;
-        while (delta > 0)
+        if (string.IsNullOrEmpty(achievementId)) return 0;
+
+        ulong remaining = delta;
+        while (remaining > 0)
         {
-            int step = delta > int.MaxValue ? int.MaxValue : (int)delta;
-            TapTapSdk.Instance.IncrementAchievement(achievementId, step);
-            delta -= (ulong)step;
+            int step = remaining > (ulong)TapTapIncrementChunkMaxStep ? TapTapIncrementChunkMaxStep : (int)remaining;
+            try
+            {
+                TapTapSdk.Instance.IncrementAchievement(achievementId, step);
+                remaining -= (ulong)step;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"同步 TapTap 数值成就进度失败：{achievementId}，step：{step}，错误：{ex.Message}");
+                break;
+            }
         }
+
+        return remaining;
     }
 
     private static ulong ParseUlongOrZero(string value)

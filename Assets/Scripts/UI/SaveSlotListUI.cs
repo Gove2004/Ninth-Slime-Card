@@ -57,7 +57,9 @@ public class SaveSlotListUI : MonoBehaviour
                 var localTime = new DateTime(slot.updatedAtTicks, DateTimeKind.Utc).ToLocalTime();
                 ulong score = slot.snapshot != null ? slot.snapshot.enemyScore : 0;
                 int turn = slot.snapshot != null ? slot.snapshot.currentTurn : 0;
-                text.text = $"{slot.label}\n分数:{score}  回合:{turn}  {localTime:MM-dd HH:mm}";
+                int difficultyLevel = slot.snapshot != null ? slot.snapshot.difficultyLevel : 1;
+                string difficultyText = GetDifficultyText(difficultyLevel);
+                text.text = $"{slot.label}\n难度:{difficultyText}  分数:{score}  回合:{turn}  {localTime:MM-dd HH:mm}";
             }
 
             CreateDeleteButton(item, slotId, text);
@@ -147,5 +149,17 @@ public class SaveSlotListUI : MonoBehaviour
         {
             itemText.margin = new Vector4(itemText.margin.x, itemText.margin.y, 96f, itemText.margin.w);
         }
+    }
+
+    private string GetDifficultyText(int difficultyLevel)
+    {
+        return difficultyLevel switch
+        {
+            1 => "简单",
+            2 => "困难",
+            3 => "地狱",
+            4 => "无尽",
+            _ => $"难度{difficultyLevel}"
+        };
     }
 }

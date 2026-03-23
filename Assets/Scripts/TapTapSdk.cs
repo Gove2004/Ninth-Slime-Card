@@ -16,6 +16,7 @@ public class TapTapSdk : MonoBehaviour
     private const string ClientId = "irmjeyzoxpztwlne5z";
     private const string ClientToken = "kXbnn4wKsOA4Rcd5wPLnEWLIgecN8pW5Dpk6ov2E";
     private const string ClientPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7Pfrav0TTq4fHVkLrj/IJd/q/lpVJGeZ7jWVIgjeW9CeKi8zs46Uk+9Jyzd3Jmc8xG/sUb0gS2ZGMHSuZNHXV+IhC4MD2nqjW68yEuCGbgWuzkebFPGRsRwAFLk6MhsUoW+30f9TCHB5w/qnsmEwcXiko5H8+Gjp+vRCY4/ojTXBHpAegm7lqTh2cL15nYuzNdCZEZ6cqVNkJkLSgkkevq1rLZknznHZpymYlGCqHYcVsR1kJBcIL+kE/rqxHihOUILEZSstbHD8Ru8NZDieaP+Sz76t0f/3aqWOiJbWPEngofvOSEpdJaiGzoc2m6DTAsmErIZMZgiJ80uztVi/lQIDAQAB";
+    private AchievementCallback achievementCallback;
     
     void Awake()
     {
@@ -64,9 +65,8 @@ public class TapTapSdk : MonoBehaviour
             // 成就达成时 SDK 是否需要展示一个气泡弹窗提示
             enableToast = true
         };
-        AchievementCallback callback = new AchievementCallback();
-        TapTapAchievement.RegisterCallBack(callback);
-        TapTapAchievement.UnRegisterCallBack(callback);
+        achievementCallback ??= new AchievementCallback();
+        TapTapAchievement.RegisterCallBack(achievementCallback);
 
         // 其他模块配置项
         TapTapSdkBaseOptions[] otherOptions = new TapTapSdkBaseOptions[]
@@ -75,6 +75,19 @@ public class TapTapSdk : MonoBehaviour
         };
         // TapSDK 初始化
         TapTapSDK.Init(coreOptions, otherOptions);
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+
+        if (achievementCallback != null)
+        {
+            TapTapAchievement.UnRegisterCallBack(achievementCallback);
+        }
     }
 
 
