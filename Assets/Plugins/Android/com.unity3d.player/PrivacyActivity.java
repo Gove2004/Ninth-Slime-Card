@@ -5,17 +5,23 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import com.unity3d.player.UnityPlayerGameActivity;
+import java.io.IOException;
 
 public class PrivacyActivity extends Activity implements DialogInterface.OnClickListener {
     private static final String TAG = "PrivacyActivity";
     private static final String PREFS_NAME = "PlayerPrefs";
     private static final String ACCEPTED_KEY = "PrivacyAcceptedKey";
-    private static final String PRIVACY_POLICY_ASSET_URL = "file:///android_asset/bin/Data/StreamingAssets/privacy-policy-template.htm";
+    private static final String[] PRIVACY_POLICY_ASSET_PATHS = new String[] {
+            "bin/Data/StreamingAssets/privacy-policy-template.htm",
+            "StreamingAssets/privacy-policy-template.htm",
+            "privacy-policy-template.htm"
+    };
                 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,6 +46,8 @@ public class PrivacyActivity extends Activity implements DialogInterface.OnClick
         WebView webView = new WebView(this);
         webView.getSettings().setJavaScriptEnabled(true); // 启用JavaScript以支持链接跳转
         webView.getSettings().setAllowFileAccess(true);
+        webView.getSettings().setAllowFileAccessFromFileURLs(true);
+        webView.getSettings().setAllowUniversalAccessFromFileURLs(true);
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -47,7 +55,14 @@ public class PrivacyActivity extends Activity implements DialogInterface.OnClick
                 return true;
             }
         });
-        webView.loadUrl(PRIVACY_POLICY_ASSET_URL);
+        String policyUrl = getPrivacyPolicyAssetUrl();
+        if (policyUrl == null) {
+            Log.e(TAG, "showPrivacyDialog: Privacy policy asset not found in APK assets.");
+            webView.loadDataWithBaseURL(null, "<html><body><h3>隐私政策文件缺失</h3></body></html>", "text/html", "UTF-8", null);
+        } else {
+            Log.d(TAG, "showPrivacyDialog: Loading privacy policy from " + policyUrl);
+            webView.loadUrl(policyUrl);
+        }
         
         AlertDialog.Builder privacyDialog = new AlertDialog.Builder(this);
         privacyDialog.setCancelable(false); // 禁止通过返回键取消
@@ -96,6 +111,18 @@ public class PrivacyActivity extends Activity implements DialogInterface.OnClick
         boolean accepted = prefs.getBoolean(ACCEPTED_KEY, false);
         Log.d(TAG, "getPrivacyAccepted: " + accepted);
         return accepted;
+    }
+
+    private String getPrivacyPolicyAssetUrl() {
+        AssetManager assetManager = getAssets();
+        for (String path : PRIVACY_POLICY_ASSET_PATHS) {
+            try {
+                assetManager.open(path).close();
+                return "file:///android_asset/" + path;
+            } catch (IOException ignored) {
+            }
+        }
+        return null;
     }
 
     // 禁止通过返回键绕过隐私协议
