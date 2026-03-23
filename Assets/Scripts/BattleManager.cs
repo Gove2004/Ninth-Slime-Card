@@ -92,9 +92,19 @@ public class BattleManager : MonoBehaviour
 
     private void EnsureGMToolState()
     {
-        var gmTool = GetComponent<GMTool>();
         if (IsGMMode)
         {
+            var allGMTools = FindObjectsByType<GMTool>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < allGMTools.Length; i++)
+            {
+                var tool = allGMTools[i];
+                if (tool != null && tool.gameObject != gameObject)
+                {
+                    Destroy(tool);
+                }
+            }
+
+            var gmTool = GetComponent<GMTool>();
             if (gmTool == null)
             {
                 gameObject.AddComponent<GMTool>();
@@ -102,9 +112,13 @@ public class BattleManager : MonoBehaviour
         }
         else
         {
-            if (gmTool != null)
+            var allGMTools = FindObjectsByType<GMTool>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < allGMTools.Length; i++)
             {
-                Destroy(gmTool);
+                if (allGMTools[i] != null)
+                {
+                    Destroy(allGMTools[i]);
+                }
             }
         }
         lastIsGMMode = IsGMMode;

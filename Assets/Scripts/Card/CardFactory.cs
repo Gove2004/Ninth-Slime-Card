@@ -88,7 +88,7 @@ public static class CardFactory
         return new HashSet<string>
         {
             "偷窃", "偷月", "偷魔",
-            "反伤", "傲慢", "嫉妒"
+            "反伤", "傲慢", "嫉妒", "视界"
         };
     }
 
@@ -188,6 +188,31 @@ public static class CardFactory
         int index = UnityEngine.Random.Range(0, enemyDeck.Count);
         var card = enemyDeck[index];
         return CreateCardInstance(card.GetType());
+    }
+
+    public static List<BaseCard> GetDeckSnapshot(BaseCharacter character)
+    {
+        List<BaseCard> sourceDeck = ResolveDeck(character);
+        List<BaseCard> result = new List<BaseCard>(sourceDeck.Count);
+        foreach (var card in sourceDeck)
+        {
+            if (card == null) continue;
+            BaseCard clone = CreateCardInstance(card.GetType());
+            if (clone != null) result.Add(clone);
+        }
+        return result;
+    }
+
+    private static List<BaseCard> ResolveDeck(BaseCharacter character)
+    {
+        if (character is Player) return playerDeck;
+        if (character is EnemyBoss) return enemyDeck;
+        if (BattleManager.Instance != null)
+        {
+            if (ReferenceEquals(character, BattleManager.Instance.player)) return playerDeck;
+            if (ReferenceEquals(character, BattleManager.Instance.enemy)) return enemyDeck;
+        }
+        return playerDeck;
     }
 
     public static void AddRandomCardToEnemyDeck()

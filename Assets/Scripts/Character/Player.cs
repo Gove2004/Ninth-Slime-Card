@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Player : BaseCharacter
 {
-    public const int HandLimit = 999;  // 解除手牌上限限制
+    public const int HandLimit = 10;
 
     public Player()
     {

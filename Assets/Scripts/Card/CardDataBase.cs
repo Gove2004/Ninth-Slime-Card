@@ -6,6 +6,12 @@ using UnityEngine;
 
 public static class CardDatabase
 {
+    private static readonly Dictionary<string, string> CardImageNameAliases = new()
+    {
+        { "视界", "黑洞" },
+        { "传送", "时域" }
+    };
+
     [Serializable]
     public class CardData
     {
@@ -181,7 +187,7 @@ public static class CardDatabase
                     value = valueValue,
                     duration = durationValue,
                     effect = fields[6],
-                    imagePath = "卡牌/" + fields[1], // 默认图片路径为 "卡牌/卡牌名称"
+                    imagePath = "卡牌/" + ResolveImageName(fields[1]),
                     remark = fields.Length > 7 ? fields[7] : string.Empty
                 };
                 
@@ -247,5 +253,15 @@ public static class CardDatabase
     public static List<CardData> GetAllCardData()
     {
         return new List<CardData>(cardDataList);
+    }
+
+    private static string ResolveImageName(string cardName)
+    {
+        if (string.IsNullOrWhiteSpace(cardName)) return cardName;
+        if (CardImageNameAliases.TryGetValue(cardName, out string aliasName))
+        {
+            return aliasName;
+        }
+        return cardName;
     }
 }

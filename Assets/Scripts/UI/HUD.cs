@@ -42,6 +42,8 @@ public class HUD : MonoBehaviour
     private Sequence playerManaPulseSequence;
     private Sequence playerHpPulseSequence;
     private Sequence enemyHpPulseSequence;
+    private System.Action onPlayerGainManaUnsub;
+    private bool pendingManaGainEffect;
     private Vector3 playerManaBaseScale = Vector3.one;
     private bool hasPlayerManaBaseScale;
     private Color playerManaBaseColor = Color.white;
@@ -107,6 +109,10 @@ public class HUD : MonoBehaviour
             hasOriginalEnemyHpTextStyle = true;
         }
         nonEndlessEnemyHpSprite = LoadBloodSprite();
+        onPlayerGainManaUnsub = EventCenter.Register("Player_GainMana", _ =>
+        {
+            pendingManaGainEffect = true;
+        });
     }
 
     void Update()
@@ -143,10 +149,13 @@ public class HUD : MonoBehaviour
                 lastPlayerHealth = player.health;
                 hasLastPlayerHealth = true;
 
-                // 检测 MP 增加并播放特效
-                if (hasLastPlayerMana && player.mana > lastPlayerMana)
+                if (pendingManaGainEffect)
                 {
-                    PlayManaGainEffect();
+                    if (TryResolvePlayerManaBgImage())
+                    {
+                        PlayManaGainEffect();
+                        pendingManaGainEffect = false;
+                    }
                 }
                 lastPlayerMana = player.mana;
                 hasLastPlayerMana = true;
@@ -210,6 +219,17 @@ public class HUD : MonoBehaviour
         playerManaPulseSequence.OnComplete(() => playerManaPulseSequence = null);
     }
 
+    private bool TryResolvePlayerManaBgImage()
+    {
+        if (playerMPBgImage != null) return true;
+        var foundObj = GameObject.Find("PlayerMP_BG");
+        if (foundObj != null)
+        {
+            playerMPBgImage = foundObj.GetComponent<Image>();
+        }
+        return playerMPBgImage != null;
+    }
+
     private void PlayHealthImageEffect(Image hpImage, ref Sequence pulseSequence, ref bool hasBaseScale, ref Vector3 baseScale)
     {
         if (hpImage == null) return;
@@ -248,6 +268,8 @@ public class HUD : MonoBehaviour
 
     private void OnDestroy()
     {
+        onPlayerGainManaUnsub?.Invoke();
+        onPlayerGainManaUnsub = null;
         StopPulse(ref playerManaPulseSequence);
         StopPulse(ref playerHpPulseSequence);
         StopPulse(ref enemyHpPulseSequence);

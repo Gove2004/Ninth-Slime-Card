@@ -36,6 +36,57 @@ public static class CardRuntimeHelper
         if (maxDuration <= 0) return 0;
         return UnityEngine.Random.Range(1, maxDuration + 1);
     }
+
+    public static BaseCard CloneCardState(BaseCard source)
+    {
+        if (source == null) return null;
+        BaseCard clone;
+        if (source is 重奏 sourceReprise)
+        {
+            重奏 cloneReprise = CardFactory.GetThisCard(source.Name) as 重奏;
+            if (cloneReprise == null) return null;
+            BaseCard mirrored = sourceReprise.GetMirroredCard();
+            if (mirrored != null)
+            {
+                BaseCard mirroredSnapshot = CloneCardState(mirrored);
+                if (mirroredSnapshot != null)
+                {
+                    cloneReprise.TransformInto(mirroredSnapshot);
+                }
+            }
+            clone = cloneReprise;
+        }
+        else
+        {
+            clone = CardFactory.GetThisCard(source.Name);
+        }
+        if (clone == null) return null;
+        clone.SetCost(source.Cost);
+        clone.SetValue(source.Value);
+        clone.SetDuration(source.Duration);
+        if (source.IsStolenFromOpponent) clone.MarkStolenFromOpponent();
+        return clone;
+    }
+
+    public static void ReplaceHand(BaseCharacter user, List<BaseCard> cards)
+    {
+        if (user == null) return;
+        var current = new List<BaseCard>(user.Cards);
+        foreach (var card in current)
+        {
+            user.RemoveCard(card);
+        }
+
+        if (cards == null || cards.Count == 0) return;
+        foreach (var card in cards)
+        {
+            if (card == null) continue;
+            if (user is Player && user.Cards.Count >= Player.HandLimit) break;
+            card.SetOwningCharacter(user);
+            user.Cards.Add(card);
+            if (user is Player) EventCenter.Publish("Player_DrawCard", card);
+        }
+    }
 }
 
 public class 流血 : BaseCard
@@ -560,23 +611,7 @@ public class 种子 : BaseCard
     {
         int seed = Guid.NewGuid().GetHashCode();
         UnityEngine.Random.InitState(seed);
-        if (IsPrime(Mathf.Abs(seed)))
-        {
-            user.ChangeMana(999);
-        }
-    }
-
-    private static bool IsPrime(int value)
-    {
-        if (value <= 1) return false;
-        if (value == 2) return true;
-        if ((value & 1) == 0) return false;
-        int limit = (int)Math.Sqrt(value);
-        for (int i = 3; i <= limit; i += 2)
-        {
-            if (value % i == 0) return false;
-        }
-        return true;
+        user?.GainRandomCard();
     }
 }
 
@@ -1043,6 +1078,7 @@ public class 羽化 : BaseCard
 
         CardRuntimeHelper.DiscardAllCards(user);
         user.ChangeMana(discardCount);
+        user.ApplyHealthChange(discardCount, user);
     }
 }
 
@@ -1205,15 +1241,56 @@ public class 激光 : BaseCard
     }
 }
 
-public class 黑洞 : BaseCard
+public class 视界 : BaseCard
 {
     protected override int id => 1800;
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (BattleManager.Instance == null) return;
-        CardRuntimeHelper.DiscardAllCards(BattleManager.Instance.player);
-        CardRuntimeHelper.DiscardAllCards(BattleManager.Instance.enemy);
+        if (user == null) return;
+        BaseCharacter effectTarget = target ?? user.Target;
+        if (effectTarget == null) return;
+
+        List<BaseCard> originalHand = new List<BaseCard>(user.Cards);
+        List<BaseCard> replacedHand = CardFactory.GetDeckSnapshot(effectTarget);
+        CardRuntimeHelper.ReplaceHand(user, replacedHand);
+
+        int remainingPlays = ToInt(Value);
+        if (remainingPlays <= 0)
+        {
+            CardRuntimeHelper.ReplaceHand(user, originalHand);
+            return;
+        }
+
+        bool restored = false;
+        bool skipFirstPlayEvent = true;
+        Action<object> playHandler = null;
+        Action<object> endTurnHandler = null;
+
+        void Restore()
+        {
+            if (restored) return;
+            restored = true;
+            EventCenter.Unregister("Character_PlayCardExecuted", playHandler);
+            EventCenter.Unregister("CharacterEndedTurn", endTurnHandler);
+            CardRuntimeHelper.ReplaceHand(user, originalHand);
+        }
+
+        playHandler = obj =>
+        {
+            if (!ReferenceEquals(obj, user)) return;
+            if (skipFirstPlayEvent)
+            {
+                skipFirstPlayEvent = false;
+                return;
+            }
+            remainingPlays--;
+            if (remainingPlays <= 0) Restore();
+        };
+        endTurnHandler = _ => Restore();
+
+        EventCenter.Register("Character_PlayCardExecuted", playHandler);
+        EventCenter.Register("CharacterEndedTurn", endTurnHandler);
     }
 }
 
@@ -1223,31 +1300,77 @@ public class 奇点 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (BattleManager.Instance == null) return;
-        BattleManager.Instance.player.dotBar.Clear();
-        BattleManager.Instance.enemy.dotBar.Clear();
+        ulong resetValue = Value;
+        var characters = new List<BaseCharacter>();
+        if (BattleManager.Instance != null)
+        {
+            if (BattleManager.Instance.player != null) characters.Add(BattleManager.Instance.player);
+            if (BattleManager.Instance.enemy != null) characters.Add(BattleManager.Instance.enemy);
+        }
+        else
+        {
+            if (user != null) characters.Add(user);
+            if (target != null && !ReferenceEquals(target, user)) characters.Add(target);
+        }
+
+        foreach (var character in characters)
+        {
+            SetManaExact(character, resetValue);
+            character.autoManaPerTurn = resetValue;
+        }
+    }
+
+    private static void SetManaExact(BaseCharacter character, ulong value)
+    {
+        if (character == null) return;
+        if (character.mana == value) return;
+        if (character.mana > value)
+        {
+            character.ChangeMana(NegToLong(character.mana - value));
+            return;
+        }
+
+        character.ChangeMana(ToLong(value - character.mana));
     }
 }
 
-public class 时域 : BaseCard
+public class 传送 : BaseCard
 {
     protected override int id => 1802;
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (user == null) return;
+        int copiesPerTurn = ToInt(Value);
+        if (copiesPerTurn <= 0) return;
 
-        BaseCharacter effectTarget = target ?? user.Target;
-        if (effectTarget == null && BattleManager.Instance != null)
+        List<BaseCard> storedHand = new List<BaseCard>(user.Cards);
+        CardRuntimeHelper.ReplaceHand(user, new List<BaseCard>());
+        if (storedHand.Count == 0) return;
+
+        int delay = 3;
+        int sustain = 3;
+        int totalDuration = delay + sustain;
+        Dot dot = null;
+        dot = new Dot(user, user, totalDuration, d =>
         {
-            effectTarget = user == BattleManager.Instance.player ? BattleManager.Instance.enemy : BattleManager.Instance.player;
-        }
+            if (delay > 0)
+            {
+                delay--;
+                return;
+            }
 
-        ulong spentMana = user.mana;
-        if (spentMana == 0) return;
+            for (int i = 0; i < copiesPerTurn; i++)
+            {
+                foreach (var template in storedHand)
+                {
+                    BaseCard copy = CardRuntimeHelper.CloneCardState(template);
+                    if (copy != null) d.source.GainCard(copy);
+                }
+            }
+        }, null, () => delay > 0 ? $"{delay}回合后开始传送手牌复制" : $"每回合获得{copiesPerTurn}份手牌复制，剩余{dot.duration}回合");
 
-        user.ChangeMana(NegToLong(spentMana));
-        effectTarget?.ChangeMana(NegToLong(spentMana));
+        user.dotBar.Add(dot);
     }
 }
 
