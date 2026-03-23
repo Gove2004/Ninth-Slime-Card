@@ -93,6 +93,8 @@ public abstract class BaseCharacter
 
     public virtual void EndTurn()
     {
+        if (!IsInTurn) return;
+
         IsInTurn = false;
         
         // 注意：ChangeMana 会在这里被调用，所以我们可以在这之前处理一些逻辑

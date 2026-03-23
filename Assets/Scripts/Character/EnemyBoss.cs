@@ -245,14 +245,29 @@ public class EnemyBoss : BaseCharacter
         unlisten?.Invoke();
     }
 
+    private async Task WaitForAnimationThenGap(CancellationToken token, string animationTag)
+    {
+        await WaitForAnimationCompletion(token, animationTag);
+        if (token.IsCancellationRequested || !IsInTurn) return;
+
+        if (!CanTakeAnyAction())
+        {
+            EndTurn();
+            return;
+        }
+
+        await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
+    }
+
 
     private async Task AIAction(CancellationToken token)
     {
         try
         {
             await WaitRandomSeconds(token, InitialThinkMinMs, InitialThinkMaxMs);
+            if (token.IsCancellationRequested || !IsInTurn) return;
             
-            while (!token.IsCancellationRequested)
+            while (!token.IsCancellationRequested && IsInTurn)
             {
                 if (Random.value < 0.1f)
                 {
@@ -279,6 +294,7 @@ public class EnemyBoss : BaseCharacter
                         EventCenter.Publish("Enemy_PlayedCard", playable);
 
                         await WaitForAnimationThenGap(token, EnemyPlayAnimationTag);
+                        if (token.IsCancellationRequested || !IsInTurn) return;
                         continue;
                     }
                 }
@@ -291,6 +307,7 @@ public class EnemyBoss : BaseCharacter
                         EventCenter.Publish("Enemy_DrewCard", card);
 
                         await WaitForAnimationThenGap(token, EnemyDrawAnimationTag);
+                        if (token.IsCancellationRequested || !IsInTurn) return;
                         continue;
                     }
                 }
