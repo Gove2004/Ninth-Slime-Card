@@ -19,6 +19,7 @@ public class CardList : MonoBehaviour
     public float fanRadius = 2500f;
     public float fanAngleMax = 30f;
     public float yOffset = -50f; // Center card y-position
+    public float edgePadding = 24f;
 
     // 选中的卡牌
     public bool AblePlay => selectedCard != null && BattleManager.Instance?.player is Player player && player.mana >= selectedCard.Cost;
@@ -99,17 +100,7 @@ public class CardList : MonoBehaviour
         }
 
         int count = cardUIItems.Count;
-        
-        // Calculate angle per card based on spacing and radius
-        float anglePerCard = 5f; 
-        if (fanRadius > 0) 
-        {
-            anglePerCard = (cardSpacing / fanRadius) * Mathf.Rad2Deg;
-        }
-        anglePerCard = Mathf.Max(anglePerCard, 2f);
-
-        float totalAngle = (count - 1) * anglePerCard;
-        if (totalAngle > fanAngleMax) totalAngle = fanAngleMax;
+        float totalAngle = GetAdaptiveTotalAngle(count);
 
         float yCenter = -fanRadius + yOffset;
 
@@ -138,6 +129,33 @@ public class CardList : MonoBehaviour
                 item.transform.SetSiblingIndex(i);
             }
         }
+    }
+
+    private float GetAdaptiveTotalAngle(int count)
+    {
+        if (count <= 1) return 0f;
+        if (fanRadius <= 0.001f) return 0f;
+
+        float desiredAnglePerCard = (cardSpacing / fanRadius) * Mathf.Rad2Deg;
+        float desiredTotalAngle = (count - 1) * desiredAnglePerCard;
+        float widthLimitedAngle = GetWidthLimitedTotalAngle();
+        float maxAllowed = Mathf.Min(fanAngleMax, widthLimitedAngle);
+
+        return Mathf.Clamp(desiredTotalAngle, 0f, maxAllowed);
+    }
+
+    private float GetWidthLimitedTotalAngle()
+    {
+        RectTransform containerRect = container as RectTransform;
+        if (containerRect == null || fanRadius <= 0.001f) return fanAngleMax;
+
+        float halfContainerWidth = containerRect.rect.width * 0.5f;
+        if (halfContainerWidth <= 1f) return fanAngleMax;
+        float halfCardWidth = cardWidth * 0.5f;
+        float maxX = Mathf.Max(0f, halfContainerWidth - halfCardWidth - edgePadding);
+        float normalized = Mathf.Clamp01(maxX / fanRadius);
+        float halfAngle = Mathf.Asin(normalized) * Mathf.Rad2Deg;
+        return halfAngle * 2f;
     }
 
     // 当卡牌被拖拽时调用
