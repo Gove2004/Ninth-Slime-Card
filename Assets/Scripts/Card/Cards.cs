@@ -782,6 +782,16 @@ public class 献祭 : BaseCard
         sacrificeBonus = 0;
     }
 
+    public static ulong GetSacrificeBonus()
+    {
+        return sacrificeBonus;
+    }
+
+    public static void SetSacrificeBonus(ulong value)
+    {
+        sacrificeBonus = value;
+    }
+
     private ulong CurrentDamage => BaseCharacter.SaturatingAdd(Value, sacrificeBonus);
 
     public override string GetDynamicDescription()
@@ -1191,6 +1201,22 @@ public class 激光 : BaseCard
     {
         playerBonusDamage = 0;
         enemyBonusDamage = 0;
+    }
+
+    public static ulong GetPlayerBonusDamage()
+    {
+        return playerBonusDamage;
+    }
+
+    public static ulong GetEnemyBonusDamage()
+    {
+        return enemyBonusDamage;
+    }
+
+    public static void SetGlobalState(ulong playerBonus, ulong enemyBonus)
+    {
+        playerBonusDamage = playerBonus;
+        enemyBonusDamage = enemyBonus;
     }
 
     private static bool IsPlayerCharacter(BaseCharacter character)

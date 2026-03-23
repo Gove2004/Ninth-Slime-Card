@@ -64,6 +64,8 @@ public class GameManager : MonoBehaviour
     private bool IsBattle = false;
     public GameObject battleUI;
     public GameObject mainUI;
+    private BattleSnapshotData pendingSnapshot;
+    private string pendingSlotId;
 
     public void SwitchSecne(bool isBattle)
     {
@@ -80,7 +82,25 @@ public class GameManager : MonoBehaviour
             if (AudioManager.Instance != null)
                 AudioManager.Instance.PlayBattleBGM();
 
-            BattleManager.Instance.StartBattle();
+            if (pendingSnapshot != null)
+            {
+                BattleManager.Instance.StartBattle(false);
+                BattleManager.Instance.RestoreBattleFromSnapshot(pendingSnapshot);
+                if (BattleSessionSaveService.Instance != null)
+                {
+                    BattleSessionSaveService.Instance.SetCurrentSlotId(pendingSlotId);
+                }
+                pendingSnapshot = null;
+                pendingSlotId = null;
+            }
+            else
+            {
+                if (BattleSessionSaveService.Instance != null)
+                {
+                    BattleSessionSaveService.Instance.ClearCurrentSlotReference();
+                }
+                BattleManager.Instance.StartBattle();
+            }
         }
         else  // 回到主界面
         {
@@ -107,6 +127,27 @@ public class GameManager : MonoBehaviour
                      go.AddComponent<AudioManager>().PlayTitleBGM();
                 }
             }
+        }
+    }
+
+    public void StartBattleFromSave(BattleSnapshotData snapshot, string slotId)
+    {
+        if (snapshot == null) return;
+        pendingSnapshot = snapshot;
+        pendingSlotId = slotId;
+        SetDiff(snapshot.difficultyLevel);
+        SwitchSecne(true);
+    }
+
+    public void ExitBattleWithAutoSave()
+    {
+        if (BattleSessionSaveService.Instance != null)
+        {
+            BattleSessionSaveService.Instance.SaveOrUpdateCurrentBattle();
+        }
+        if (BattleManager.Instance != null)
+        {
+            BattleManager.Instance.ExitToMainMenuWithoutSettlement();
         }
     }
 

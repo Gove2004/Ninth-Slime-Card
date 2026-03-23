@@ -1,12 +1,16 @@
 using System;
 using System.Text;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
 public class BattleManager : MonoBehaviour
 {
+    private const int SideNone = 0;
+    private const int SidePlayer = 1;
+    private const int SideEnemy = 2;
     // 简单的单例模式
     public static BattleManager Instance;
     public bool IsGMMode = false;
@@ -140,6 +144,11 @@ public class BattleManager : MonoBehaviour
 
     public void StartBattle()
     {
+        StartBattle(true);
+    }
+
+    public void StartBattle(bool autoStartTurns)
+    {
         Debug.Log("战斗开始！");
         EnsureGMToolState();
 
@@ -176,6 +185,25 @@ public class BattleManager : MonoBehaviour
 
         EventCenter.Publish("BattleStarted");
 
+        RegisterBattleEvents();
+
+        if (!autoStartTurns) return;
+
+        int initialHandCount = Mathf.Clamp(5 - GameManager.Instance.difficultyLevel, 1, 4);
+        for (int i = 0; i < initialHandCount; i++)
+        {
+            var card = player.DrawCard(0);
+            if (card != null)
+            {
+                EventCenter.Publish("Player_DrawCard", card);
+            }
+        }
+
+        NextTurn();
+    }
+
+    private void RegisterBattleEvents()
+    {
         onPhaseChangedUnsub = EventCenter.Register("EnemyBoss_PhaseChanged", (param) =>
         {
             if (player != null)
@@ -191,39 +219,54 @@ public class BattleManager : MonoBehaviour
         onPlayerDeadUnsub = EventCenter.Register("PlayerDead", (param) =>
         {
             var character = param as BaseCharacter;
-            EndBattle();
+            EndBattle(true);
         });
         onEnemyDeadUnsub = EventCenter.Register("EnemyDead", (param) =>
         {
             var character = param as BaseCharacter;
-            EndBattle();
+            EndBattle(true);
         });
         onCharacterEndedTurnUnsub = EventCenter.Register("CharacterEndedTurn", (param) =>
         {
             NextTurn();
         });
-
-        int initialHandCount = Mathf.Clamp(5 - GameManager.Instance.difficultyLevel, 1, 4);
-        for (int i = 0; i < initialHandCount; i++)
-        {
-            var card = player.DrawCard(0);
-            if (card != null)
-            {
-                EventCenter.Publish("Player_DrawCard", card);
-            }
-        }
-
-        NextTurn();
     }
 
 
 
     private bool isEndingBattle = false;
+    private bool deleteCurrentSaveOnEnd;
 
     public void EndBattle()
     {
+        EndBattle(false);
+    }
+
+    public void EndBattle(bool deleteCurrentSave)
+    {
         if (isEndingBattle) return;
+        deleteCurrentSaveOnEnd = deleteCurrentSave;
         StartCoroutine(EndBattleRoutine());
+    }
+
+    public void ExitToMainMenuWithoutSettlement()
+    {
+        StopAllCoroutines();
+        player?.OnBattleEnd();
+        enemy?.OnBattleEnd();
+        onPhaseChangedUnsub?.Invoke();
+        onPlayerDeadUnsub?.Invoke();
+        onEnemyDeadUnsub?.Invoke();
+        onCharacterEndedTurnUnsub?.Invoke();
+        Time.timeScale = 1f;
+        if (player != null) player.AbortTurn();
+        if (enemy != null) enemy.AbortTurn();
+        EventCenter.Publish("BattleEnded");
+        player = null;
+        enemy = null;
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        GameManager.Instance.SwitchSecne(false);
+        isEndingBattle = false;
     }
 
     private IEnumerator EndBattleRoutine()
@@ -265,6 +308,11 @@ public class BattleManager : MonoBehaviour
         // UI跳转
         GameManager.Instance.SwitchSecne(false);
         isEndingBattle = false;
+        if (deleteCurrentSaveOnEnd && BattleSessionSaveService.Instance != null)
+        {
+            BattleSessionSaveService.Instance.DeleteCurrentSlotIfAny();
+        }
+        deleteCurrentSaveOnEnd = false;
     }
 
     private void ShowGameOverUI()
@@ -335,6 +383,327 @@ public class BattleManager : MonoBehaviour
         {
             StartCoroutine(enemy.StartTurnRoutine());
         }
+    }
+
+    public BattleSnapshotData CaptureBattleSnapshot()
+    {
+        if (player == null || enemy == null) return null;
+        var data = new BattleSnapshotData
+        {
+            difficultyLevel = GameManager.Instance != null ? GameManager.Instance.difficultyLevel : 1,
+            currentTurn = currentTurn,
+            playerIsInTurn = player.IsInTurn,
+            enemyIsInTurn = enemy.IsInTurn,
+            player = CaptureCharacter(player),
+            enemy = CaptureCharacter(enemy),
+            playerDeck = CaptureCardList(CardFactory.GetPlayerDeck()),
+            enemyDeck = CaptureCardList(CardFactory.GetDeckSnapshot(enemy)),
+            playerDots = CaptureDotList(player.dotBar),
+            enemyDots = CaptureDotList(enemy.dotBar),
+            sacrificeBonus = 献祭.GetSacrificeBonus(),
+            laserPlayerBonusDamage = 激光.GetPlayerBonusDamage(),
+            laserEnemyBonusDamage = 激光.GetEnemyBonusDamage()
+        };
+
+        if (enemy is EnemyBoss enemyBoss)
+        {
+            data.enemyPhase = enemyBoss.phase;
+            data.enemyNextPhaseHealthThreshold = enemyBoss.nextPhaseHealthThreshold;
+            data.enemyScore = enemyBoss.score;
+            data.rougeDamageTier = enemyBoss.phase;
+            data.currentTotalDamage = enemyBoss.score;
+        }
+
+        return data;
+    }
+
+    public void RestoreBattleFromSnapshot(BattleSnapshotData snapshot)
+    {
+        if (snapshot == null) return;
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.SetDiff(snapshot.difficultyLevel);
+        }
+
+        player?.OnBattleEnd();
+        enemy?.OnBattleEnd();
+
+        player = new Player();
+        enemy = new EnemyBoss();
+        player.Target = enemy;
+        enemy.Target = player;
+
+        ApplyCharacterSnapshot(player, snapshot.player);
+        ApplyCharacterSnapshot(enemy, snapshot.enemy);
+
+        bool playerInTurn = snapshot.playerIsInTurn;
+        bool enemyInTurn = snapshot.enemyIsInTurn;
+        if (!playerInTurn && !enemyInTurn && snapshot.currentTurn > 0)
+        {
+            playerInTurn = snapshot.currentTurn % 2 == 1;
+            enemyInTurn = !playerInTurn;
+        }
+        if (playerInTurn && enemyInTurn)
+        {
+            playerInTurn = snapshot.currentTurn % 2 == 1;
+            enemyInTurn = !playerInTurn;
+        }
+        player.RestoreTurnState(playerInTurn);
+        enemy.RestoreTurnState(enemyInTurn);
+        if (player is Player playerCharacter && !playerInTurn)
+        {
+            playerCharacter.isReady = false;
+        }
+
+        献祭.SetSacrificeBonus(snapshot.sacrificeBonus);
+        激光.SetGlobalState(snapshot.laserPlayerBonusDamage, snapshot.laserEnemyBonusDamage);
+
+        if (enemy is EnemyBoss enemyBoss)
+        {
+            int phase = snapshot.enemyPhase > 0 ? snapshot.enemyPhase : snapshot.rougeDamageTier;
+            enemyBoss.phase = Mathf.Max(1, phase);
+            enemyBoss.nextPhaseHealthThreshold = snapshot.enemyNextPhaseHealthThreshold;
+            ulong score = snapshot.enemyScore > 0 ? snapshot.enemyScore : snapshot.currentTotalDamage;
+            enemyBoss.SetScore(score);
+        }
+
+        player.dotBar.Clear();
+        enemy.dotBar.Clear();
+        RestoreDotList(snapshot.playerDots, player);
+        RestoreDotList(snapshot.enemyDots, enemy);
+
+        ApplyCharacterSnapshot(player, snapshot.player);
+        ApplyCharacterSnapshot(enemy, snapshot.enemy);
+        RestoreDeck(CardFactory.GetPlayerDeck(), snapshot.playerDeck);
+        RestoreDeck(GetEnemyDeckReference(), snapshot.enemyDeck);
+
+        player.RestoreTurnState(playerInTurn);
+        enemy.RestoreTurnState(enemyInTurn);
+        if (player is Player restoredPlayer && !playerInTurn)
+        {
+            restoredPlayer.isReady = false;
+        }
+        currentTurn = Mathf.Max(1, snapshot.currentTurn);
+        EventCenter.Publish("BattleStarted");
+        for (int i = 0; i < player.Cards.Count; i++)
+        {
+            EventCenter.Publish("Player_DrawCard", player.Cards[i]);
+        }
+    }
+
+    private SavedCharacterData CaptureCharacter(BaseCharacter character)
+    {
+        var data = new SavedCharacterData
+        {
+            health = character.health,
+            mana = character.mana,
+            shiled = character.shiled,
+            autoManaPerTurn = character.autoManaPerTurn,
+            cards = CaptureCardList(character.Cards)
+        };
+
+        if (character is Player playerCharacter)
+        {
+            data.isPlayerReady = playerCharacter.isReady;
+        }
+
+        return data;
+    }
+
+    private List<SavedCardData> CaptureCardList(List<BaseCard> cards)
+    {
+        var result = new List<SavedCardData>();
+        if (cards == null) return result;
+
+        for (int i = 0; i < cards.Count; i++)
+        {
+            var card = cards[i];
+            if (card == null) continue;
+            var cardData = new SavedCardData
+            {
+                name = card.Name,
+                typeName = card.GetType().AssemblyQualifiedName,
+                cost = card.Cost,
+                value = card.Value,
+                duration = card.Duration,
+                isStolenFromOpponent = card.IsStolenFromOpponent
+            };
+            result.Add(cardData);
+        }
+
+        return result;
+    }
+
+    private List<SavedDotData> CaptureDotList(List<Dot> dots)
+    {
+        var result = new List<SavedDotData>();
+        if (dots == null) return result;
+
+        for (int i = 0; i < dots.Count; i++)
+        {
+            var dot = dots[i];
+            if (dot == null) continue;
+            var saved = new SavedDotData
+            {
+                sourceSide = ResolveCharacterSide(dot.source),
+                targetSide = ResolveCharacterSide(dot.target),
+                duration = dot.duration,
+                isStolenFromOpponent = dot.IsStolenFromOpponent,
+                sourceCard = CaptureCard(dot.sourceCard)
+            };
+            result.Add(saved);
+        }
+
+        return result;
+    }
+
+    private SavedCardData CaptureCard(BaseCard card)
+    {
+        if (card == null) return null;
+        return new SavedCardData
+        {
+            name = card.Name,
+            typeName = card.GetType().AssemblyQualifiedName,
+            cost = card.Cost,
+            value = card.Value,
+            duration = card.Duration,
+            isStolenFromOpponent = card.IsStolenFromOpponent
+        };
+    }
+
+    private void ApplyCharacterSnapshot(BaseCharacter character, SavedCharacterData data)
+    {
+        if (character == null || data == null) return;
+
+        character.health = data.health;
+        character.mana = data.mana;
+        character.shiled = data.shiled;
+        character.autoManaPerTurn = data.autoManaPerTurn;
+        character.Cards.Clear();
+
+        if (data.cards != null)
+        {
+            for (int i = 0; i < data.cards.Count; i++)
+            {
+                var savedCard = data.cards[i];
+                var card = CreateCardFromSaved(savedCard);
+                if (card == null) continue;
+                card.SetOwningCharacter(character);
+                character.Cards.Add(card);
+            }
+        }
+
+        if (character is Player playerCharacter)
+        {
+            playerCharacter.isReady = data.isPlayerReady;
+        }
+    }
+
+    private BaseCard CreateCardFromSaved(SavedCardData saved)
+    {
+        if (saved == null) return null;
+
+        BaseCard card = null;
+        if (!string.IsNullOrEmpty(saved.name))
+        {
+            card = CardFactory.GetThisCard(saved.name);
+        }
+
+        if (card == null && !string.IsNullOrEmpty(saved.typeName))
+        {
+            var cardType = Type.GetType(saved.typeName);
+            if (cardType != null && typeof(BaseCard).IsAssignableFrom(cardType))
+            {
+                card = Activator.CreateInstance(cardType) as BaseCard;
+            }
+        }
+
+        if (card == null) return null;
+
+        card.SetCost(saved.cost);
+        card.SetValue(saved.value);
+        card.SetDuration(saved.duration);
+        if (saved.isStolenFromOpponent) card.MarkStolenFromOpponent();
+        return card;
+    }
+
+    private void RestoreDeck(List<BaseCard> deck, List<SavedCardData> savedDeck)
+    {
+        if (deck == null) return;
+        deck.Clear();
+        if (savedDeck == null) return;
+
+        for (int i = 0; i < savedDeck.Count; i++)
+        {
+            var card = CreateCardFromSaved(savedDeck[i]);
+            if (card != null) deck.Add(card);
+        }
+    }
+
+    private void RestoreDotList(List<SavedDotData> savedDots, BaseCharacter owner)
+    {
+        if (savedDots == null || owner == null) return;
+
+        for (int i = 0; i < savedDots.Count; i++)
+        {
+            var saved = savedDots[i];
+            if (saved == null || saved.sourceCard == null) continue;
+
+            var source = ResolveCharacterFromSide(saved.sourceSide, owner);
+            var target = ResolveCharacterFromSide(saved.targetSide, source != null ? source.Target : owner.Target);
+            if (source == null) source = owner;
+            if (target == null) target = source.Target;
+            if (source == null) continue;
+
+            var card = CreateCardFromSaved(saved.sourceCard);
+            if (card == null) continue;
+            card.SetOwningCharacter(source);
+            if (saved.isStolenFromOpponent) card.MarkStolenFromOpponent();
+
+            int beforeCount = source.dotBar.Count;
+            card.Execute(source, target);
+            if (source.dotBar.Count <= beforeCount) continue;
+
+            var createdDot = source.dotBar[source.dotBar.Count - 1];
+            if (createdDot == null) continue;
+            createdDot.duration = Mathf.Max(0, saved.duration);
+            createdDot.sourceCard = card;
+            if (saved.isStolenFromOpponent) createdDot.MarkStolenFromOpponent();
+
+            if (!ReferenceEquals(owner, source))
+            {
+                source.dotBar.Remove(createdDot);
+                owner.dotBar.Add(createdDot);
+            }
+        }
+    }
+
+    private int ResolveCharacterSide(BaseCharacter character)
+    {
+        if (character == null) return SideNone;
+        if (ReferenceEquals(character, player) || character is Player) return SidePlayer;
+        if (ReferenceEquals(character, enemy) || character is EnemyBoss) return SideEnemy;
+        return SideNone;
+    }
+
+    private BaseCharacter ResolveCharacterFromSide(int side, BaseCharacter fallback)
+    {
+        if (side == SidePlayer) return player;
+        if (side == SideEnemy) return enemy;
+        return fallback;
+    }
+
+    private List<BaseCard> GetEnemyDeckReference()
+    {
+        if (enemy == null) return new List<BaseCard>();
+        var snapshot = new List<BaseCard>();
+        var enemyDeckType = typeof(CardFactory).GetField("enemyDeck", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        if (enemyDeckType != null)
+        {
+            var value = enemyDeckType.GetValue(null) as List<BaseCard>;
+            if (value != null) return value;
+        }
+        return snapshot;
     }
 
 

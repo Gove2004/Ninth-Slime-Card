@@ -8,6 +8,7 @@ public class InfoPanel : MonoBehaviour
     public GameObject teamObj;
     public GameObject achievementObj;
     public GameObject collectionObj;
+    public GameObject saveObj;
     public AchievementsPanel achievementsPanel;
     public Button closeButton;
     public Button collectionBackButton;
@@ -68,6 +69,17 @@ public class InfoPanel : MonoBehaviour
         ShowSection(collectionObj);
     }
 
+    public void ShowSaveList()
+    {
+        EnsureReferences();
+        ShowSection(saveObj);
+        if (saveObj != null)
+        {
+            var saveListUi = saveObj.GetComponentInChildren<SaveSlotListUI>(true);
+            if (saveListUi != null) saveListUi.Refresh();
+        }
+    }
+
     public void ClosePanel()
     {
         AchievementToast.SetPanelVisible(true);
@@ -106,6 +118,10 @@ public class InfoPanel : MonoBehaviour
         if (collectionObj == null)
         {
             collectionObj = FindChildByNameCandidates(new[] { "图鉴", "收藏", "Collection", "collection" });
+        }
+        if (saveObj == null)
+        {
+            saveObj = FindChildByNameCandidates(new[] { "存档", "Save", "save" });
         }
         if (closeButton == null)
         {

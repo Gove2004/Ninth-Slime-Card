@@ -113,6 +113,12 @@ public abstract class BaseCharacter
         immuneThisTurn = false;
     }
 
+    public void RestoreTurnState(bool isInTurn)
+    {
+        IsInTurn = isInTurn;
+        immuneThisTurn = false;
+    }
+
 
     // DOT效果
     public List<Dot> dotBar = new List<Dot>();

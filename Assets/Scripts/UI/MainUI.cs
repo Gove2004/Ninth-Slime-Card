@@ -5,6 +5,7 @@ using UnityEngine.UI;
 public class MainUI : MonoBehaviour
 {
     public Button startBattleButton;
+    public Button saveButton;
     public Button introButton;
     public Button settingsButton;
     public Button teamButton;
@@ -22,6 +23,22 @@ public class MainUI : MonoBehaviour
         if (introButton != null) introButton.onClick.AddListener(OnIntroClicked);
         if (settingsButton != null && settingsButton != introButton) settingsButton.onClick.AddListener(OnSettingsClicked);
         if (teamButton != null) teamButton.onClick.AddListener(OnTeamClicked);
+        if (saveButton == null)
+        {
+            var buttons = FindObjectsOfType<Button>(true);
+            foreach (var button in buttons)
+            {
+                if (button != null && button.gameObject.name == "存档")
+                {
+                    saveButton = button;
+                    break;
+                }
+            }
+        }
+        if (saveButton != null)
+        {
+            saveButton.onClick.AddListener(OnSaveClicked);
+        }
         if (achievementButton == null)
         {
             var buttons = FindObjectsOfType<Button>(true);
@@ -81,6 +98,14 @@ public class MainUI : MonoBehaviour
         if (infoPanel != null)
         {
             infoPanel.ShowTeam();
+        }
+    }
+
+    private void OnSaveClicked()
+    {
+        if (infoPanel != null)
+        {
+            infoPanel.ShowSaveList();
         }
     }
 

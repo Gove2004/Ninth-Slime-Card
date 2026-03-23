@@ -164,8 +164,9 @@ public class BattleUI : MonoBehaviour
 
     private void OnExitClicked()
     {
-        if (BattleManager.Instance == null) return;
-        BattleManager.Instance.EndBattle();
+        if (BattleManager.Instance == null || !BattleManager.Instance.IsPlayerTurn()) return;
+        if (GameManager.Instance == null) return;
+        GameManager.Instance.ExitBattleWithAutoSave();
     }
 
     public void OnExitButtonClicked()
@@ -183,6 +184,7 @@ public class BattleUI : MonoBehaviour
             if (drawCardButton != null) drawCardButton.interactable = isPlayerTurn && player.mana >= drawCost && player.Cards.Count < Player.HandLimit;
             if (playCardButton != null) playCardButton.interactable = isPlayerTurn && cardList.AblePlay;
             if (endTurnButton != null) endTurnButton.interactable = isPlayerTurn;
+            if (exitButton != null && exitButton.gameObject.activeSelf != isPlayerTurn) exitButton.gameObject.SetActive(isPlayerTurn);
 
             if (drawCardButtonText != null && lastDrawCost != drawCost)
             {

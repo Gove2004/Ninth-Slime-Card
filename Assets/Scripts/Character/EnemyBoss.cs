@@ -59,6 +59,11 @@ public class EnemyBoss : BaseCharacter
         score = 0;
     }
 
+    public void SetScore(ulong value)
+    {
+        score = value;
+    }
+
 
     public int phase = 1;  // 当前阶段
     public ulong nextPhaseHealthThreshold = GetThresholdForPhase(1);  // 下一阶段的生命阈值
