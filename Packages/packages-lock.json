@@ -11,7 +11,7 @@
       "hash": "1000228b2cf10c2351d4340414313d6bf1847f4b"
     },
     "com.google.external-dependency-manager": {
-      "version": "1.2.179",
+      "version": "1.2.187",
       "depth": 0,
       "source": "registry",
       "dependencies": {},

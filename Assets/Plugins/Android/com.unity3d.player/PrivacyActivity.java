@@ -15,7 +15,7 @@ public class PrivacyActivity extends Activity implements DialogInterface.OnClick
     private static final String TAG = "PrivacyActivity";
     private static final String PREFS_NAME = "PlayerPrefs";
     private static final String ACCEPTED_KEY = "PrivacyAcceptedKey";
-    private static final String PRIVACY_POLICY_ASSET_URL = "file:///android_asset/privacy-policy-template.htm";
+    private static final String PRIVACY_POLICY_ASSET_URL = "file:///android_asset/bin/Data/StreamingAssets/privacy-policy-template.htm";
                 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

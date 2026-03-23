@@ -1,12 +1,17 @@
 {
   "dependencies": {
     "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity",
+    "com.google.external-dependency-manager": "1.2.187",
+    "com.taptap.sdk.achievement": "https://github.com/taptap/tapsdk-unity-dist.git?path=/Achievement#4.10.0",
+    "com.taptap.sdk.core": "https://github.com/taptap/tapsdk-unity-dist.git?path=/Core#4.10.0",
+    "com.taptap.sdk.login": "https://github.com/taptap/tapsdk-unity-dist.git?path=/Login#4.10.0",
     "com.unity.collab-proxy": "2.11.3",
     "com.unity.feature.2d": "2.0.1",
     "com.unity.ide.rider": "3.0.38",
     "com.unity.ide.visualstudio": "2.0.23",
     "com.unity.inputsystem": "1.14.2",
     "com.unity.multiplayer.center": "1.0.0",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.render-pipelines.universal": "17.0.4",
     "com.unity.test-framework": "1.6.0",
     "com.unity.timeline": "1.8.9",
@@ -43,21 +48,15 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0",
-
-    "com.unity.nuget.newtonsoft-json":"3.2.1",
-    "com.google.external-dependency-manager": "1.2.179",
-    "com.taptap.sdk.core":"https://github.com/taptap/tapsdk-unity-dist.git?path=/Core#4.10.0",
-    "com.taptap.sdk.login":"https://github.com/taptap/tapsdk-unity-dist.git?path=/Login#4.10.0",
-    "com.taptap.sdk.achievement":"https://github.com/taptap/tapsdk-unity-dist.git?path=/Achievement#4.10.0"
+    "com.unity.modules.xr": "1.0.0"
   },
   "scopedRegistries": [
-      {
-         "name": "package.openupm.com",
-         "url": "https://package.openupm.com",
-         "scopes": [
-            "com.google.external-dependency-manager"
-         ]
-      }
+    {
+      "name": "package.openupm.com",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.google.external-dependency-manager"
+      ]
+    }
   ]
 }
