@@ -31,26 +31,11 @@ public class GMTool : MonoBehaviour
 #if UNITY_EDITOR
     private void Update()
     {
-        // 按 R 清除 PlayerPrefs
         if (Input.GetKeyDown(KeyCode.R))
         {
             PlayerPrefs.DeleteAll();
             if (GameManager.Instance != null) GameManager.Instance.Load();
             message = "存档已清空";
-            
-        }
-
-
-        if (Input.GetKeyDown(KeyCode.F8))
-        {
-            if (TapTapSdk.Instance != null)
-            {
-                TapTapSdk.Instance.IncrementAchievement("test", 1);
-            }
-            else
-            {
-                message = "TapTapSdk 未初始化";
-            }
         }
     }
 

@@ -3,9 +3,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
+using UnityEngine.Networking;
 
 public static class CardDatabase
 {
+    private const string ResourcesCsvPath = "cards";
     private static readonly Dictionary<string, string> CardImageNameAliases = new()
     {
         { "视界", "黑洞" },
@@ -28,6 +30,7 @@ public static class CardDatabase
     
     private static readonly Dictionary<int, CardData> cardDataDict = new();
     private static readonly List<CardData> cardDataList = new();
+    private static bool isLoaded;
     
     // 硬编码的CSV相对路径
     private const string CSV_RELATIVE_PATH = "cards.csv";
@@ -43,77 +46,20 @@ public static class CardDatabase
     {
         try
         {
-            string csvContent;
+            cardDataDict.Clear();
+            cardDataList.Clear();
+            isLoaded = false;
 
-            #if UNITY_ANDROID && !UNITY_EDITOR
-            // Android: 需要先从StreamingAssets复制到persistentDataPath
-            string persistentPath = Path.Combine(Application.persistentDataPath, CSV_RELATIVE_PATH);
-            
-            if (!File.Exists(persistentPath))
+            if (!TryReadCsvContent(out string csvContent))
             {
-                // 确保目录存在
-                string persistentDir = Application.persistentDataPath;
-                if (!Directory.Exists(persistentDir))
-                {
-                    Directory.CreateDirectory(persistentDir);
-                }
-                
-                // 从StreamingAssets复制文件到persistentDataPath
-                string streamingPath = Path.Combine(Application.streamingAssetsPath, CSV_RELATIVE_PATH);
-                WWW loadWWW = new WWW(streamingPath);
-                
-                // 等待加载完成（带超时保护）
-                float timeout = 30f;
-                float startTime = Time.realtimeSinceStartup;
-                while (!loadWWW.isDone && (Time.realtimeSinceStartup - startTime) < timeout)
-                {
-                    System.Threading.Thread.Sleep(10);
-                }
-                
-                if (!loadWWW.isDone)
-                {
-                    Debug.LogError($"加载CSV文件超时（{timeout}s）");
-                    return;
-                }
-                
-                if (!string.IsNullOrEmpty(loadWWW.error))
-                {
-                    Debug.LogError($"加载CSV文件失败: {loadWWW.error}");
-                    return;
-                }
-                
-                // 写入文件
-                try
-                {
-                    File.WriteAllBytes(persistentPath, loadWWW.bytes);
-                    Debug.Log($"CSV文件已复制到: {persistentPath}");
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"写入CSV文件失败: {ex.Message}");
-                    return;
-                }
-            }
-            else
-            {
-                Debug.Log($"CSV文件已在本地缓存: {persistentPath}");
-            }
-            
-            csvContent = File.ReadAllText(persistentPath);
-            #else
-            // 其他平台: 直接从StreamingAssets读取
-            string fullPath = Path.Combine(Application.streamingAssetsPath, CSV_RELATIVE_PATH);
-            if (!File.Exists(fullPath))
-            {
-                Debug.LogError($"CSV文件不存在: {fullPath}");
+                Debug.LogError("未能读取卡牌CSV文件");
                 return;
             }
-            csvContent = File.ReadAllText(fullPath);
-            #endif
             
             if (!string.IsNullOrEmpty(csvContent))
             {
                 ParseCsvContent(csvContent);
+                isLoaded = cardDataDict.Count > 0;
             }
             else
             {
@@ -129,9 +75,6 @@ public static class CardDatabase
     // 解析CSV内容
     private static void ParseCsvContent(string csvContent)
     {
-        cardDataDict.Clear();
-        cardDataList.Clear();
-        
         using (StringReader reader = new(csvContent))
         {
             string line;
@@ -241,6 +184,7 @@ public static class CardDatabase
     // 获取卡牌数据
     public static CardData GetCardData(int id)
     {
+        EnsureLoaded();
         if (cardDataDict.TryGetValue(id, out CardData data))
         {
             return data;
@@ -252,7 +196,157 @@ public static class CardDatabase
 
     public static List<CardData> GetAllCardData()
     {
+        EnsureLoaded();
         return new List<CardData>(cardDataList);
+    }
+
+    private static void EnsureLoaded()
+    {
+        if (!isLoaded && cardDataDict.Count == 0)
+        {
+            LoadCardData();
+        }
+    }
+
+    private static bool TryReadCsvContent(out string csvContent)
+    {
+        #if UNITY_ANDROID && !UNITY_EDITOR
+        if (TryReadCsvFromPersistent(out csvContent))
+        {
+            return true;
+        }
+
+        if (TryReadCsvFromStreamingAssets(out csvContent))
+        {
+            TryWriteCsvToPersistent(csvContent);
+            return true;
+        }
+
+        if (TryReadCsvFromResources(out csvContent))
+        {
+            TryWriteCsvToPersistent(csvContent);
+            return true;
+        }
+
+        csvContent = string.Empty;
+        return false;
+        #else
+        if (TryReadCsvFromStreamingAssets(out csvContent))
+        {
+            return true;
+        }
+
+        if (TryReadCsvFromResources(out csvContent))
+        {
+            return true;
+        }
+
+        csvContent = string.Empty;
+        return false;
+        #endif
+    }
+
+    private static bool TryReadCsvFromPersistent(out string csvContent)
+    {
+        string persistentPath = Path.Combine(Application.persistentDataPath, CSV_RELATIVE_PATH);
+        if (!File.Exists(persistentPath))
+        {
+            csvContent = string.Empty;
+            return false;
+        }
+
+        csvContent = File.ReadAllText(persistentPath);
+        if (string.IsNullOrWhiteSpace(csvContent))
+        {
+            Debug.LogWarning($"本地缓存的CSV为空: {persistentPath}");
+            return false;
+        }
+
+        Debug.Log($"从本地缓存加载卡牌CSV: {persistentPath}");
+        return true;
+    }
+
+    private static bool TryReadCsvFromStreamingAssets(out string csvContent)
+    {
+        string fullPath = Path.Combine(Application.streamingAssetsPath, CSV_RELATIVE_PATH);
+        #if UNITY_ANDROID && !UNITY_EDITOR
+        UnityWebRequest request = UnityWebRequest.Get(fullPath);
+        var operation = request.SendWebRequest();
+        while (!operation.isDone)
+        {
+        }
+
+        if (request.result != UnityWebRequest.Result.Success)
+        {
+            csvContent = string.Empty;
+            request.Dispose();
+            return false;
+        }
+
+        csvContent = request.downloadHandler.text;
+        request.Dispose();
+        #else
+        if (!File.Exists(fullPath))
+        {
+            csvContent = string.Empty;
+            return false;
+        }
+
+        csvContent = File.ReadAllText(fullPath);
+        #endif
+        if (string.IsNullOrWhiteSpace(csvContent))
+        {
+            Debug.LogWarning($"StreamingAssets中的CSV为空: {fullPath}");
+            return false;
+        }
+
+        Debug.Log($"从StreamingAssets加载卡牌CSV: {fullPath}");
+        return true;
+    }
+
+    private static bool TryReadCsvFromResources(out string csvContent)
+    {
+        TextAsset csvAsset = Resources.Load<TextAsset>(ResourcesCsvPath);
+        if (csvAsset == null)
+        {
+            csvContent = string.Empty;
+            return false;
+        }
+
+        csvContent = csvAsset.text;
+        if (string.IsNullOrWhiteSpace(csvContent))
+        {
+            Debug.LogWarning("Resources中的卡牌CSV为空");
+            return false;
+        }
+
+        Debug.Log("从Resources加载卡牌CSV");
+        return true;
+    }
+
+    private static void TryWriteCsvToPersistent(string csvContent)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(csvContent))
+            {
+                return;
+            }
+
+            string persistentDir = Application.persistentDataPath;
+            if (!Directory.Exists(persistentDir))
+            {
+                Directory.CreateDirectory(persistentDir);
+            }
+
+            string persistentPath = Path.Combine(persistentDir, CSV_RELATIVE_PATH);
+            File.WriteAllText(persistentPath, csvContent);
+            Debug.Log($"已写入卡牌CSV缓存: {persistentPath}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"写入卡牌CSV缓存失败: {ex.Message}");
+        }
     }
 
     private static string ResolveImageName(string cardName)

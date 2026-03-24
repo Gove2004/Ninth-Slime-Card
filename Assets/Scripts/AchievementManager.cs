@@ -47,6 +47,8 @@ public class AchievementManager : MonoBehaviour
     private const string TotalManaKey = "Achievement_TotalMana";
     private const string TotalHealKey = "Achievement_TotalHeal";
     private const string CustomAchievementPrefix = "Achievement_Custom_";
+    private const string BattleStartAchievementId = "test";
+    private const int BattleStartAchievementTapTapSteps = 3;
     private const float TapTapFlushIntervalSeconds = 5f;
     private const ulong TapTapStepAchievementMaxThreshold = 100000000UL;
     private const int TapTapIncrementChunkMaxStep = 10000;
@@ -161,6 +163,9 @@ public class AchievementManager : MonoBehaviour
     private Action onOverheatUnsub;
     private Action onStolenKillUnsub;
     private Action onEnemyDeadUnsub;
+    private Action onBattleStartedUnsub;
+    private Action onBattleEndedUnsub;
+    private BaseCharacter trackedPlayerDamageSource;
 
     private void Awake()
     {
@@ -175,8 +180,10 @@ public class AchievementManager : MonoBehaviour
         Load();
         BuildDefinitions();
         LoadCustom();
-        RegisterEvents();
         AchievementToast.EnsureInstance();
+        UnlockCustom(BattleStartAchievementId);
+        RegisterEvents();
+        SubscribeToPlayerDamageSource();
         nextTapTapFlushTime = Time.unscaledTime + TapTapFlushIntervalSeconds;
     }
 
@@ -204,6 +211,9 @@ public class AchievementManager : MonoBehaviour
         onOverheatUnsub?.Invoke();
         onStolenKillUnsub?.Invoke();
         onEnemyDeadUnsub?.Invoke();
+        onBattleStartedUnsub?.Invoke();
+        onBattleEndedUnsub?.Invoke();
+        UnsubscribeFromPlayerDamageSource();
     }
 
     private void OnApplicationPause(bool pauseStatus)
@@ -285,7 +295,11 @@ public class AchievementManager : MonoBehaviour
 
     private void RegisterEvents()
     {
-        onDrawUnsub = EventCenter.Register("Player_DrawCard", (obj) => AddDraw(1));
+        onDrawUnsub = EventCenter.Register("Player_DrawCard", (obj) =>
+        {
+            AddDraw(1);
+            TryUnlockDrawDraw(obj);
+        });
         onPlayUnsub = EventCenter.Register("Player_PlayCard", (obj) => AddPlay(1));
         onManaUnsub = EventCenter.Register("Player_GainMana", (obj) =>
         {
@@ -319,6 +333,52 @@ public class AchievementManager : MonoBehaviour
                     break;
             }
         });
+        onBattleStartedUnsub = EventCenter.Register("BattleStarted", (obj) =>
+        {
+            UnlockCustom(BattleStartAchievementId);
+            SubscribeToPlayerDamageSource();
+        });
+        onBattleEndedUnsub = EventCenter.Register("BattleEnded", (obj) => UnsubscribeFromPlayerDamageSource());
+    }
+
+    private void TryUnlockDrawDraw(object obj)
+    {
+        if (obj is not BaseCard drawnCard) return;
+        if (drawnCard.Name != "抽牌") return;
+
+        BaseCard sourceCard = BaseCharacter.ActiveCardContext ?? BaseCharacter.ActiveDotContext?.sourceCard;
+        if (sourceCard == null) return;
+        if (sourceCard.Name != "抽牌") return;
+
+        UnlockCustom("draw_draw");
+    }
+
+    private void SubscribeToPlayerDamageSource()
+    {
+        UnsubscribeFromPlayerDamageSource();
+
+        if (BattleManager.Instance == null) return;
+        trackedPlayerDamageSource = BattleManager.Instance.player;
+        if (trackedPlayerDamageSource == null) return;
+
+        trackedPlayerDamageSource.DamageDealt -= OnPlayerDamageDealt;
+        trackedPlayerDamageSource.DamageDealt += OnPlayerDamageDealt;
+    }
+
+    private void UnsubscribeFromPlayerDamageSource()
+    {
+        if (trackedPlayerDamageSource == null) return;
+        trackedPlayerDamageSource.DamageDealt -= OnPlayerDamageDealt;
+        trackedPlayerDamageSource = null;
+    }
+
+    private void OnPlayerDamageDealt(ulong amount, BaseCharacter victim)
+    {
+        if (amount == 0) return;
+        if (BattleManager.Instance == null) return;
+        if (!ReferenceEquals(victim, BattleManager.Instance.enemy)) return;
+
+        AddScore(amount);
     }
 
     private void BuildDefinitions()
@@ -331,6 +391,7 @@ public class AchievementManager : MonoBehaviour
         AddPowerOfTenDefs("mana", "法力", AchievementType.Mana, ManaTitles);
         AddPowerOfTenDefs("heal", "治疗", AchievementType.Heal, HealTitles);
 
+        AddDef(BattleStartAchievementId, "dddd", AchievementType.Custom, 1, "进入战斗");
         AddDef("draw_draw", "抽抽爆", AchievementType.Custom, 1, "用“抽牌”抽到“抽牌”");
         AddDef("overheat", "过热", AchievementType.Custom, 1, "打出一张魔力消耗不小于1024的卡牌");
         AddDef("double_agent", "双面间谍", AchievementType.Custom, 1, "被从对手处偷到的卡牌或dot杀死");
@@ -425,15 +486,25 @@ public class AchievementManager : MonoBehaviour
         }
     }
 
-    private void UnlockCustom(string id)
+    public bool UnlockCustomAchievement(string id)
     {
-        if (string.IsNullOrEmpty(id)) return;
-        if (customCompleted.Contains(id)) return;
-        customCompleted.Add(id);
+        return UnlockCustom(id);
+    }
+
+    private bool UnlockCustom(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
         var def = definitions.Find(d => d.id == id);
+        if (customCompleted.Contains(id))
+        {
+            SyncTapTapAchievement(def);
+            return false;
+        }
+        customCompleted.Add(id);
         NotifyAchievementUnlocked(def);
         PlayerPrefs.SetInt(CustomAchievementPrefix + id, 1);
         PlayerPrefs.Save();
+        return true;
     }
 
     private void TryNotifyNumericUnlock(AchievementType type, ulong beforeValue, ulong afterValue)
@@ -464,11 +535,18 @@ public class AchievementManager : MonoBehaviour
     private void SyncTapTapAchievement(AchievementDefinition def)
     {
         if (def == null) return;
-        if (TapTapSdk.Instance == null) return;
+        if (!TapTapSdk.IsInitialized) return;
 
         try
         {
             if (def.type != AchievementType.Custom) return;
+            int completionSteps = GetTapTapCustomCompletionSteps(def.id);
+            if (completionSteps > 0)
+            {
+                TapTapSdk.Instance.IncrementAchievement(def.id, completionSteps);
+                return;
+            }
+
             TapTapSdk.Instance.UnlockAchievement(def.id);
         }
         catch (Exception ex)
@@ -498,7 +576,7 @@ public class AchievementManager : MonoBehaviour
 
     private bool TryResyncCompletedAchievementsToTapTapOnStartup()
     {
-        if (TapTapSdk.Instance == null) return false;
+        if (!TapTapSdk.IsInitialized) return false;
 
         foreach (var def in definitions)
         {
@@ -506,8 +584,7 @@ public class AchievementManager : MonoBehaviour
 
             try
             {
-                if (def.type != AchievementType.Custom) continue;
-                TapTapSdk.Instance.UnlockAchievement(def.id);
+                SyncTapTapAchievement(def);
             }
             catch (Exception ex)
             {
@@ -536,7 +613,7 @@ public class AchievementManager : MonoBehaviour
     private void FlushPendingTapTapIncrements()
     {
         if (pendingTapTapIncrements.Count == 0) return;
-        if (TapTapSdk.Instance == null) return;
+        if (!TapTapSdk.IsInitialized) return;
 
         var keys = new List<string>(pendingTapTapIncrements.Keys);
         foreach (string id in keys)
@@ -580,6 +657,11 @@ public class AchievementManager : MonoBehaviour
         }
 
         return remaining;
+    }
+
+    private static int GetTapTapCustomCompletionSteps(string achievementId)
+    {
+        return achievementId == BattleStartAchievementId ? BattleStartAchievementTapTapSteps : 0;
     }
 
     private static ulong ParseUlongOrZero(string value)

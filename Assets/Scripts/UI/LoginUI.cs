@@ -7,6 +7,7 @@ using UnityEngine.UI;
 
 public class LoginUI : MonoBehaviour
 {
+    private const string LoginAchievementId = "test";
     public Button loginButton;
     public TextMeshProUGUI loginTipText;
 
@@ -29,6 +30,7 @@ public class LoginUI : MonoBehaviour
 
     private async Task ChackLoginToken()
     {
+        TapTapSdk.Instance?.Initialize();
         TapTapAccount account = await TapTapLogin.Instance.GetCurrentTapAccount();
         if (account == null) {
             // 用户未登录
@@ -42,12 +44,31 @@ public class LoginUI : MonoBehaviour
 
     private void OnLoginSuccess(TapTapAccount result)
     {
-        // 登录成功，result 包含用户信息等数据
         Debug.Log($"登录成功，用户ID：{result.openId}，用户名：{result.name}");
         loginTipText.text = $"登录成功，欢迎 {result.name}！";
+        TryUnlockLoginAchievement();
 
-        // 界面跳转
         this.gameObject.SetActive(false); // 隐藏登录界面
+    }
+
+    private void TryUnlockLoginAchievement()
+    {
+        if (AchievementManager.Instance != null)
+        {
+            AchievementManager.Instance.UnlockCustomAchievement(LoginAchievementId);
+            return;
+        }
+
+        if (!TapTapSdk.IsInitialized) return;
+
+        try
+        {
+            TapTapSdk.Instance.IncrementAchievement(LoginAchievementId, 3);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"登录成就发放失败：{exception.Message}");
+        }
     }
 
 

@@ -295,7 +295,6 @@ public class BattleManager : MonoBehaviour
         // 结算分数
         ulong score = 0;
         if (enemy is EnemyBoss enemyBoss) score = enemyBoss.score;
-        if (AchievementManager.Instance != null) AchievementManager.Instance.AddScore(score);
         GameManager.Instance.Save(score);
 
         // 清理战斗数据

@@ -1,48 +1,106 @@
-
-
 using System.Collections.Generic;
-using UnityEngine.InputSystem.Utilities;
-
+using UnityEngine;
 
 public static class CardFactory
 {
-    // 自动扫所有卡牌类并注册
-    static CardFactory()
+    private static readonly Dictionary<string, System.Func<BaseCard>> cardFactories = new()
     {
-        // 这里可以使用反射来自动注册所有继承自BaseCard的类
-        var baseType = typeof(BaseCard);
-        foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
-        {
-            System.Type[] types;
-            try { types = asm.GetTypes(); } catch { continue; }
-            foreach (var t in types)
-            {
-                if (t.IsAbstract) continue;
-                if (!baseType.IsAssignableFrom(t)) continue;
-                var ctor = t.GetConstructor(System.Type.EmptyTypes);
-                if (ctor == null) continue;
-                try
-                {
-                    var inst = (BaseCard)System.Activator.CreateInstance(t);
-                    if (!allCards.Exists(c => c.GetType() == t))
-                        allCards.Add(inst);
-                }
-                catch { }
-            }
-        }
+        { nameof(流血), () => new 流血() },
+        { nameof(恢复), () => new 恢复() },
+        { nameof(入魔), () => new 入魔() },
+        { nameof(抽牌), () => new 抽牌() },
+        { nameof(驱散), () => new 驱散() },
+        { nameof(吸血), () => new 吸血() },
+        { nameof(加速), () => new 加速() },
+        { nameof(延续), () => new 延续() },
+        { nameof(超频), () => new 超频() },
+        { nameof(结算), () => new 结算() },
+        { nameof(急救), () => new 急救() },
+        { nameof(闪击), () => new 闪击() },
+        { nameof(重奏), () => new 重奏() },
+        { nameof(七罪), () => new 七罪() },
+        { nameof(暴怒), () => new 暴怒() },
+        { nameof(傲慢), () => new 傲慢() },
+        { nameof(嫉妒), () => new 嫉妒() },
+        { nameof(贪婪), () => new 贪婪() },
+        { nameof(懒惰), () => new 懒惰() },
+        { nameof(色欲), () => new 色欲() },
+        { nameof(暴食), () => new 暴食() },
+        { nameof(种子), () => new 种子() },
+        { nameof(骰子), () => new 骰子() },
+        { nameof(命签), () => new 命签() },
+        { nameof(运势), () => new 运势() },
+        { nameof(赌徒), () => new 赌徒() },
+        { nameof(轮盘), () => new 轮盘() },
+        { nameof(苦修), () => new 苦修() },
+        { nameof(献祭), () => new 献祭() },
+        { nameof(卖血), () => new 卖血() },
+        { nameof(反伤), () => new 反伤() },
+        { nameof(血契), () => new 血契() },
+        { nameof(偷窃), () => new 偷窃() },
+        { nameof(偷魔), () => new 偷魔() },
+        { nameof(偷月), () => new 偷月() },
+        { nameof(未来), () => new 未来() },
+        { nameof(破甲), () => new 破甲() },
+        { nameof(羽化), () => new 羽化() },
+        { nameof(制衡), () => new 制衡() },
+        { nameof(诅咒), () => new 诅咒() },
+        { nameof(镜像), () => new 镜像() },
+        { nameof(激光), () => new 激光() },
+        { nameof(视界), () => new 视界() },
+        { nameof(奇点), () => new 奇点() },
+        { nameof(传送), () => new 传送() }
+    };
+    private static readonly List<string> allCardKeys = new(cardFactories.Keys);
+    private static readonly string[] initialPlayerDeckKeys =
+    {
+        nameof(流血), nameof(流血), nameof(流血),
+        nameof(恢复), nameof(恢复), nameof(恢复),
+        nameof(入魔), nameof(入魔),
+        nameof(抽牌), nameof(抽牌)
+    };
+    private static readonly string[] initialEnemyDeckKeys =
+    {
+        nameof(流血),
+        nameof(入魔)
+    };
+    private static readonly string[] resetEnemyDeckKeys =
+    {
+        nameof(流血),
+        nameof(恢复),
+        nameof(抽牌),
+        nameof(入魔)
+    };
+    private static readonly List<BaseCard> allCards = CreateAllCards();
+    private static List<BaseCard> playerDeck = CreateDeck(initialPlayerDeckKeys);
+    private static List<BaseCard> enemyDeck = CreateDeck(initialEnemyDeckKeys);
+
+    private static BaseCard CreateCardInstance(string cardName)
+    {
+        if (string.IsNullOrWhiteSpace(cardName)) return null;
+        return cardFactories.TryGetValue(cardName, out var factory) ? factory() : null;
     }
 
-
-    private static BaseCard CreateCardInstance(System.Type type)
+    private static List<BaseCard> CreateAllCards()
     {
-        try
+        List<BaseCard> cards = new(cardFactories.Count);
+        foreach (string cardKey in allCardKeys)
         {
-            return (BaseCard)System.Activator.CreateInstance(type);
+            BaseCard card = CreateCardInstance(cardKey);
+            if (card != null) cards.Add(card);
         }
-        catch
+        return cards;
+    }
+
+    private static List<BaseCard> CreateDeck(IReadOnlyList<string> cardKeys)
+    {
+        List<BaseCard> deck = new(cardKeys.Count);
+        for (int i = 0; i < cardKeys.Count; i++)
         {
-            return null;
+            BaseCard card = CreateCardInstance(cardKeys[i]);
+            if (card != null) deck.Add(card);
         }
+        return deck;
     }
 
 
@@ -53,21 +111,8 @@ public static class CardFactory
     /// <returns></returns>
     public static BaseCard GetThisCard(string cardName)
     {
-        foreach (var card in allCards)
-        {
-            if (card.Name == cardName)
-            {
-                return CreateCardInstance(card.GetType());
-            }
-        }
-        return null;
+        return CreateCardInstance(cardName);
     }
-
-    
-
-    // 这是所有卡牌的列表, 通过反射自动注册
-
-    private static List<BaseCard> allCards = new();
 
     public static List<BaseCard> GetAllCards() => allCards;
 
@@ -77,10 +122,9 @@ public static class CardFactory
     /// <returns></returns>
     public static BaseCard GetRandomCard()
     {
-        if (allCards.Count == 0) return null;
-        int index = UnityEngine.Random.Range(0, allCards.Count);
-        var type = allCards[index].GetType();
-        return CreateCardInstance(type);
+        if (allCardKeys.Count == 0) return null;
+        int index = Random.Range(0, allCardKeys.Count);
+        return CreateCardInstance(allCardKeys[index]);
     }
 
     private static HashSet<string> GetEnemyBannedCards()
@@ -101,42 +145,27 @@ public static class CardFactory
         if (allCards.Count == 0) return null;
         
         var bannedCards = GetEnemyBannedCards();
-        var validCards = new List<BaseCard>();
-        foreach (var card in allCards)
+        var validCardKeys = new List<string>();
+        foreach (string cardKey in allCardKeys)
         {
-            if (!bannedCards.Contains(card.Name))
+            if (!bannedCards.Contains(cardKey))
             {
-                validCards.Add(card);
+                validCardKeys.Add(cardKey);
             }
         }
         
-        if (validCards.Count == 0) return null;
+        if (validCardKeys.Count == 0) return null;
 
-        int index = UnityEngine.Random.Range(0, validCards.Count);
-        var type = validCards[index].GetType();
-        return CreateCardInstance(type);
+        int index = Random.Range(0, validCardKeys.Count);
+        return CreateCardInstance(validCardKeys[index]);
     }
-
-
-
-
-    // 这是玩家的牌组, 是一个权重字典
-    private static List<BaseCard> playerDeck = new()
-    {
-        new 流血(), new 流血(), new 流血(),
-        new 恢复(), new 恢复(), new 恢复(),
-        new 入魔(), new 入魔(),
-        new 抽牌(), new 抽牌()
-    };
-
     // 从中抽取一张
     public static BaseCard DrawCardFromPlayerDeck()
     {
         if (playerDeck.Count == 0) return null;
-        int index = UnityEngine.Random.Range(0, playerDeck.Count);
+        int index = Random.Range(0, playerDeck.Count);
         var card = playerDeck[index];
-        // playerDeck.RemoveAt(index);  // 不真正移除, 只要抽了就算了， 傻逼AI
-        return CreateCardInstance(card.GetType());
+        return CreateCardInstance(card.Name);
     }
 
     // 用一张卡牌替换其中一张
@@ -152,42 +181,23 @@ public static class CardFactory
     /// </summary>
     public static void ResetPlayerDeck()
     {
-        playerDeck = new List<BaseCard>
-        {
-            new 流血(), new 流血(), new 流血(),
-            new 恢复(), new 恢复(), new 恢复(),
-            new 入魔(), new 入魔(),
-            new 抽牌(), new 抽牌()
-        };
+        playerDeck = CreateDeck(initialPlayerDeckKeys);
     }
 
     // 获取玩家牌组
     public static List<BaseCard> GetPlayerDeck() => playerDeck;
 
-
-    private static List<BaseCard> enemyDeck = new()
-    {
-        new 流血(),
-        new 入魔()
-    };
-
     public static void ResetEnemyDeck()
     {
-        enemyDeck = new List<BaseCard>
-        {
-            new 流血(),
-            new 恢复(),
-            new 抽牌(),
-            new 入魔()
-        };
+        enemyDeck = CreateDeck(resetEnemyDeckKeys);
     }
 
     public static BaseCard DrawCardFromEnemyDeck()
     {
         if (enemyDeck.Count == 0) return null;
-        int index = UnityEngine.Random.Range(0, enemyDeck.Count);
+        int index = Random.Range(0, enemyDeck.Count);
         var card = enemyDeck[index];
-        return CreateCardInstance(card.GetType());
+        return CreateCardInstance(card.Name);
     }
 
     public static List<BaseCard> GetDeckSnapshot(BaseCharacter character)
@@ -197,7 +207,7 @@ public static class CardFactory
         foreach (var card in sourceDeck)
         {
             if (card == null) continue;
-            BaseCard clone = CreateCardInstance(card.GetType());
+            BaseCard clone = CreateCardInstance(card.Name);
             if (clone != null) result.Add(clone);
         }
         return result;

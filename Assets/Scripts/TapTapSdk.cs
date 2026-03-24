@@ -12,6 +12,7 @@ public class TapTapSdk : MonoBehaviour
     /// 简单的单例实现，方便在游戏中任何地方通过 TapTapSdk.Instance 来访问 SDK 功能
     /// </summary>
     public static TapTapSdk Instance { get; private set; }
+    public static bool IsInitialized { get; private set; }
 
     private const string ClientId = "irmjeyzoxpztwlne5z";
     private const string ClientToken = "kXbnn4wKsOA4Rcd5wPLnEWLIgecN8pW5Dpk6ov2E";
@@ -20,21 +21,16 @@ public class TapTapSdk : MonoBehaviour
     
     void Awake()
     {
-        // 实现单例模式
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject); // 切换场景时不销毁
+            DontDestroyOnLoad(gameObject);
+            Initialize();
         }
         else
         {
-            Destroy(gameObject); // 已经存在实例，销毁重复的对象
+            Destroy(gameObject);
         }
-    }
-
-    void Start()
-    {
-        Initialize();
     }
 
     /// <summary>
@@ -42,6 +38,12 @@ public class TapTapSdk : MonoBehaviour
     /// </summary>
     public void Initialize()
     {
+        if (IsInitialized)
+        {
+            ConfigureAndroidLandscapeAutoRotation();
+            return;
+        }
+
         // 核心配置
         TapTapSdkOptions coreOptions = new TapTapSdkOptions
         {
@@ -75,6 +77,28 @@ public class TapTapSdk : MonoBehaviour
         };
         // TapSDK 初始化
         TapTapSDK.Init(coreOptions, otherOptions);
+        IsInitialized = true;
+        ConfigureAndroidLandscapeAutoRotation();
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (!hasFocus)
+        {
+            return;
+        }
+
+        ConfigureAndroidLandscapeAutoRotation();
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+        {
+            return;
+        }
+
+        ConfigureAndroidLandscapeAutoRotation();
     }
 
     private void OnDestroy()
@@ -82,12 +106,24 @@ public class TapTapSdk : MonoBehaviour
         if (Instance == this)
         {
             Instance = null;
+            IsInitialized = false;
         }
 
         if (achievementCallback != null)
         {
             TapTapAchievement.UnRegisterCallBack(achievementCallback);
         }
+    }
+
+    private static void ConfigureAndroidLandscapeAutoRotation()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        Screen.autorotateToPortrait = false;
+        Screen.autorotateToPortraitUpsideDown = false;
+        Screen.autorotateToLandscapeLeft = true;
+        Screen.autorotateToLandscapeRight = true;
+        Screen.orientation = ScreenOrientation.AutoRotation;
+#endif
     }
 
 
@@ -99,6 +135,8 @@ public class TapTapSdk : MonoBehaviour
     {
         try
         {
+            Initialize();
+
             // 定义授权范围
             List<string> scopes = new List<string>
             {
