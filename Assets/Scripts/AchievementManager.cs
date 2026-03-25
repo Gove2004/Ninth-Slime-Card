@@ -45,18 +45,11 @@ public class AchievementManager : MonoBehaviour
     private const string TotalManaKey = "Achievement_TotalMana";
     private const string TotalHealKey = "Achievement_TotalHeal";
     private const string CustomAchievementPrefix = "Achievement_Custom_";
-    private const string TapTapAchievementSyncedPrefix = "Achievement_TapTapSynced_";
-    private const string TapTapNumericSyncedPrefix = "Achievement_TapTapNumericSynced_";
     private const string BattleStartAchievementId = "test";
     private const int BattleStartAchievementTapTapSteps = 3;
-    private const float PlayerPrefsFlushIntervalSeconds = 5f;
     private const float TapTapFlushIntervalSeconds = 5f;
     private const ulong TapTapStepAchievementMaxThreshold = 100000000UL;
     private const int TapTapIncrementChunkMaxStep = 10000;
-    private const int TapTapIncrementChunkBudgetPerFlush = 8;
-    private const ulong DrawAchievementCountMultiplier = 100000UL;
-    private const ulong PlayAchievementCountMultiplier = 1000000UL;
-    private const ulong ManaAchievementCountMultiplier = 10000UL;
 
     public ulong TotalScore { get; private set; }
     public ulong TotalDraw { get; private set; }
@@ -67,10 +60,7 @@ public class AchievementManager : MonoBehaviour
     private readonly List<AchievementDefinition> definitions = new();
     private readonly HashSet<string> customCompleted = new();
     private readonly Dictionary<string, ulong> pendingTapTapIncrements = new();
-    private bool pendingTitleTapTapResync;
-    private bool hasCompletedTitleTapTapResync;
-    private bool hasPendingPlayerPrefsSave;
-    private float nextPlayerPrefsFlushTime;
+    private bool pendingStartupTapTapResync = true;
     private float nextTapTapFlushTime;
     private static readonly ulong[] NumericMilestones =
     {
@@ -192,39 +182,27 @@ public class AchievementManager : MonoBehaviour
         BuildDefinitions();
         LoadCustom();
         AchievementToast.EnsureInstance();
+        UnlockCustom(BattleStartAchievementId);
         RegisterEvents();
         SubscribeToPlayerDamageSource();
-        nextPlayerPrefsFlushTime = Time.unscaledTime + PlayerPrefsFlushIntervalSeconds;
         nextTapTapFlushTime = Time.unscaledTime + TapTapFlushIntervalSeconds;
     }
 
     private void Update()
     {
-        if (pendingTitleTapTapResync &&
-            !hasCompletedTitleTapTapResync &&
-            IsReadyToSyncTitleAchievements() &&
-            TryResyncCompletedAchievementsToTapTapOnTitle())
+        if (pendingStartupTapTapResync && TryResyncCompletedAchievementsToTapTapOnStartup())
         {
-            pendingTitleTapTapResync = false;
-            hasCompletedTitleTapTapResync = true;
+            pendingStartupTapTapResync = false;
         }
 
-        if (hasPendingPlayerPrefsSave && Time.unscaledTime >= nextPlayerPrefsFlushTime)
-        {
-            FlushPlayerPrefs();
-        }
-
-        if (Time.unscaledTime >= nextTapTapFlushTime)
-        {
-            FlushPendingTapTapIncrements();
-            nextTapTapFlushTime = Time.unscaledTime + TapTapFlushIntervalSeconds;
-        }
+        if (Time.unscaledTime < nextTapTapFlushTime) return;
+        FlushPendingTapTapIncrements();
+        nextTapTapFlushTime = Time.unscaledTime + TapTapFlushIntervalSeconds;
     }
 
     private void OnDestroy()
     {
-        FlushPendingTapTapIncrements(true);
-        FlushPlayerPrefs();
+        FlushPendingTapTapIncrements();
         onDrawUnsub?.Invoke();
         onPlayUnsub?.Invoke();
         onManaUnsub?.Invoke();
@@ -245,14 +223,12 @@ public class AchievementManager : MonoBehaviour
     private void OnApplicationPause(bool pauseStatus)
     {
         if (!pauseStatus) return;
-        FlushPendingTapTapIncrements(true);
-        FlushPlayerPrefs();
+        FlushPendingTapTapIncrements();
     }
 
     private void OnApplicationQuit()
     {
-        FlushPendingTapTapIncrements(true);
-        FlushPlayerPrefs();
+        FlushPendingTapTapIncrements();
     }
 
     public void AddScore(ulong amount)
@@ -269,8 +245,7 @@ public class AchievementManager : MonoBehaviour
     {
         if (amount == 0) return;
         ulong before = TotalDraw;
-        ulong delta = BaseCharacter.SaturatingMultiply(amount, DrawAchievementCountMultiplier);
-        TotalDraw = BaseCharacter.SaturatingAdd(TotalDraw, delta);
+        TotalDraw = BaseCharacter.SaturatingAdd(TotalDraw, amount);
         SyncTapTapNumericProgress(AchievementType.Draw, before, TotalDraw);
         TryNotifyNumericUnlock(AchievementType.Draw, before, TotalDraw);
         Save();
@@ -280,8 +255,7 @@ public class AchievementManager : MonoBehaviour
     {
         if (amount == 0) return;
         ulong before = TotalPlay;
-        ulong delta = BaseCharacter.SaturatingMultiply(amount, PlayAchievementCountMultiplier);
-        TotalPlay = BaseCharacter.SaturatingAdd(TotalPlay, delta);
+        TotalPlay = BaseCharacter.SaturatingAdd(TotalPlay, amount);
         SyncTapTapNumericProgress(AchievementType.Play, before, TotalPlay);
         TryNotifyNumericUnlock(AchievementType.Play, before, TotalPlay);
         Save();
@@ -291,8 +265,7 @@ public class AchievementManager : MonoBehaviour
     {
         if (amount == 0) return;
         ulong before = TotalMana;
-        ulong delta = BaseCharacter.SaturatingMultiply(amount, ManaAchievementCountMultiplier);
-        TotalMana = BaseCharacter.SaturatingAdd(TotalMana, delta);
+        TotalMana = BaseCharacter.SaturatingAdd(TotalMana, amount);
         SyncTapTapNumericProgress(AchievementType.Mana, before, TotalMana);
         TryNotifyNumericUnlock(AchievementType.Mana, before, TotalMana);
         Save();
@@ -322,18 +295,6 @@ public class AchievementManager : MonoBehaviour
             });
         }
         return list;
-    }
-
-    public void NotifyEnteredTitleScreen()
-    {
-        if (hasCompletedTitleTapTapResync) return;
-
-        pendingTitleTapTapResync = true;
-        if (!IsReadyToSyncTitleAchievements()) return;
-        if (!TryResyncCompletedAchievementsToTapTapOnTitle()) return;
-
-        pendingTitleTapTapResync = false;
-        hasCompletedTitleTapTapResync = true;
     }
 
     private void RegisterEvents()
@@ -522,7 +483,7 @@ public class AchievementManager : MonoBehaviour
         PlayerPrefs.SetString(TotalPlayKey, TotalPlay.ToString());
         PlayerPrefs.SetString(TotalManaKey, TotalMana.ToString());
         PlayerPrefs.SetString(TotalHealKey, TotalHeal.ToString());
-        MarkPlayerPrefsDirty();
+        PlayerPrefs.Save();
     }
 
     private void Load()
@@ -558,12 +519,13 @@ public class AchievementManager : MonoBehaviour
         var def = definitions.Find(d => d.id == id);
         if (customCompleted.Contains(id))
         {
+            SyncTapTapAchievement(def);
             return false;
         }
         customCompleted.Add(id);
         NotifyAchievementUnlocked(def);
         PlayerPrefs.SetInt(CustomAchievementPrefix + id, 1);
-        MarkPlayerPrefsDirty();
+        PlayerPrefs.Save();
         return true;
     }
 
@@ -592,34 +554,22 @@ public class AchievementManager : MonoBehaviour
         SyncTapTapAchievement(def);
     }
 
-    private void SyncTapTapAchievement(AchievementDefinition def, bool force = false)
+    private void SyncTapTapAchievement(AchievementDefinition def)
     {
         if (def == null) return;
         if (!TapTapSdk.IsInitialized) return;
-        if (!force && IsTapTapAchievementSynced(def.id)) return;
 
         try
         {
-            if (def.type == AchievementType.Custom)
+            if (def.type != AchievementType.Custom) return;
+            int completionSteps = GetTapTapCustomCompletionSteps(def.id);
+            if (completionSteps > 0)
             {
-                int completionSteps = GetTapTapCustomCompletionSteps(def.id);
-                if (completionSteps > 0)
-                {
-                    TapTapSdk.Instance.IncrementAchievement(def.id, completionSteps);
-                    MarkTapTapAchievementSynced(def.id);
-                    return;
-                }
-
-                TapTapSdk.Instance.UnlockAchievement(def.id);
-                MarkTapTapAchievementSynced(def.id);
+                TapTapSdk.Instance.IncrementAchievement(def.id, completionSteps);
                 return;
             }
 
-            if (!IsCompleted(def)) return;
-            if (def.threshold <= TapTapStepAchievementMaxThreshold) return;
-
             TapTapSdk.Instance.UnlockAchievement(def.id);
-            MarkTapTapAchievementSynced(def.id);
         }
         catch (Exception ex)
         {
@@ -635,88 +585,68 @@ public class AchievementManager : MonoBehaviour
         {
             if (def.type != type) continue;
             if (def.type == AchievementType.Custom) continue;
-            SyncTapTapNumericProgress(def, afterValue, false);
+            if (def.threshold > TapTapStepAchievementMaxThreshold) continue;
+
+            ulong clampedBefore = beforeValue >= def.threshold ? def.threshold : beforeValue;
+            ulong clampedAfter = afterValue >= def.threshold ? def.threshold : afterValue;
+            if (clampedAfter <= clampedBefore) continue;
+
+            ulong delta = clampedAfter - clampedBefore;
+            QueueTapTapIncrement(def.id, delta);
         }
     }
 
-    private bool TryResyncCompletedAchievementsToTapTapOnTitle()
+    private bool TryResyncCompletedAchievementsToTapTapOnStartup()
     {
         if (!TapTapSdk.IsInitialized) return false;
 
         foreach (var def in definitions)
         {
+            if (!IsCompleted(def)) continue;
+
             try
             {
-                if (def.type == AchievementType.Custom)
-                {
-                    if (IsCompleted(def))
-                    {
-                        SyncTapTapAchievement(def, true);
-                    }
-                    continue;
-                }
-
-                ulong currentValue = GetAchievementValue(def.type);
-                SyncTapTapNumericProgress(def, currentValue, true);
-                SyncTapTapAchievement(def, true);
+                SyncTapTapAchievement(def);
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"标题界面重同步 TapTap 成就失败：{def.id}，错误：{ex.Message}");
+                Debug.LogWarning($"启动时重同步 TapTap 成就失败：{def.id}，错误：{ex.Message}");
             }
         }
 
-        FlushPendingTapTapIncrements(true);
+        FlushPendingTapTapIncrements();
         return true;
     }
 
-    private void SyncTapTapNumericProgress(AchievementDefinition def, ulong currentValue, bool forceResync)
+    private void QueueTapTapIncrement(string achievementId, ulong delta)
     {
-        if (def == null) return;
-        if (def.type == AchievementType.Custom) return;
-        if (def.threshold > TapTapStepAchievementMaxThreshold) return;
+        if (string.IsNullOrEmpty(achievementId)) return;
+        if (delta == 0) return;
 
-        ulong targetProgress = currentValue >= def.threshold ? def.threshold : currentValue;
-        if (targetProgress == 0)
+        if (pendingTapTapIncrements.TryGetValue(achievementId, out ulong existing))
         {
-            pendingTapTapIncrements.Remove(def.id);
+            pendingTapTapIncrements[achievementId] = BaseCharacter.SaturatingAdd(existing, delta);
             return;
         }
 
-        if (TapTapSdk.IsInitialized && TrySetTapTapNumericProgress(def, targetProgress, forceResync))
-        {
-            return;
-        }
-
-        QueueTapTapNumericProgress(def, targetProgress, forceResync);
-        if (TapTapSdk.IsInitialized)
-        {
-            FlushPendingTapTapIncrements(true);
-        }
+        pendingTapTapIncrements[achievementId] = delta;
     }
 
-    private void FlushPendingTapTapIncrements(bool flushAll = false)
+    private void FlushPendingTapTapIncrements()
     {
         if (pendingTapTapIncrements.Count == 0) return;
         if (!TapTapSdk.IsInitialized) return;
 
-        int remainingChunks = flushAll ? int.MaxValue : TapTapIncrementChunkBudgetPerFlush;
         var keys = new List<string>(pendingTapTapIncrements.Keys);
         foreach (string id in keys)
         {
-            if (remainingChunks <= 0) break;
             if (!pendingTapTapIncrements.TryGetValue(id, out ulong delta) || delta == 0)
             {
                 pendingTapTapIncrements.Remove(id);
                 continue;
             }
 
-            ulong sent = IncrementTapTapByChunks(id, delta, ref remainingChunks);
-            if (sent > 0)
-            {
-                AddTapTapSyncedNumericProgress(id, sent);
-            }
-            ulong remaining = delta - sent;
+            ulong remaining = IncrementTapTapByChunks(id, delta);
             if (remaining == 0)
             {
                 pendingTapTapIncrements.Remove(id);
@@ -728,21 +658,18 @@ public class AchievementManager : MonoBehaviour
         }
     }
 
-    private ulong IncrementTapTapByChunks(string achievementId, ulong delta, ref int remainingChunks)
+    private ulong IncrementTapTapByChunks(string achievementId, ulong delta)
     {
         if (string.IsNullOrEmpty(achievementId)) return 0;
 
         ulong remaining = delta;
-        ulong sent = 0;
-        while (remaining > 0 && remainingChunks > 0)
+        while (remaining > 0)
         {
             int step = remaining > (ulong)TapTapIncrementChunkMaxStep ? TapTapIncrementChunkMaxStep : (int)remaining;
             try
             {
                 TapTapSdk.Instance.IncrementAchievement(achievementId, step);
                 remaining -= (ulong)step;
-                sent += (ulong)step;
-                remainingChunks--;
             }
             catch (Exception ex)
             {
@@ -751,141 +678,12 @@ public class AchievementManager : MonoBehaviour
             }
         }
 
-        return sent;
-    }
-
-    private ulong GetAchievementValue(AchievementType type)
-    {
-        return type switch
-        {
-            AchievementType.Score => TotalScore,
-            AchievementType.Draw => TotalDraw,
-            AchievementType.Play => TotalPlay,
-            AchievementType.Mana => TotalMana,
-            AchievementType.Heal => TotalHeal,
-            AchievementType.Custom => 0UL,
-            _ => 0UL
-        };
-    }
-
-    private ulong GetTapTapSyncedNumericProgress(string achievementId)
-    {
-        return ParseUlongOrZero(PlayerPrefs.GetString(TapTapNumericSyncedPrefix + achievementId, "0"));
-    }
-
-    private void SetTapTapSyncedNumericProgress(string achievementId, ulong progress)
-    {
-        if (string.IsNullOrEmpty(achievementId)) return;
-        PlayerPrefs.SetString(TapTapNumericSyncedPrefix + achievementId, progress.ToString());
-        MarkPlayerPrefsDirty();
-    }
-
-    private bool IsTapTapAchievementSynced(string achievementId)
-    {
-        if (string.IsNullOrEmpty(achievementId)) return false;
-        return PlayerPrefs.GetInt(TapTapAchievementSyncedPrefix + achievementId, 0) == 1;
-    }
-
-    private void MarkTapTapAchievementSynced(string achievementId)
-    {
-        if (string.IsNullOrEmpty(achievementId)) return;
-        PlayerPrefs.SetInt(TapTapAchievementSyncedPrefix + achievementId, 1);
-        MarkPlayerPrefsDirty();
-    }
-
-    private void AddTapTapSyncedNumericProgress(string achievementId, ulong delta)
-    {
-        if (string.IsNullOrEmpty(achievementId)) return;
-        if (delta == 0) return;
-
-        ulong current = GetTapTapSyncedNumericProgress(achievementId);
-        ulong updated = BaseCharacter.SaturatingAdd(current, delta);
-        PlayerPrefs.SetString(TapTapNumericSyncedPrefix + achievementId, updated.ToString());
-        MarkPlayerPrefsDirty();
-    }
-
-    private bool TrySetTapTapNumericProgress(AchievementDefinition def, ulong targetProgress, bool forceResync)
-    {
-        if (def == null) return false;
-        if (!TapTapSdk.IsInitialized) return false;
-        if (TapTapSdk.Instance == null) return false;
-
-        ulong syncedProgress = GetTapTapSyncedNumericProgress(def.id);
-        if (!forceResync && targetProgress <= syncedProgress)
-        {
-            pendingTapTapIncrements.Remove(def.id);
-            return true;
-        }
-
-        if (targetProgress > int.MaxValue)
-        {
-            return false;
-        }
-
-        try
-        {
-            if (!TapTapSdk.Instance.TrySetAchievementSteps(def.id, (int)targetProgress))
-            {
-                return false;
-            }
-
-            SetTapTapSyncedNumericProgress(def.id, targetProgress);
-            pendingTapTapIncrements.Remove(def.id);
-            if (targetProgress >= def.threshold)
-            {
-                MarkTapTapAchievementSynced(def.id);
-            }
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"设置 TapTap 数值成就进度失败：{def.id}，progress：{targetProgress}，错误：{ex.Message}");
-            return false;
-        }
-    }
-
-    private void QueueTapTapNumericProgress(AchievementDefinition def, ulong targetProgress, bool forceResync)
-    {
-        if (def == null) return;
-        if (def.type == AchievementType.Custom) return;
-        if (def.threshold > TapTapStepAchievementMaxThreshold) return;
-
-        ulong syncedProgress = forceResync ? 0UL : GetTapTapSyncedNumericProgress(def.id);
-        if (targetProgress <= syncedProgress)
-        {
-            if (!forceResync)
-            {
-                pendingTapTapIncrements.Remove(def.id);
-            }
-            return;
-        }
-
-        pendingTapTapIncrements[def.id] = targetProgress - syncedProgress;
-    }
-
-    private void MarkPlayerPrefsDirty()
-    {
-        hasPendingPlayerPrefsSave = true;
-        nextPlayerPrefsFlushTime = Time.unscaledTime + PlayerPrefsFlushIntervalSeconds;
-    }
-
-    private void FlushPlayerPrefs()
-    {
-        if (!hasPendingPlayerPrefsSave) return;
-        PlayerPrefs.Save();
-        hasPendingPlayerPrefsSave = false;
+        return remaining;
     }
 
     private static int GetTapTapCustomCompletionSteps(string achievementId)
     {
         return achievementId == BattleStartAchievementId ? BattleStartAchievementTapTapSteps : 0;
-    }
-
-    private static bool IsReadyToSyncTitleAchievements()
-    {
-        if (!TapTapSdk.IsInitialized) return false;
-        if (GameManager.Instance == null) return false;
-        return !GameManager.Instance.IsBattleActive;
     }
 
     private static ulong ParseUlongOrZero(string value)
