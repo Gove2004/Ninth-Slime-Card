@@ -11,6 +11,7 @@ public class SavedCardData
     public ulong value;
     public int duration;
     public bool isStolenFromOpponent;
+    public SavedCardData mirroredCard;
 }
 
 [Serializable]

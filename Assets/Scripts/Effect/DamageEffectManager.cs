@@ -103,7 +103,7 @@ public class DamageEffectManager : MonoBehaviour
     {
         if (targetCanvas == null)
         {
-            targetCanvas = FindObjectOfType<Canvas>();
+            targetCanvas = FindFirstObjectByType<Canvas>();
         }
         if (uiCamera == null)
         {
@@ -351,7 +351,7 @@ public class DamageEffectManager : MonoBehaviour
     {
         if (targetCanvas == null)
         {
-            targetCanvas = FindObjectOfType<Canvas>();
+            targetCanvas = FindFirstObjectByType<Canvas>();
         }
         return targetCanvas;
     }

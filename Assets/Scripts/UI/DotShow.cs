@@ -148,7 +148,7 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         {
             descriptionText.fontSize = 10f;
         }
-        descriptionText.enableWordWrapping = false;
+        descriptionText.textWrappingMode = TextWrappingModes.NoWrap;
         descriptionText.color = Color.white;
     }
 
@@ -232,7 +232,7 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         }
         sharedTooltipText.color = Color.white;
         sharedTooltipText.fontSize = 16f;
-        sharedTooltipText.enableWordWrapping = true;
+        sharedTooltipText.textWrappingMode = TextWrappingModes.Normal;
         sharedTooltipText.alignment = TextAlignmentOptions.TopLeft;
         sharedTooltipText.raycastTarget = false;
         sharedTooltipText.text = string.Empty;
@@ -261,7 +261,7 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 
         if (sharedTooltipCanvas != null) return;
 
-        Canvas[] allCanvases = FindObjectsOfType<Canvas>(true);
+        Canvas[] allCanvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         if (allCanvases == null || allCanvases.Length == 0) return;
         for (int i = 0; i < allCanvases.Length; i++)
         {

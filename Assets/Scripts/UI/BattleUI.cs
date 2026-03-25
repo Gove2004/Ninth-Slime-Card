@@ -36,13 +36,13 @@ public class BattleUI : MonoBehaviour
         EventCenter.Register<CharacterEventContext>(GameEvents.CharacterTurnStarted, _ => ShowNewTurnInfo());
         EventCenter.Register<BattleEventContext>(GameEvents.BattleStarted, _ => 
         {
-            if (cardList != null) cardList.Clear();
+            if (cardList != null) cardList.SyncFromBattleHand();
         });
     }
 
     private void EnsureReferences()
     {
-        var buttons = FindObjectsOfType<Button>(true);
+        var buttons = FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         foreach (var button in buttons)
         {
             if (button == null) continue;
@@ -129,6 +129,11 @@ public class BattleUI : MonoBehaviour
     void Update()
     {
         IsPlayerTurn();
+
+        if (GMTool.IsTextInputActive)
+        {
+            return;
+        }
 
         if (Input.GetKeyDown(KeyCode.A) && CanUseDraw())
         {

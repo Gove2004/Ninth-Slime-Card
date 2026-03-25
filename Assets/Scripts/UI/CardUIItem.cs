@@ -19,7 +19,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
     public Image image;
     // Card数据
-    public BaseCard cardData = new 抽牌();
+    public BaseCard cardData;
     private string lastDescription = "";
     private string lastDisplayName = "";
     private string lastImagePath = "";
@@ -63,6 +63,10 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         defaultCostColor = costText.color;
         defaultImageColor = image.color;
 
+        if (cardData == null)
+        {
+            cardData = new 抽牌();
+        }
         SetData(cardData);
     }
 
