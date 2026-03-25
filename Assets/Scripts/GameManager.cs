@@ -27,11 +27,6 @@ public class GameManager : MonoBehaviour
     
     void Update()
     {
-        if (GMTool.IsTextInputActive)
-        {
-            return;
-        }
-
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             Application.Quit();
@@ -120,7 +115,7 @@ public class GameManager : MonoBehaviour
             {
                 Debug.LogWarning("[GameManager] AudioManager.Instance is null when switching to Title!");
                 // Try to find it manually in case Awake hasn't set Instance yet (unlikely in Start, but possible)
-                var am = FindFirstObjectByType<AudioManager>();
+                var am = FindObjectOfType<AudioManager>();
                 if (am != null)
                 {
                     am.PlayTitleBGM();

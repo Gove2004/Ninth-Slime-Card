@@ -233,7 +233,7 @@ public class CardList : MonoBehaviour
         selectedCard = null;
     }
 
-    public void SyncFromBattleHand()
+    private void SyncFromBattleHand()
     {
         var player = BattleManager.Instance?.player;
         if (player == null)

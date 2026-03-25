@@ -62,7 +62,7 @@ public class BattleManager : MonoBehaviour
         focusController.BindTargets(playerTransformRef, enemyTransformRef);
 
         // 自动添加音频管理器
-        var audioMgr = FindFirstObjectByType<AudioManager>();
+        var audioMgr = FindObjectOfType<AudioManager>();
         if (audioMgr == null)
         {
             var audioObj = new GameObject("AudioManager");
@@ -319,8 +319,8 @@ public class BattleManager : MonoBehaviour
     {
         if (gameOverPanel == null)
         {
-            var battleUI = FindFirstObjectByType<BattleUI>();
-            Transform parent = battleUI ? battleUI.transform : FindFirstObjectByType<Canvas>()?.transform;
+            var battleUI = FindObjectOfType<BattleUI>();
+            Transform parent = battleUI ? battleUI.transform : FindObjectOfType<Canvas>()?.transform;
             
             if (parent != null)
             {
@@ -515,7 +515,15 @@ public class BattleManager : MonoBehaviour
         {
             var card = cards[i];
             if (card == null) continue;
-            var cardData = CaptureCard(card);
+            var cardData = new SavedCardData
+            {
+                name = card.Name,
+                typeName = card.GetType().AssemblyQualifiedName,
+                cost = card.Cost,
+                value = card.Value,
+                duration = card.Duration,
+                isStolenFromOpponent = card.IsStolenFromOpponent
+            };
             result.Add(cardData);
         }
 
@@ -548,7 +556,7 @@ public class BattleManager : MonoBehaviour
     private SavedCardData CaptureCard(BaseCard card)
     {
         if (card == null) return null;
-        var saved = new SavedCardData
+        return new SavedCardData
         {
             name = card.Name,
             typeName = card.GetType().AssemblyQualifiedName,
@@ -557,13 +565,6 @@ public class BattleManager : MonoBehaviour
             duration = card.Duration,
             isStolenFromOpponent = card.IsStolenFromOpponent
         };
-
-        if (card is 重奏 reprise)
-        {
-            saved.mirroredCard = CaptureCard(reprise.GetMirroredCard());
-        }
-
-        return saved;
     }
 
     private void ApplyCharacterSnapshot(BaseCharacter character, SavedCharacterData data)
@@ -617,27 +618,11 @@ public class BattleManager : MonoBehaviour
 
         if (card == null) return null;
 
-        ApplySavedCardState(card, saved);
-        return card;
-    }
-
-    private void ApplySavedCardState(BaseCard card, SavedCardData saved)
-    {
-        if (card == null || saved == null) return;
-
-        if (card is 重奏 reprise && saved.mirroredCard != null)
-        {
-            var mirroredCard = CreateCardFromSaved(saved.mirroredCard);
-            if (mirroredCard != null)
-            {
-                reprise.TransformInto(mirroredCard);
-            }
-        }
-
         card.SetCost(saved.cost);
         card.SetValue(saved.value);
         card.SetDuration(saved.duration);
         if (saved.isStolenFromOpponent) card.MarkStolenFromOpponent();
+        return card;
     }
 
     private void RestoreDeck(List<BaseCard> deck, List<SavedCardData> savedDeck)

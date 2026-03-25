@@ -491,14 +491,14 @@ public class CardCollectionView : MonoBehaviour
     {
         if (cardPrefab != null) return;
 
-        var cardList = FindFirstObjectByType<CardList>(FindObjectsInactive.Include);
+        var cardList = FindObjectOfType<CardList>(true);
         if (cardList != null && cardList.cardPreb != null)
         {
             cardPrefab = cardList.cardPreb;
             return;
         }
 
-        var rougeUI = FindFirstObjectByType<RougeUI>(FindObjectsInactive.Include);
+        var rougeUI = FindObjectOfType<RougeUI>(true);
         if (rougeUI != null && rougeUI.cardButtonPrefab != null)
         {
             cardPrefab = rougeUI.cardButtonPrefab;

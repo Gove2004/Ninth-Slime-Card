@@ -16,6 +16,8 @@ public class HUD : MonoBehaviour
     public TextMeshProUGUI enemyMPText;
     public Image enemyHPBgImage;
 
+    private ulong lastPlayerMana = 0;
+    private bool hasLastPlayerMana = false;
     private BaseCharacter lastPlayerInstance;
     private RectTransform enemyHPBgRect;
     private Sprite nonEndlessEnemyHpSprite;
@@ -125,6 +127,7 @@ public class HUD : MonoBehaviour
             if (player != lastPlayerInstance)
             {
                 lastPlayerInstance = player;
+                hasLastPlayerMana = false;
                 hasLastPlayerHealth = false;
             }
             if (enemy != lastEnemyInstance)
@@ -154,6 +157,8 @@ public class HUD : MonoBehaviour
                         pendingManaGainEffect = false;
                     }
                 }
+                lastPlayerMana = player.mana;
+                hasLastPlayerMana = true;
             }
             if (enemy != null)
             {
