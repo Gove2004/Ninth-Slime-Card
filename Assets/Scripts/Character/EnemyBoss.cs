@@ -10,7 +10,6 @@ public class EnemyBoss : BaseCharacter
     private const int InitialThinkMaxMs = 900;
     private const int ActionGapMinMs = 220;
     private const int ActionGapMaxMs = 650;
-    private const string EnemyAnimationCompletedEvent = "Enemy_ActionAnimationCompleted";
     private const string EnemyPlayAnimationTag = "play";
     private const string EnemyDrawAnimationTag = "draw";
     private CancellationTokenSource _cts;
@@ -90,7 +89,7 @@ public class EnemyBoss : BaseCharacter
                     {
                         health = 0;
                         isDead = true;
-                        EventCenter.Publish("EnemyDead", this);
+                        EventCenter.Publish(GameEvents.EnemyDefeated, new CharacterEventContext(this));
                     }
                 }
             }
@@ -106,7 +105,7 @@ public class EnemyBoss : BaseCharacter
         autoManaPerTurn = SaturatingAdd(autoManaPerTurn, (ulong)((phase / 10) + 1));
         Debug.Log($"魔力回复 +{(int)(phase/10)}");
 
-        EventCenter.Publish("EnemyBoss_PhaseChanged", phase);  // 提前发布事件，让玩家先知道阶段提升了，可能会有一些反应措施
+        EventCenter.Publish(GameEvents.EnemyBossPhaseChanged, new EnemyBossPhaseChangedEventContext(this, phase));  // 提前发布事件，让玩家先知道阶段提升了，可能会有一些反应措施
 
         nextPhaseHealthThreshold = GetThresholdForPhase(phase);  // 更新下一阶段的生命阈值
         // 增加阶段提示
@@ -226,9 +225,9 @@ public class EnemyBoss : BaseCharacter
     private async Task WaitForAnimationCompletion(CancellationToken token, string animationTag)
     {
         bool completed = false;
-        var unlisten = EventCenter.Register(EnemyAnimationCompletedEvent, param =>
+        var unlisten = EventCenter.Register<EnemyAnimationEventContext>(GameEvents.EnemyActionAnimationCompleted, context =>
         {
-            if (param is string completedTag && completedTag == animationTag)
+            if (context.Tag == animationTag)
             {
                 completed = true;
             }
@@ -296,7 +295,7 @@ public class EnemyBoss : BaseCharacter
                     {
                         PlayCard(playable);
 
-                        EventCenter.Publish("Enemy_PlayedCard", playable);
+                        EventCenter.Publish(GameEvents.EnemyCardPlayed, new CardEventContext(this, playable));
 
                         await WaitForAnimationThenGap(token, EnemyPlayAnimationTag);
                         if (token.IsCancellationRequested || !IsInTurn) return;
@@ -309,7 +308,7 @@ public class EnemyBoss : BaseCharacter
                     var card = DrawCard();
                     if (card != null)
                     {
-                        EventCenter.Publish("Enemy_DrewCard", card);
+                        EventCenter.Publish(GameEvents.EnemyCardDrawn, new CardEventContext(this, card));
 
                         await WaitForAnimationThenGap(token, EnemyDrawAnimationTag);
                         if (token.IsCancellationRequested || !IsInTurn) return;

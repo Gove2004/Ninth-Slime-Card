@@ -5,8 +5,6 @@ using UnityEngine;
 public class AchievementManager : MonoBehaviour
 {
     public static AchievementManager Instance { get; private set; }
-    public const string AchievementUnlockedEvent = "Achievement_Unlocked";
-
     public enum AchievementType
     {
         Score,
@@ -159,10 +157,13 @@ public class AchievementManager : MonoBehaviour
     private Action onManaUnsub;
     private Action onHealUnsub;
     private Action onDrawDrawUnsub;
-    private Action onSevenSinsUnsub;
     private Action onOverheatUnsub;
-    private Action onStolenKillUnsub;
+    private Action onPlayerCardResolvedUnsub;
+    private Action onDoubleAgentUnsub;
     private Action onEnemyDeadUnsub;
+    private Action onClearEasyUnsub;
+    private Action onClearHardUnsub;
+    private Action onClearHellUnsub;
     private Action onBattleStartedUnsub;
     private Action onBattleEndedUnsub;
     private BaseCharacter trackedPlayerDamageSource;
@@ -207,10 +208,13 @@ public class AchievementManager : MonoBehaviour
         onManaUnsub?.Invoke();
         onHealUnsub?.Invoke();
         onDrawDrawUnsub?.Invoke();
-        onSevenSinsUnsub?.Invoke();
         onOverheatUnsub?.Invoke();
-        onStolenKillUnsub?.Invoke();
+        onPlayerCardResolvedUnsub?.Invoke();
+        onDoubleAgentUnsub?.Invoke();
         onEnemyDeadUnsub?.Invoke();
+        onClearEasyUnsub?.Invoke();
+        onClearHardUnsub?.Invoke();
+        onClearHellUnsub?.Invoke();
         onBattleStartedUnsub?.Invoke();
         onBattleEndedUnsub?.Invoke();
         UnsubscribeFromPlayerDamageSource();
@@ -295,62 +299,66 @@ public class AchievementManager : MonoBehaviour
 
     private void RegisterEvents()
     {
-        onDrawUnsub = EventCenter.Register("Player_DrawCard", (obj) =>
+        onDrawUnsub = EventCenter.Register<CardEventContext>(GameEvents.PlayerCardDrawnToHand, context =>
         {
             AddDraw(1);
-            TryUnlockDrawDraw(obj);
+            TryUnlockDrawDraw(context);
         });
-        onPlayUnsub = EventCenter.Register("Player_PlayCard", (obj) => AddPlay(1));
-        onManaUnsub = EventCenter.Register("Player_GainMana", (obj) =>
+        onPlayUnsub = EventCenter.Register<CardEventContext>(GameEvents.PlayerCardPlayedFromHand, _ => AddPlay(1));
+        onManaUnsub = EventCenter.Register<CharacterValueEventContext>(GameEvents.PlayerGainedMana, context =>
         {
-            if (obj is ulong value) AddMana(value);
+            AddMana(context.Amount);
         });
-        onHealUnsub = EventCenter.Register("Player_Heal", (obj) =>
+        onHealUnsub = EventCenter.Register<CharacterValueEventContext>(GameEvents.PlayerHealed, context =>
         {
-            if (obj is ulong value) AddHeal(value);
+            AddHeal(context.Amount);
         });
-        onDrawDrawUnsub = EventCenter.Register("Achievement_DrawDrawCard", (obj) => UnlockCustom("draw_draw"));
-        onSevenSinsUnsub = EventCenter.Register("Achievement_SevenSinsAllEffects", (obj) => UnlockCustom("seven_sins_all"));
-        onOverheatUnsub = EventCenter.Register("Player_PlayCardExecuted", (obj) =>
+        onDrawDrawUnsub = EventCenter.Register(GameEvents.AchievementDrawDrawTriggered, () => UnlockCustom("draw_draw"));
+        onOverheatUnsub = EventCenter.Register(GameEvents.AchievementOverheatTriggered, () => UnlockCustom("overheat"));
+        onDoubleAgentUnsub = EventCenter.Register(GameEvents.AchievementDoubleAgentTriggered, () => UnlockCustom("double_agent"));
+        onPlayerCardResolvedUnsub = EventCenter.Register<CardEventContext>(GameEvents.PlayerCardResolved, context =>
         {
-            if (obj is BaseCard card && card.Cost >= 1024) UnlockCustom("overheat");
+            if (context.Card != null && context.Card.Cost >= 1024) EventCenter.Publish(GameEvents.AchievementOverheatTriggered);
         });
-        onStolenKillUnsub = EventCenter.Register("Achievement_KilledByStolenCard", (obj) => UnlockCustom("double_agent"));
-        onEnemyDeadUnsub = EventCenter.Register("EnemyDead", (obj) =>
+        onEnemyDeadUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.EnemyDefeated, _ =>
         {
             if (GameManager.Instance == null) return;
 
             switch (GameManager.Instance.difficultyLevel)
             {
                 case 1:
-                    UnlockCustom("clear_easy");
+                    EventCenter.Publish(GameEvents.AchievementClearEasyTriggered);
                     break;
                 case 2:
-                    UnlockCustom("clear_hard");
+                    EventCenter.Publish(GameEvents.AchievementClearHardTriggered);
                     break;
                 case 3:
-                    UnlockCustom("clear_hell");
+                    EventCenter.Publish(GameEvents.AchievementClearHellTriggered);
                     break;
             }
         });
-        onBattleStartedUnsub = EventCenter.Register("BattleStarted", (obj) =>
+        onClearEasyUnsub = EventCenter.Register(GameEvents.AchievementClearEasyTriggered, () => UnlockCustom("clear_easy"));
+        onClearHardUnsub = EventCenter.Register(GameEvents.AchievementClearHardTriggered, () => UnlockCustom("clear_hard"));
+        onClearHellUnsub = EventCenter.Register(GameEvents.AchievementClearHellTriggered, () => UnlockCustom("clear_hell"));
+        onBattleStartedUnsub = EventCenter.Register<BattleEventContext>(GameEvents.BattleStarted, _ =>
         {
             UnlockCustom(BattleStartAchievementId);
             SubscribeToPlayerDamageSource();
         });
-        onBattleEndedUnsub = EventCenter.Register("BattleEnded", (obj) => UnsubscribeFromPlayerDamageSource());
+        onBattleEndedUnsub = EventCenter.Register<BattleEventContext>(GameEvents.BattleEnded, _ => UnsubscribeFromPlayerDamageSource());
     }
 
-    private void TryUnlockDrawDraw(object obj)
+    private void TryUnlockDrawDraw(CardEventContext context)
     {
-        if (obj is not BaseCard drawnCard) return;
+        if (context?.Card == null) return;
+        BaseCard drawnCard = context.Card;
         if (drawnCard.Name != "抽牌") return;
 
         BaseCard sourceCard = BaseCharacter.ActiveCardContext ?? BaseCharacter.ActiveDotContext?.sourceCard;
         if (sourceCard == null) return;
         if (sourceCard.Name != "抽牌") return;
 
-        UnlockCustom("draw_draw");
+        EventCenter.Publish(GameEvents.AchievementDrawDrawTriggered);
     }
 
     private void SubscribeToPlayerDamageSource()
@@ -363,12 +371,15 @@ public class AchievementManager : MonoBehaviour
 
         trackedPlayerDamageSource.DamageDealt -= OnPlayerDamageDealt;
         trackedPlayerDamageSource.DamageDealt += OnPlayerDamageDealt;
+        trackedPlayerDamageSource.DamageTaken -= OnPlayerDamageTaken;
+        trackedPlayerDamageSource.DamageTaken += OnPlayerDamageTaken;
     }
 
     private void UnsubscribeFromPlayerDamageSource()
     {
         if (trackedPlayerDamageSource == null) return;
         trackedPlayerDamageSource.DamageDealt -= OnPlayerDamageDealt;
+        trackedPlayerDamageSource.DamageTaken -= OnPlayerDamageTaken;
         trackedPlayerDamageSource = null;
     }
 
@@ -379,6 +390,17 @@ public class AchievementManager : MonoBehaviour
         if (!ReferenceEquals(victim, BattleManager.Instance.enemy)) return;
 
         AddScore(amount);
+    }
+
+    private void OnPlayerDamageTaken(ulong amount, BaseCharacter source)
+    {
+        if (amount == 0) return;
+        if (trackedPlayerDamageSource == null) return;
+
+        BaseCard sourceCard = trackedPlayerDamageSource.LastDamageCard;
+        if (sourceCard == null || !sourceCard.IsStolenFromOpponent) return;
+
+        EventCenter.Publish(GameEvents.AchievementDoubleAgentTriggered);
     }
 
     private void BuildDefinitions()
@@ -394,7 +416,7 @@ public class AchievementManager : MonoBehaviour
         AddDef(BattleStartAchievementId, "dddd", AchievementType.Custom, 1, "进入战斗");
         AddDef("draw_draw", "抽抽爆", AchievementType.Custom, 1, "用“抽牌”抽到“抽牌”");
         AddDef("overheat", "过热", AchievementType.Custom, 1, "打出一张魔力消耗不小于1024的卡牌");
-        AddDef("double_agent", "双面间谍", AchievementType.Custom, 1, "被从对手处偷到的卡牌或dot杀死");
+        AddDef("double_agent", "双面间谍", AchievementType.Custom, 1, "受到从对手处偷到的卡牌的伤害");
         
         AddDef("clear_easy", "初战告捷", AchievementType.Custom, 1, "完成简单模式");
         AddDef("clear_hard", "逆境破局", AchievementType.Custom, 1, "完成困难模式");
@@ -523,7 +545,7 @@ public class AchievementManager : MonoBehaviour
     private void NotifyAchievementUnlocked(AchievementDefinition def)
     {
         if (def == null) return;
-        EventCenter.Publish(AchievementUnlockedEvent, new AchievementUnlockedInfo
+        EventCenter.Publish(GameEvents.AchievementUnlocked, new AchievementUnlockedInfo
         {
             id = def.id,
             name = def.name,

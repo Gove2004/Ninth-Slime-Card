@@ -136,6 +136,12 @@ public class BattleManager : MonoBehaviour
     {
         return currentTurn % 2 == 1;
     }
+
+    private BattleEventContext CreateBattleEventContext()
+    {
+        return new BattleEventContext(this, player, enemy, currentTurn);
+    }
+
     private Action onPhaseChangedUnsub;
     private Action onPlayerDeadUnsub;
     private Action onEnemyDeadUnsub;
@@ -183,7 +189,8 @@ public class BattleManager : MonoBehaviour
         player.ChangeHealth(0);  // 触发UI更新
         enemy.ChangeHealth(0);  // 触发UI更新
 
-        EventCenter.Publish("BattleStarted");
+        player.NotifyHandChanged();
+        EventCenter.Publish(GameEvents.BattleStarted, CreateBattleEventContext());
 
         RegisterBattleEvents();
 
@@ -192,11 +199,7 @@ public class BattleManager : MonoBehaviour
         int initialHandCount = Mathf.Clamp(5 - GameManager.Instance.difficultyLevel, 1, 4);
         for (int i = 0; i < initialHandCount; i++)
         {
-            var card = player.DrawCard(0);
-            if (card != null)
-            {
-                EventCenter.Publish("Player_DrawCard", card);
-            }
+            player.DrawCard(0);
         }
 
         NextTurn();
@@ -204,7 +207,7 @@ public class BattleManager : MonoBehaviour
 
     private void RegisterBattleEvents()
     {
-        onPhaseChangedUnsub = EventCenter.Register("EnemyBoss_PhaseChanged", (param) =>
+        onPhaseChangedUnsub = EventCenter.Register<EnemyBossPhaseChangedEventContext>(GameEvents.EnemyBossPhaseChanged, context =>
         {
             if (player != null)
             {
@@ -216,17 +219,15 @@ public class BattleManager : MonoBehaviour
             }
         });
 
-        onPlayerDeadUnsub = EventCenter.Register("PlayerDead", (param) =>
+        onPlayerDeadUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.PlayerDefeated, context =>
         {
-            var character = param as BaseCharacter;
             EndBattle(true);
         });
-        onEnemyDeadUnsub = EventCenter.Register("EnemyDead", (param) =>
+        onEnemyDeadUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.EnemyDefeated, context =>
         {
-            var character = param as BaseCharacter;
             EndBattle(true);
         });
-        onCharacterEndedTurnUnsub = EventCenter.Register("CharacterEndedTurn", (param) =>
+        onCharacterEndedTurnUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.CharacterTurnEnded, context =>
         {
             NextTurn();
         });
@@ -261,7 +262,7 @@ public class BattleManager : MonoBehaviour
         Time.timeScale = 1f;
         if (player != null) player.AbortTurn();
         if (enemy != null) enemy.AbortTurn();
-        EventCenter.Publish("BattleEnded");
+        EventCenter.Publish(GameEvents.BattleEnded, CreateBattleEventContext());
         player = null;
         enemy = null;
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
@@ -285,7 +286,7 @@ public class BattleManager : MonoBehaviour
         if (player != null) player.AbortTurn();
         if (enemy != null) enemy.AbortTurn();
 
-        EventCenter.Publish("BattleEnded");
+        EventCenter.Publish(GameEvents.BattleEnded, CreateBattleEventContext());
 
         // 显示游戏结束 UI
         ShowGameOverUI();
@@ -483,11 +484,7 @@ public class BattleManager : MonoBehaviour
             restoredPlayer.isReady = false;
         }
         currentTurn = Mathf.Max(1, snapshot.currentTurn);
-        EventCenter.Publish("BattleStarted");
-        for (int i = 0; i < player.Cards.Count; i++)
-        {
-            EventCenter.Publish("Player_DrawCard", player.Cards[i]);
-        }
+        EventCenter.Publish(GameEvents.BattleStarted, CreateBattleEventContext());
     }
 
     private SavedCharacterData CaptureCharacter(BaseCharacter character)
@@ -596,6 +593,8 @@ public class BattleManager : MonoBehaviour
         {
             playerCharacter.isReady = data.isPlayerReady;
         }
+
+        character.NotifyHandChanged();
     }
 
     private BaseCard CreateCardFromSaved(SavedCardData saved)

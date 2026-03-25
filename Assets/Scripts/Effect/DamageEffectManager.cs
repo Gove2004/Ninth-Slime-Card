@@ -58,7 +58,7 @@ public class DamageEffectManager : MonoBehaviour
         EnsureShakeRoot();
         ApplyVibrationSetting(GameSettings.VibrationEnabled);
 
-        EventCenter.Register("BattleStarted", (obj) => 
+        EventCenter.Register<BattleEventContext>(GameEvents.BattleStarted, _ => 
         {
             FindPositions();
             EnsureShakeRoot();

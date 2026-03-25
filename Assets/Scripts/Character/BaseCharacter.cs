@@ -48,7 +48,7 @@ public abstract class BaseCharacter
             if (gain > 0)
             {
                 if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Mana");
-                if (this is Player) EventCenter.Publish("Player_GainMana", gain);
+                if (this is Player) EventCenter.Publish(GameEvents.PlayerGainedMana, new CharacterValueEventContext(this, gain));
             }
         }
         else
@@ -61,7 +61,7 @@ public abstract class BaseCharacter
     // 行动
     public IEnumerator StartTurnRoutine()
     {
-        EventCenter.Publish("TurnStart", this);
+        EventCenter.Publish(GameEvents.CharacterTurnStarted, new CharacterEventContext(this));
 
         IsInTurn = true;
         immuneThisTurn = false;
@@ -104,7 +104,7 @@ public abstract class BaseCharacter
         // 为了支持 RougeUI 这种特殊的等待逻辑，我们可以在 Player 中重写 EndTurn。
         
         ChangeMana((long)Math.Min(autoManaPerTurn, (ulong)long.MaxValue)); // 每回合结束增加自动法力值
-        EventCenter.Publish("CharacterEndedTurn");
+        EventCenter.Publish(GameEvents.CharacterTurnEnded, new CharacterEventContext(this));
     }
 
     public void AbortTurn()
@@ -313,7 +313,7 @@ public abstract class BaseCharacter
         {
             ulong heal = (ulong)amount;
             HealTaken?.Invoke(heal);
-            if (this is Player) EventCenter.Publish("Player_Heal", heal);
+            if (this is Player) EventCenter.Publish(GameEvents.PlayerHealed, new CharacterValueEventContext(this, heal));
         }
     }
 
@@ -413,6 +413,13 @@ public abstract class BaseCharacter
     protected virtual int MaxHandSize => int.MaxValue;
     private bool IsHandFull => MaxHandSize > 0 && Cards.Count >= MaxHandSize;
 
+    public void NotifyHandChanged()
+    {
+        if (this is Player)
+        {
+            EventCenter.Publish(GameEvents.PlayerHandChanged, new HandEventContext(this, Cards.Count));
+        }
+    }
 
     public BaseCard GainRandomCard()
     {
@@ -422,7 +429,8 @@ public abstract class BaseCharacter
         ApplyBuffsToCard(newCard);
         newCard.SetOwningCharacter(this);
         Cards.Add(newCard);
-        if (this is Player) EventCenter.Publish("Player_DrawCard", newCard);
+        if (this is Player) EventCenter.Publish(GameEvents.PlayerCardGeneratedToHand, new CardEventContext(this, newCard));
+        NotifyHandChanged();
         return newCard;
     }
 
@@ -437,7 +445,8 @@ public abstract class BaseCharacter
         ApplyBuffsToCard(card);
         card.SetOwningCharacter(this);
         Cards.Add(card);
-        if (this is Player) EventCenter.Publish("Player_DrawCard", card);
+        if (this is Player) EventCenter.Publish(GameEvents.PlayerCardGeneratedToHand, new CardEventContext(this, card));
+        NotifyHandChanged();
     }
 
 
@@ -468,7 +477,10 @@ public abstract class BaseCharacter
         baseCard.SetOwningCharacter(this);
         Cards.Add(baseCard);
 
-        EventCenter.Publish("CardDrawn", baseCard);
+        var drawContext = new CardEventContext(this, baseCard);
+        EventCenter.Publish(GameEvents.BattleCardDrawnToHand, drawContext);
+        if (this is Player) EventCenter.Publish(GameEvents.PlayerCardDrawnToHand, drawContext);
+        NotifyHandChanged();
 
         if (useProgressiveCost)
         {
@@ -493,10 +505,18 @@ public abstract class BaseCharacter
 
             // 从手牌中移除卡牌
             Cards.Remove(card);
+            NotifyHandChanged();
 
             PreviousPlayedCard = LastPlayedCard;
             LastPlayedCard = card;
             card.SetOwningCharacter(this);
+            var playContext = new CardEventContext(this, card);
+
+            EventCenter.Publish(GameEvents.BattleCardPlayedFromHand, playContext);
+            if (this is Player)
+            {
+                EventCenter.Publish(GameEvents.PlayerCardPlayedFromHand, playContext);
+            }
 
             // 使用卡牌效果
             var previousContext = ActiveCardContext;
@@ -505,11 +525,10 @@ public abstract class BaseCharacter
             ActiveCardContext = previousContext;
             TransformRepriseCardsInHand(card);
 
-            EventCenter.Publish("CardPlayed", card);
-            EventCenter.Publish("Character_PlayCardExecuted", this);
+            EventCenter.Publish(GameEvents.BattleCardResolved, playContext);
             if (this is Player)
             {
-                EventCenter.Publish("Player_PlayCardExecuted", card);
+                EventCenter.Publish(GameEvents.PlayerCardResolved, playContext);
             }
         }
         else
@@ -528,7 +547,7 @@ public abstract class BaseCharacter
             reprise.TransformInto(playedCard);
             if (this is Player)
             {
-                EventCenter.Publish("Player_RefreshCard", current);
+                EventCenter.Publish(GameEvents.PlayerCardRefreshed, new CardEventContext(this, current));
             }
         }
     }
@@ -567,8 +586,9 @@ public abstract class BaseCharacter
             Cards.Remove(card);
             if (this is Player)
             {
-                EventCenter.Publish("Player_RemoveCard", card);
+                EventCenter.Publish(GameEvents.PlayerCardRemovedFromHand, new CardEventContext(this, card));
             }
+            NotifyHandChanged();
         }
     }
 }

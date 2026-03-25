@@ -54,10 +54,14 @@ public class AudioManager : MonoBehaviour
     private void Start()
     {
         // Subscribe to events
-        EventCenter.Register("Player_DrawCard", (obj) => PlaySFX("Draw"));
-        EventCenter.Register("Player_PlayCard", (obj) => PlaySFX("Play"));
-        EventCenter.Register("CardDrawn", (obj) => PlaySFX("Draw")); // Enemy draw
-        EventCenter.Register("CardPlayed", (obj) => PlaySFX("Play")); // Generic play
+        EventCenter.Register<CardEventContext>(GameEvents.BattleCardDrawnToHand, context =>
+        {
+            if (context.Card != null) PlaySFX("Draw");
+        });
+        EventCenter.Register<CardEventContext>(GameEvents.BattleCardPlayedFromHand, context =>
+        {
+            if (context.Card != null) PlaySFX("Play");
+        });
         
         // Damage/Heal events are handled via DamageEffectManager usually, but we can listen globally if we had a global event.
         // Or we can let DamageEffectManager call us.

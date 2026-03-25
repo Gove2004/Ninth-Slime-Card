@@ -46,13 +46,13 @@ public class TurnFocusCameraUI : MonoBehaviour
 
     private void OnEnable()
     {
-        onTurnStartUnsub = EventCenter.Register("TurnStart", OnTurnStart);
-        onBattleStartedUnsub = EventCenter.Register("BattleStarted", _ =>
+        onTurnStartUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.CharacterTurnStarted, OnTurnStart);
+        onBattleStartedUnsub = EventCenter.Register<BattleEventContext>(GameEvents.BattleStarted, _ =>
         {
             ResolveReferences();
             ApplyFocusByTurn(true, true);
         });
-        onBattleEndedUnsub = EventCenter.Register("BattleEnded", _ => ResetFocus(true));
+        onBattleEndedUnsub = EventCenter.Register<BattleEventContext>(GameEvents.BattleEnded, _ => ResetFocus(true));
     }
 
     private void Start()
@@ -119,16 +119,16 @@ public class TurnFocusCameraUI : MonoBehaviour
         }
     }
 
-    private void OnTurnStart(object turnOwner)
+    private void OnTurnStart(CharacterEventContext turnContext)
     {
         bool isPlayerTurn = false;
         if (BattleManager.Instance != null)
         {
             isPlayerTurn = BattleManager.Instance.IsPlayerTurn();
         }
-        else if (turnOwner != null)
+        else if (turnContext?.Character != null)
         {
-            isPlayerTurn = turnOwner is Player;
+            isPlayerTurn = turnContext.Character is Player;
         }
 
         ApplyFocusByTurn(isPlayerTurn, false);

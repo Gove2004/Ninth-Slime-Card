@@ -211,7 +211,7 @@ public class GMTool : MonoBehaviour
             if (GUILayout.Button("测试成就弹窗"))
             {
                 AchievementToast.EnsureInstance();
-                EventCenter.Publish(AchievementManager.AchievementUnlockedEvent, new AchievementManager.AchievementUnlockedInfo
+                EventCenter.Publish(GameEvents.AchievementUnlocked, new AchievementManager.AchievementUnlockedInfo
                 {
                     id = "gm_test",
                     name = "测试成就",

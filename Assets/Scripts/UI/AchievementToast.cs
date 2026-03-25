@@ -75,7 +75,7 @@ public class AchievementToast : MonoBehaviour
 
     private void OnEnable()
     {
-        onUnlockedUnsub = EventCenter.Register(AchievementManager.AchievementUnlockedEvent, OnAchievementUnlocked);
+        onUnlockedUnsub = EventCenter.Register<AchievementManager.AchievementUnlockedInfo>(GameEvents.AchievementUnlocked, OnAchievementUnlocked);
     }
 
     private void OnDisable()
@@ -84,9 +84,9 @@ public class AchievementToast : MonoBehaviour
         onUnlockedUnsub = null;
     }
 
-    private void OnAchievementUnlocked(object obj)
+    private void OnAchievementUnlocked(AchievementManager.AchievementUnlockedInfo info)
     {
-        if (obj is not AchievementManager.AchievementUnlockedInfo info) return;
+        if (info == null) return;
         queue.Enqueue(info);
         if (!isShowing)
         {

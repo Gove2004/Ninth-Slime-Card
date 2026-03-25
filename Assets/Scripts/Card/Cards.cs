@@ -14,8 +14,9 @@ public static class CardRuntimeHelper
             foreach (var card in discardList)
             {
                 user.Cards.Remove(card);
-                EventCenter.Publish("Player_PlayCard", card);
+                EventCenter.Publish(GameEvents.PlayerCardRemovedFromHand, new CardEventContext(user, card));
             }
+            user.NotifyHandChanged();
             return;
         }
 
@@ -71,21 +72,31 @@ public static class CardRuntimeHelper
     public static void ReplaceHand(BaseCharacter user, List<BaseCard> cards)
     {
         if (user == null) return;
-        var current = new List<BaseCard>(user.Cards);
-        foreach (var card in current)
+        if (user.Cards.Count > 0)
         {
-            user.RemoveCard(card);
+            foreach (var card in new List<BaseCard>(user.Cards))
+            {
+                if (user is Player)
+                {
+                    EventCenter.Publish(GameEvents.PlayerCardRemovedFromHand, new CardEventContext(user, card));
+                }
+            }
+            user.Cards.Clear();
         }
 
-        if (cards == null || cards.Count == 0) return;
-        foreach (var card in cards)
+        if (cards != null && cards.Count > 0)
         {
-            if (card == null) continue;
-            if (user is Player && user.Cards.Count >= Player.HandLimit) break;
-            card.SetOwningCharacter(user);
-            user.Cards.Add(card);
-            if (user is Player) EventCenter.Publish("Player_DrawCard", card);
+            foreach (var card in cards)
+            {
+                if (card == null) continue;
+                if (user is Player && user.Cards.Count >= Player.HandLimit) break;
+                card.SetOwningCharacter(user);
+                user.Cards.Add(card);
+                if (user is Player) EventCenter.Publish(GameEvents.PlayerCardGeneratedToHand, new CardEventContext(user, card));
+            }
         }
+
+        user.NotifyHandChanged();
     }
 }
 
@@ -150,10 +161,6 @@ public class 抽牌 : BaseCard
             for (int i = 0; i < count; i++)
             {
                 var card = d.source.DrawCard(0);
-                if (card != null && d.source is Player)
-                {
-                    EventCenter.Publish("Player_DrawCard", card);
-                }
             }
         }, null, () => $"每回合抽{count}张牌，剩余{dot.duration}回合");
 
@@ -525,7 +532,6 @@ public class 贪婪 : BaseCard
             if (user.Cards.Count == 0) break;
             BaseCard card = user.Cards[0];
             user.RemoveCard(card);
-            if (user is Player) EventCenter.Publish("Player_PlayCard", card);
         }
         user.ChangeMana(discardCount);
         user.DealDamage(target, (ulong)discardCount);
@@ -549,11 +555,7 @@ public class 懒惰 : BaseCard
         int drawCount = ToInt(spend);
         for (int i = 0; i < drawCount; i++)
         {
-            var card = user.DrawCard(0);
-            if (card != null && user is Player)
-            {
-                EventCenter.Publish("Player_DrawCard", card);
-            }
+            user.DrawCard(0);
         }
         user.EndTurn();
     }
@@ -597,7 +599,6 @@ public class 暴食 : BaseCard
         {
             BaseCard card = user.Cards[0];
             user.RemoveCard(card);
-            if (user is Player) EventCenter.Publish("Player_PlayCard", card);
             user.ApplyHealthChange(ToLong(value), user);
         }
     }
@@ -843,11 +844,7 @@ public class 卖血 : BaseCard
             d.source.ApplyHealthChange(NegToLong(value), d.source);
             for (int i = 0; i < drawCount; i++)
             {
-                var card = d.source.DrawCard(0);
-                if (card != null && d.source is Player)
-                {
-                    EventCenter.Publish("Player_DrawCard", card);
-                }
+                d.source.DrawCard(0);
             }
         }, null, () => $"每回合失{value}点生命并抽{drawCount}张牌，剩余{dot.duration}回合");
 
@@ -1104,11 +1101,7 @@ public class 制衡 : BaseCard
         CardRuntimeHelper.DiscardAllCards(user);
         for (int i = 0; i < discardCount; i++)
         {
-            var card = user.DrawCard(0);
-            if (card != null && user is Player)
-            {
-                EventCenter.Publish("Player_DrawCard", card);
-            }
+            user.DrawCard(0);
         }
     }
 }
@@ -1123,10 +1116,16 @@ public class 诅咒 : BaseCard
         ulong value = Value;
 
         Dot dot = null;
-        Action<object> handler = obj =>
+        Action unsubscribe = null;
+        void SubscribeToResolved()
+        {
+            unsubscribe = EventCenter.Register<CardEventContext>(GameEvents.BattleCardResolved, OnBattleCardResolved);
+        }
+
+        void OnBattleCardResolved(CardEventContext context)
         {
             if (dot == null || dot.target == null) return;
-            if (!ReferenceEquals(obj, dot.target)) return;
+            if (!ReferenceEquals(context.Character, dot.target)) return;
             if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
             try
             {
@@ -1136,16 +1135,16 @@ public class 诅咒 : BaseCard
             {
                 BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
             }
-        };
+        }
 
-        EventCenter.Register("Character_PlayCardExecuted", handler);
+        SubscribeToResolved();
         dot = new Dot(user, target, Duration, d => { }, d =>
         {
-            EventCenter.Unregister("Character_PlayCardExecuted", handler);
+            unsubscribe?.Invoke();
         }, () => $"敌方每出牌受到{value}点伤害，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
         {
-            EventCenter.Unregister("Character_PlayCardExecuted", handler);
-            EventCenter.Register("Character_PlayCardExecuted", handler);
+            unsubscribe?.Invoke();
+            SubscribeToResolved();
         });
 
         user.dotBar.Add(dot);
@@ -1162,10 +1161,16 @@ public class 镜像 : BaseCard
         ulong value = Value;
 
         Dot dot = null;
-        Action<object> handler = obj =>
+        Action unsubscribe = null;
+        void SubscribeToResolved()
+        {
+            unsubscribe = EventCenter.Register<CardEventContext>(GameEvents.BattleCardResolved, OnBattleCardResolved);
+        }
+
+        void OnBattleCardResolved(CardEventContext context)
         {
             if (dot == null || dot.source == null || dot.target == null) return;
-            if (!ReferenceEquals(obj, dot.source)) return;
+            if (!ReferenceEquals(context.Character, dot.source)) return;
             if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
             try
             {
@@ -1175,16 +1180,16 @@ public class 镜像 : BaseCard
             {
                 BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
             }
-        };
+        }
 
-        EventCenter.Register("Character_PlayCardExecuted", handler);
+        SubscribeToResolved();
         dot = new Dot(user, target, Duration, d => { }, d =>
         {
-            EventCenter.Unregister("Character_PlayCardExecuted", handler);
+            unsubscribe?.Invoke();
         }, () => $"每次出牌自动造成{value}点伤害，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
         {
-            EventCenter.Unregister("Character_PlayCardExecuted", handler);
-            EventCenter.Register("Character_PlayCardExecuted", handler);
+            unsubscribe?.Invoke();
+            SubscribeToResolved();
         });
 
         user.dotBar.Add(dot);
@@ -1290,21 +1295,21 @@ public class 视界 : BaseCard
 
         bool restored = false;
         bool skipFirstPlayEvent = true;
-        Action<object> playHandler = null;
-        Action<object> endTurnHandler = null;
+        Action playUnsub = null;
+        Action endTurnUnsub = null;
 
         void Restore()
         {
             if (restored) return;
             restored = true;
-            EventCenter.Unregister("Character_PlayCardExecuted", playHandler);
-            EventCenter.Unregister("CharacterEndedTurn", endTurnHandler);
+            playUnsub?.Invoke();
+            endTurnUnsub?.Invoke();
             CardRuntimeHelper.ReplaceHand(user, originalHand);
         }
 
-        playHandler = obj =>
+        playUnsub = EventCenter.Register<CardEventContext>(GameEvents.BattleCardResolved, context =>
         {
-            if (!ReferenceEquals(obj, user)) return;
+            if (!ReferenceEquals(context.Character, user)) return;
             if (skipFirstPlayEvent)
             {
                 skipFirstPlayEvent = false;
@@ -1312,11 +1317,9 @@ public class 视界 : BaseCard
             }
             remainingPlays--;
             if (remainingPlays <= 0) Restore();
-        };
-        endTurnHandler = _ => Restore();
+        });
+        endTurnUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.CharacterTurnEnded, _ => Restore());
 
-        EventCenter.Register("Character_PlayCardExecuted", playHandler);
-        EventCenter.Register("CharacterEndedTurn", endTurnHandler);
     }
 }
 

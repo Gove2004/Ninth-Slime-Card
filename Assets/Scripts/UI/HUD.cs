@@ -109,7 +109,7 @@ public class HUD : MonoBehaviour
             hasOriginalEnemyHpTextStyle = true;
         }
         nonEndlessEnemyHpSprite = LoadBloodSprite();
-        onPlayerGainManaUnsub = EventCenter.Register("Player_GainMana", _ =>
+        onPlayerGainManaUnsub = EventCenter.Register<CharacterValueEventContext>(GameEvents.PlayerGainedMana, _ =>
         {
             pendingManaGainEffect = true;
         });

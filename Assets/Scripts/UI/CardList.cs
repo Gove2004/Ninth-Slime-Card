@@ -37,46 +37,30 @@ public class CardList : MonoBehaviour
         // ... (rest of Start)
 
         // 监听卡牌选择事件
-        EventCenter.Register("CardSelected", (param) =>
+        EventCenter.Register<CardSelectionEventContext>(GameEvents.CardSelected, context =>
         {
             // 取消原本选中的卡牌
             if (selectedCard != null)
             {
                 Card2UIItem(selectedCard).Deselected();
             }
-            selectedCard = param as BaseCard;
+            selectedCard = context.Card;
         });
 
         // 监听卡牌取消选择事件
-        EventCenter.Register("CardDeselected", (param) =>
+        EventCenter.Register<CardSelectionEventContext>(GameEvents.CardDeselected, _ =>
         {
             selectedCard = null;
         });
 
-        EventCenter.Register("Player_DrawCard", (param) =>
-        {
-            DrawCard(param as BaseCard);
-        });
-
-        EventCenter.Register("Player_PlayCard", (param) =>
-        {
-            selectedCard = null;  // 出牌后取消选中状态
-            PlayCard(param as BaseCard);
-        });
-
-        EventCenter.Register("Player_RemoveCard", (param) =>
-        {
-            PlayCard(param as BaseCard); // 复用 PlayCard 的逻辑来移除 UI
-        });
-
-        EventCenter.Register("Player_RefreshCard", (param) =>
-        {
-            RefreshCard(param as BaseCard);
-        });
-
-        EventCenter.Register("BattleStarted", (param) =>
+        EventCenter.Register<HandEventContext>(GameEvents.PlayerHandChanged, _ =>
         {
             SyncFromBattleHand();
+        });
+
+        EventCenter.Register<CardEventContext>(GameEvents.PlayerCardRefreshed, context =>
+        {
+            RefreshCard(context.Card);
         });
 
         SyncFromBattleHand();
@@ -202,24 +186,33 @@ public class CardList : MonoBehaviour
 
     public void DrawCard(BaseCard card)
     {
-        // 创建新的CardUIItem实例
-        GameObject cardUIObj = Instantiate(cardPreb, container);
-        CardUIItem cardUIItem = cardUIObj.GetComponent<CardUIItem>();
-        cardUIItem.SetData(card);
-        // 初始化引用
-        cardUIItem.Init(this);
+        if (card == null) return;
 
-        cardUIItems.Add(cardUIItem);
+        var existing = Card2UIItem(card);
+        if (existing != null)
+        {
+            existing.SetData(card);
+            return;
+        }
+
+        cardUIItems.Add(CreateCardUIItem(card));
     }
 
     public void PlayCard(BaseCard card)
     {
-        var cui = Card2UIItem(card);
-
-        if (cui != null)
+        bool removed = false;
+        for (int i = cardUIItems.Count - 1; i >= 0; i--)
         {
-            cardUIItems.Remove(cui);
+            var cui = cardUIItems[i];
+            if (cui == null || cui.cardData != card) continue;
+            cardUIItems.RemoveAt(i);
             Destroy(cui.gameObject);
+            removed = true;
+        }
+
+        if (removed && selectedCard == card)
+        {
+            selectedCard = null;
         }
     }
 
@@ -242,15 +235,56 @@ public class CardList : MonoBehaviour
 
     private void SyncFromBattleHand()
     {
-        Clear();
-        if (BattleManager.Instance?.player == null) return;
-        foreach (var card in BattleManager.Instance.player.Cards)
+        var player = BattleManager.Instance?.player;
+        if (player == null)
         {
-            DrawCard(card);
+            Clear();
+            return;
+        }
+
+        var orderedItems = new List<CardUIItem>(player.Cards.Count);
+        foreach (var card in player.Cards)
+        {
+            var existing = Card2UIItem(card);
+            if (existing == null)
+            {
+                existing = CreateCardUIItem(card);
+            }
+            else
+            {
+                existing.SetData(card);
+            }
+
+            orderedItems.Add(existing);
+        }
+
+        for (int i = 0; i < cardUIItems.Count; i++)
+        {
+            var item = cardUIItems[i];
+            if (item != null && !orderedItems.Contains(item))
+            {
+                Destroy(item.gameObject);
+            }
+        }
+
+        cardUIItems = orderedItems;
+
+        if (selectedCard != null && !player.Cards.Contains(selectedCard))
+        {
+            selectedCard = null;
         }
     }
 
 
+
+    private CardUIItem CreateCardUIItem(BaseCard card)
+    {
+        GameObject cardUIObj = Instantiate(cardPreb, container);
+        CardUIItem cardUIItem = cardUIObj.GetComponent<CardUIItem>();
+        cardUIItem.SetData(card);
+        cardUIItem.Init(this);
+        return cardUIItem;
+    }
 
     private CardUIItem Card2UIItem(BaseCard card)
     {

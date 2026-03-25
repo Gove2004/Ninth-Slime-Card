@@ -53,7 +53,7 @@ public class RougeUI : MonoBehaviour
 
         this.gameObject.SetActive(false);
 
-        EventCenter.Register("EnemyBoss_PhaseChanged", (param) =>
+        EventCenter.Register<EnemyBossPhaseChangedEventContext>(GameEvents.EnemyBossPhaseChanged, _ =>
         {
             Debug.Log("阶段改变，显示换牌界面");
             this.gameObject.SetActive(true);

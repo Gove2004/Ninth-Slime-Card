@@ -33,8 +33,8 @@ public class BattleUI : MonoBehaviour
         if (drawCardButton != null) drawCardButtonText = drawCardButton.GetComponentInChildren<TextMeshProUGUI>();
         if (endTurnButton != null) endTurnButtonText = endTurnButton.GetComponentInChildren<TextMeshProUGUI>();
 
-        EventCenter.Register("TurnStart", (param) => ShowNewTurnInfo());
-        EventCenter.Register("BattleStarted", (param) => 
+        EventCenter.Register<CharacterEventContext>(GameEvents.CharacterTurnStarted, _ => ShowNewTurnInfo());
+        EventCenter.Register<BattleEventContext>(GameEvents.BattleStarted, _ => 
         {
             if (cardList != null) cardList.Clear();
         });

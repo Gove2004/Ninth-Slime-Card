@@ -8,6 +8,128 @@ using UnityEngine;
 using UnityEditor;
 #endif
 
+public static class GameEvents
+{
+    public const string BattleCardDrawnToHand = "Battle_CardDrawnToHand";
+    public const string BattleCardPlayedFromHand = "Battle_CardPlayedFromHand";
+    public const string BattleCardResolved = "Battle_CardResolved";
+    public const string BattleStarted = "Battle_Started";
+    public const string BattleEnded = "Battle_Ended";
+    public const string CharacterTurnStarted = "Character_TurnStarted";
+    public const string CharacterTurnEnded = "Character_TurnEnded";
+    public const string PlayerHandChanged = "Player_HandChanged";
+    public const string PlayerGainedMana = "Player_GainedMana";
+    public const string PlayerHealed = "Player_Healed";
+    public const string PlayerCardRefreshed = "Player_CardRefreshed";
+    public const string PlayerCardDrawnToHand = "Player_CardDrawnToHand";
+    public const string PlayerCardGeneratedToHand = "Player_CardGeneratedToHand";
+    public const string PlayerCardPlayedFromHand = "Player_CardPlayedFromHand";
+    public const string PlayerCardRemovedFromHand = "Player_CardRemovedFromHand";
+    public const string PlayerCardResolved = "Player_CardResolved";
+    public const string PlayerDefeated = "Player_Defeated";
+    public const string EnemyDefeated = "Enemy_Defeated";
+    public const string EnemyBossPhaseChanged = "EnemyBoss_PhaseChanged";
+    public const string EnemyCardPlayed = "Enemy_CardPlayed";
+    public const string EnemyCardDrawn = "Enemy_CardDrawn";
+    public const string EnemyActionAnimationCompleted = "Enemy_ActionAnimationCompleted";
+    public const string CardSelected = "Card_Selected";
+    public const string CardDeselected = "Card_Deselected";
+    public const string AchievementUnlocked = "Achievement_Unlocked";
+    public const string AchievementDrawDrawTriggered = "Achievement_DrawDrawCard";
+    public const string AchievementOverheatTriggered = "Achievement_OverheatTriggered";
+    public const string AchievementDoubleAgentTriggered = "Achievement_DoubleAgentTriggered";
+    public const string AchievementClearEasyTriggered = "Achievement_ClearEasyTriggered";
+    public const string AchievementClearHardTriggered = "Achievement_ClearHardTriggered";
+    public const string AchievementClearHellTriggered = "Achievement_ClearHellTriggered";
+}
+
+public class CharacterEventContext
+{
+    public BaseCharacter Character { get; }
+
+    public CharacterEventContext(BaseCharacter character)
+    {
+        Character = character;
+    }
+}
+
+public sealed class CharacterValueEventContext : CharacterEventContext
+{
+    public ulong Amount { get; }
+
+    public CharacterValueEventContext(BaseCharacter character, ulong amount) : base(character)
+    {
+        Amount = amount;
+    }
+}
+
+public sealed class BattleEventContext
+{
+    public BattleManager BattleManager { get; }
+    public BaseCharacter Player { get; }
+    public BaseCharacter Enemy { get; }
+    public int CurrentTurn { get; }
+
+    public BattleEventContext(BattleManager battleManager, BaseCharacter player, BaseCharacter enemy, int currentTurn)
+    {
+        BattleManager = battleManager;
+        Player = player;
+        Enemy = enemy;
+        CurrentTurn = currentTurn;
+    }
+}
+
+public sealed class HandEventContext : CharacterEventContext
+{
+    public int HandCount { get; }
+
+    public HandEventContext(BaseCharacter character, int handCount) : base(character)
+    {
+        HandCount = handCount;
+    }
+}
+
+public sealed class CardEventContext : CharacterEventContext
+{
+    public BaseCard Card { get; }
+
+    public CardEventContext(BaseCharacter character, BaseCard card)
+        : base(character)
+    {
+        Card = card;
+    }
+}
+
+public sealed class EnemyBossPhaseChangedEventContext : CharacterEventContext
+{
+    public int Phase { get; }
+
+    public EnemyBossPhaseChangedEventContext(BaseCharacter character, int phase) : base(character)
+    {
+        Phase = phase;
+    }
+}
+
+public sealed class CardSelectionEventContext
+{
+    public BaseCard Card { get; }
+
+    public CardSelectionEventContext(BaseCard card)
+    {
+        Card = card;
+    }
+}
+
+public sealed class EnemyAnimationEventContext : CharacterEventContext
+{
+    public string Tag { get; }
+
+    public EnemyAnimationEventContext(BaseCharacter character, string tag) : base(character)
+    {
+        Tag = tag;
+    }
+}
+
 public class EventCenter : MonoBehaviour
 {
     [Header("调试设置")]
@@ -25,6 +147,22 @@ public class EventCenter : MonoBehaviour
         
         events[eventName].Add(listener);
         return () => Unregister(eventName, listener);
+    }
+
+    public static Action Register(string eventName, Action listener)
+    {
+        return Register(eventName, _ => listener());
+    }
+
+    public static Action Register<T>(string eventName, Action<T> listener)
+    {
+        return Register(eventName, payload =>
+        {
+            if (payload is T typed)
+            {
+                listener(typed);
+            }
+        });
     }
     
     public static void Publish<T>(string eventName, T param = default)

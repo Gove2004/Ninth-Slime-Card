@@ -15,7 +15,6 @@ public abstract class BaseCard
     
     protected void ReloadCardData()
     {
-        // 从数据库获取卡牌数据
         var data = CardDatabase.GetCardData(id);
         
         if (data != null)
@@ -29,13 +28,13 @@ public abstract class BaseCard
         }
         else
         {
-            // 设置默认值
-            Name = "未知卡牌";
+            string fallbackName = GetType().Name;
+            Name = string.IsNullOrWhiteSpace(fallbackName) ? "未知卡牌" : fallbackName;
             Cost = 0;
             Value = 0;
             Duration = 0;
             Description = "无效果";
-            ImagePath = "卡牌/default";
+            ImagePath = CardDatabase.GetImagePathByCardName(Name);
         }
     }
     

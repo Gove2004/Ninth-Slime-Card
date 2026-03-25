@@ -52,12 +52,7 @@ public class Player : BaseCharacter
         {
             health = 0;
             isDead = true;
-            if ((LastDamageCard != null && LastDamageCard.IsStolenFromOpponent) ||
-                (LastDamageDot != null && LastDamageDot.IsStolenFromOpponent))
-            {
-                EventCenter.Publish("Achievement_KilledByStolenCard", LastDamageCard);
-            }
-            EventCenter.Publish("PlayerDead", this);
+            EventCenter.Publish(GameEvents.PlayerDefeated, new CharacterEventContext(this));
         }
     }
 
@@ -71,8 +66,6 @@ public class Player : BaseCharacter
         if (isReady && Cards.Contains(card) && card.Cost <= mana)
         {
             PlayCard(card);
-
-            EventCenter.Publish("Player_PlayCard", card);
         }
     }
 
@@ -82,9 +75,7 @@ public class Player : BaseCharacter
     {
         if (isReady)
         {
-            var card = DrawCard();
-
-            EventCenter.Publish("Player_DrawCard", card);
+            DrawCard();
         }
     }
 

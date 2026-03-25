@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class EnemyCardPlayUI : MonoBehaviour
 {
-    private const string EnemyAnimationCompletedEvent = "Enemy_ActionAnimationCompleted";
     private const string EnemyPlayAnimationTag = "play";
     private const string EnemyDrawAnimationTag = "draw";
     private Action disposablePlay;
@@ -15,8 +14,8 @@ public class EnemyCardPlayUI : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        disposablePlay = EventCenter.Register("Enemy_PlayedCard", obj => OnEnemyPlayCard((BaseCard)obj));
-        disposableDraw = EventCenter.Register("Enemy_DrewCard", obj => OnEnemyDrawCard((BaseCard)obj));
+        disposablePlay = EventCenter.Register<CardEventContext>(GameEvents.EnemyCardPlayed, context => OnEnemyPlayCard(context.Card));
+        disposableDraw = EventCenter.Register<CardEventContext>(GameEvents.EnemyCardDrawn, context => OnEnemyDrawCard(context.Card));
 
         cardUI = GetComponent<CardUIItem>();
         cardUI.gameObject.SetActive(false);
@@ -66,7 +65,8 @@ public class EnemyCardPlayUI : MonoBehaviour
 
     private void PublishAnimationCompleted(string tag)
     {
-        EventCenter.Publish(EnemyAnimationCompletedEvent, tag);
+        var enemy = BattleManager.Instance != null ? BattleManager.Instance.enemy : null;
+        EventCenter.Publish(GameEvents.EnemyActionAnimationCompleted, new EnemyAnimationEventContext(enemy, tag));
     }
 
     private void ShowPlayAnimation()

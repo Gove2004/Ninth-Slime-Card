@@ -239,12 +239,12 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         if (!IsSelected)  // 第一次点击，选中卡牌
         {
             Selected();
-            EventCenter.Publish("CardSelected", cardData);
+            EventCenter.Publish(GameEvents.CardSelected, new CardSelectionEventContext(cardData));
         }
         else  // 再次点击，取消选中
         {
             Deselected();
-            EventCenter.Publish("CardDeselected", cardData);
+            EventCenter.Publish(GameEvents.CardDeselected, new CardSelectionEventContext(cardData));
         }
     }
 
