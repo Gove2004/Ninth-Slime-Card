@@ -7,6 +7,10 @@ public class GMTool : MonoBehaviour
 {
     private const int WindowId = 9527;
     private static readonly Rect DragArea = new Rect(0, 0, 10000, 24);
+    private const string HealthDeltaFieldName = "GMTool_HealthDelta";
+    private const string ManaDeltaFieldName = "GMTool_ManaDelta";
+    private const string CardIdFieldName = "GMTool_CardId";
+    private const string CardNameFieldName = "GMTool_CardName";
     private string healthDelta = "0";
     private string manaDelta = "0";
     private string cardId = "1000";
@@ -16,9 +20,13 @@ public class GMTool : MonoBehaviour
     private bool enemyAllowDraw = true;
     private bool enemyToggleInitialized = false;
     private bool showPanel = true;
+    private bool wantsImeInput;
+    private IMECompositionMode appliedImeCompositionMode = IMECompositionMode.Auto;
+    private Vector2 imeCursorScreenPosition;
     private Rect windowRect = new Rect(10, 10, 260, 470);
     private const int FullHeight = 470;
     private const int CollapsedHeight = 70;
+    public static bool IsTextInputActive { get; private set; }
 
     public void ResetEnemyAIFlags()
     {
@@ -28,9 +36,25 @@ public class GMTool : MonoBehaviour
         EnemyBoss.AllowPlay = true;
         EnemyBoss.AllowDraw = true;
     }
+
+    private void OnDisable()
+    {
+        ReleaseTextInput();
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseTextInput();
+    }
 #if UNITY_EDITOR
     private void Update()
     {
+        ApplyImeCompositionMode();
+        if (IsTextInputActive)
+        {
+            return;
+        }
+
         if (Input.GetKeyDown(KeyCode.R))
         {
             PlayerPrefs.DeleteAll();
@@ -57,6 +81,11 @@ public class GMTool : MonoBehaviour
             GUI.enabled = true;
             GUI.color = Color.white;
             windowRect = GUILayout.Window(WindowId, windowRect, DrawWindow, "GM");
+            if (Event.current.type == EventType.Repaint)
+            {
+                wantsImeInput = IsImeFieldControl(GUI.GetNameOfFocusedControl());
+                IsTextInputActive = wantsImeInput;
+            }
         }
         catch (System.Exception ex)
         {
@@ -82,6 +111,12 @@ public class GMTool : MonoBehaviour
             if (GUILayout.Button(showPanel ? "隐藏" : "显示"))
             {
                 showPanel = !showPanel;
+                if (!showPanel)
+                {
+                    GUI.FocusControl(string.Empty);
+                    wantsImeInput = false;
+                    IsTextInputActive = false;
+                }
             }
             if (!showPanel)
             {
@@ -99,7 +134,7 @@ public class GMTool : MonoBehaviour
             }
 
             GUILayout.Label("玩家生命值调整(可负数)");
-            healthDelta = GUILayout.TextField(healthDelta);
+            healthDelta = DrawImeTextField(HealthDeltaFieldName, healthDelta);
             if (GUILayout.Button("应用生命值"))
             {
                 if (long.TryParse(healthDelta, out var value))
@@ -114,7 +149,7 @@ public class GMTool : MonoBehaviour
             }
 
             GUILayout.Label("玩家法力值调整(可负数)");
-            manaDelta = GUILayout.TextField(manaDelta);
+            manaDelta = DrawImeTextField(ManaDeltaFieldName, manaDelta);
             if (GUILayout.Button("应用法力值"))
             {
                 if (long.TryParse(manaDelta, out var value))
@@ -129,7 +164,7 @@ public class GMTool : MonoBehaviour
             }
 
             GUILayout.Label("获取指定ID卡牌");
-            cardId = GUILayout.TextField(cardId);
+            cardId = DrawImeTextField(CardIdFieldName, cardId);
             if (GUILayout.Button("获取卡牌"))
             {
                 if (int.TryParse(cardId, out var cardIdValue))
@@ -156,7 +191,7 @@ public class GMTool : MonoBehaviour
             }
 
             GUILayout.Label("获取指定名称卡牌");
-            cardName = GUILayout.TextField(cardName);
+            cardName = DrawImeTextField(CardNameFieldName, cardName);
             if (GUILayout.Button("按名称获取卡牌"))
             {
                 string trimmedName = string.IsNullOrWhiteSpace(cardName) ? string.Empty : cardName.Trim();
@@ -229,6 +264,52 @@ public class GMTool : MonoBehaviour
             GUI.DragWindow(DragArea);
         }
     }
+
+    private string DrawImeTextField(string controlName, string value)
+    {
+        GUI.SetNextControlName(controlName);
+        string result = GUILayout.TextField(value);
+        if (Event.current.type == EventType.Repaint && GUI.GetNameOfFocusedControl() == controlName)
+        {
+            Rect rect = GUILayoutUtility.GetLastRect();
+            imeCursorScreenPosition = GUIUtility.GUIToScreenPoint(new Vector2(rect.xMin + 6f, rect.yMax - 6f));
+            wantsImeInput = true;
+            IsTextInputActive = true;
+        }
+        return result;
+    }
+
 #endif
+
+    private void ApplyImeCompositionMode()
+    {
+        IMECompositionMode targetMode = wantsImeInput ? IMECompositionMode.On : IMECompositionMode.Auto;
+        if (appliedImeCompositionMode != targetMode)
+        {
+            Input.imeCompositionMode = targetMode;
+            appliedImeCompositionMode = targetMode;
+        }
+
+        if (wantsImeInput)
+        {
+            Input.compositionCursorPos = imeCursorScreenPosition;
+        }
+    }
+
+    private void ReleaseTextInput()
+    {
+        wantsImeInput = false;
+        IsTextInputActive = false;
+        appliedImeCompositionMode = IMECompositionMode.Auto;
+        Input.imeCompositionMode = IMECompositionMode.Auto;
+    }
+
+    private static bool IsImeFieldControl(string controlName)
+    {
+        return controlName == HealthDeltaFieldName
+               || controlName == ManaDeltaFieldName
+               || controlName == CardIdFieldName
+               || controlName == CardNameFieldName;
+    }
 }
 

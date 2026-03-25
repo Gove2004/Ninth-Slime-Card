@@ -25,7 +25,7 @@ public class MainUI : MonoBehaviour
         if (teamButton != null) teamButton.onClick.AddListener(OnTeamClicked);
         if (saveButton == null)
         {
-            var buttons = FindObjectsOfType<Button>(true);
+            var buttons = FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var button in buttons)
             {
                 if (button != null && button.gameObject.name == "存档")
@@ -41,7 +41,7 @@ public class MainUI : MonoBehaviour
         }
         if (achievementButton == null)
         {
-            var buttons = FindObjectsOfType<Button>(true);
+            var buttons = FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var button in buttons)
             {
                 if (button != null && button.gameObject.name == "成就")
@@ -57,7 +57,7 @@ public class MainUI : MonoBehaviour
         }
         if (collectionButton == null)
         {
-            var buttons = FindObjectsOfType<Button>(true);
+            var buttons = FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var button in buttons)
             {
                 if (button != null && button.gameObject.name == "图鉴")
@@ -158,7 +158,7 @@ public class MainUI : MonoBehaviour
     {
         if (settingsButton == null)
         {
-            var buttons = FindObjectsOfType<Button>(true);
+            var buttons = FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var button in buttons)
             {
                 if (button != null && button.gameObject.name == "设置")
@@ -173,7 +173,7 @@ public class MainUI : MonoBehaviour
             dropdown = GetComponentInChildren<TMP_Dropdown>(true);
             if (dropdown == null)
             {
-                var dropdowns = FindObjectsOfType<TMP_Dropdown>(true);
+                var dropdowns = FindObjectsByType<TMP_Dropdown>(FindObjectsInactive.Include, FindObjectsSortMode.None);
                 if (dropdowns.Length > 0) dropdown = dropdowns[0];
             }
         }
