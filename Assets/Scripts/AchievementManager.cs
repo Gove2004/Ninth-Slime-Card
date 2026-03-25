@@ -65,7 +65,11 @@ public class AchievementManager : MonoBehaviour
     public ulong TotalHeal { get; private set; }
 
     private readonly List<AchievementDefinition> definitions = new();
+    private readonly Dictionary<AchievementType, List<AchievementDefinition>> definitionsByType = new();
+    private readonly Dictionary<string, AchievementDefinition> definitionsById = new(StringComparer.Ordinal);
     private readonly HashSet<string> customCompleted = new();
+    private readonly HashSet<string> tapTapAchievementSynced = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ulong> tapTapSyncedNumericProgress = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ulong> pendingTapTapIncrements = new();
     private bool pendingTitleTapTapResync;
     private bool hasCompletedTitleTapTapResync;
@@ -188,9 +192,10 @@ public class AchievementManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        Load();
         BuildDefinitions();
+        Load();
         LoadCustom();
+        LoadTapTapSyncState();
         AchievementToast.EnsureInstance();
         RegisterEvents();
         SubscribeToPlayerDamageSource();
@@ -262,7 +267,7 @@ public class AchievementManager : MonoBehaviour
         TotalScore = BaseCharacter.SaturatingAdd(TotalScore, amount);
         SyncTapTapNumericProgress(AchievementType.Score, before, TotalScore);
         TryNotifyNumericUnlock(AchievementType.Score, before, TotalScore);
-        Save();
+        SaveCounter(TotalScoreKey, TotalScore);
     }
 
     public void AddDraw(ulong amount)
@@ -273,7 +278,7 @@ public class AchievementManager : MonoBehaviour
         TotalDraw = BaseCharacter.SaturatingAdd(TotalDraw, delta);
         SyncTapTapNumericProgress(AchievementType.Draw, before, TotalDraw);
         TryNotifyNumericUnlock(AchievementType.Draw, before, TotalDraw);
-        Save();
+        SaveCounter(TotalDrawKey, TotalDraw);
     }
 
     public void AddPlay(ulong amount)
@@ -284,7 +289,7 @@ public class AchievementManager : MonoBehaviour
         TotalPlay = BaseCharacter.SaturatingAdd(TotalPlay, delta);
         SyncTapTapNumericProgress(AchievementType.Play, before, TotalPlay);
         TryNotifyNumericUnlock(AchievementType.Play, before, TotalPlay);
-        Save();
+        SaveCounter(TotalPlayKey, TotalPlay);
     }
 
     public void AddMana(ulong amount)
@@ -295,7 +300,7 @@ public class AchievementManager : MonoBehaviour
         TotalMana = BaseCharacter.SaturatingAdd(TotalMana, delta);
         SyncTapTapNumericProgress(AchievementType.Mana, before, TotalMana);
         TryNotifyNumericUnlock(AchievementType.Mana, before, TotalMana);
-        Save();
+        SaveCounter(TotalManaKey, TotalMana);
     }
 
     public void AddHeal(ulong amount)
@@ -305,7 +310,7 @@ public class AchievementManager : MonoBehaviour
         TotalHeal = BaseCharacter.SaturatingAdd(TotalHeal, amount);
         SyncTapTapNumericProgress(AchievementType.Heal, before, TotalHeal);
         TryNotifyNumericUnlock(AchievementType.Heal, before, TotalHeal);
-        Save();
+        SaveCounter(TotalHealKey, TotalHeal);
     }
 
     public List<AchievementStatus> GetAchievementStatuses()
@@ -476,14 +481,23 @@ public class AchievementManager : MonoBehaviour
 
     private void AddDef(string id, string name, AchievementType type, ulong threshold, string description = null)
     {
-        definitions.Add(new AchievementDefinition
+        var definition = new AchievementDefinition
         {
             id = id,
             name = name,
             type = type,
             threshold = threshold,
             description = description
-        });
+        };
+
+        definitions.Add(definition);
+        definitionsById[id] = definition;
+        if (!definitionsByType.TryGetValue(type, out var typedDefinitions))
+        {
+            typedDefinitions = new List<AchievementDefinition>();
+            definitionsByType[type] = typedDefinitions;
+        }
+        typedDefinitions.Add(definition);
     }
 
     private bool IsCompleted(AchievementDefinition def)
@@ -515,13 +529,9 @@ public class AchievementManager : MonoBehaviour
         };
     }
 
-    private void Save()
+    private void SaveCounter(string key, ulong value)
     {
-        PlayerPrefs.SetString(TotalScoreKey, TotalScore.ToString());
-        PlayerPrefs.SetString(TotalDrawKey, TotalDraw.ToString());
-        PlayerPrefs.SetString(TotalPlayKey, TotalPlay.ToString());
-        PlayerPrefs.SetString(TotalManaKey, TotalMana.ToString());
-        PlayerPrefs.SetString(TotalHealKey, TotalHeal.ToString());
+        PlayerPrefs.SetString(key, value.ToString());
         MarkPlayerPrefsDirty();
     }
 
@@ -537,12 +547,33 @@ public class AchievementManager : MonoBehaviour
     private void LoadCustom()
     {
         customCompleted.Clear();
-        foreach (var def in definitions)
+        foreach (var def in GetDefinitionsForType(AchievementType.Custom))
         {
-            if (def.type != AchievementType.Custom) continue;
             if (PlayerPrefs.GetInt(CustomAchievementPrefix + def.id, 0) == 1)
             {
                 customCompleted.Add(def.id);
+            }
+        }
+    }
+
+    private void LoadTapTapSyncState()
+    {
+        tapTapAchievementSynced.Clear();
+        tapTapSyncedNumericProgress.Clear();
+
+        foreach (var def in definitions)
+        {
+            if (PlayerPrefs.GetInt(TapTapAchievementSyncedPrefix + def.id, 0) == 1)
+            {
+                tapTapAchievementSynced.Add(def.id);
+            }
+
+            if (def.type == AchievementType.Custom) continue;
+
+            ulong progress = ParseUlongOrZero(PlayerPrefs.GetString(TapTapNumericSyncedPrefix + def.id, "0"));
+            if (progress > 0)
+            {
+                tapTapSyncedNumericProgress[def.id] = progress;
             }
         }
     }
@@ -555,7 +586,7 @@ public class AchievementManager : MonoBehaviour
     private bool UnlockCustom(string id)
     {
         if (string.IsNullOrEmpty(id)) return false;
-        var def = definitions.Find(d => d.id == id);
+        definitionsById.TryGetValue(id, out var def);
         if (customCompleted.Contains(id))
         {
             return false;
@@ -570,9 +601,8 @@ public class AchievementManager : MonoBehaviour
     private void TryNotifyNumericUnlock(AchievementType type, ulong beforeValue, ulong afterValue)
     {
         if (afterValue <= beforeValue) return;
-        foreach (var def in definitions)
+        foreach (var def in GetDefinitionsForType(type))
         {
-            if (def.type != type) continue;
             if (beforeValue < def.threshold && afterValue >= def.threshold)
             {
                 NotifyAchievementUnlocked(def);
@@ -631,10 +661,8 @@ public class AchievementManager : MonoBehaviour
     {
         if (afterValue <= beforeValue) return;
 
-        foreach (var def in definitions)
+        foreach (var def in GetDefinitionsForType(type))
         {
-            if (def.type != type) continue;
-            if (def.type == AchievementType.Custom) continue;
             SyncTapTapNumericProgress(def, afterValue, false);
         }
     }
@@ -651,14 +679,14 @@ public class AchievementManager : MonoBehaviour
                 {
                     if (IsCompleted(def))
                     {
-                        SyncTapTapAchievement(def, true);
+                        SyncTapTapAchievement(def);
                     }
                     continue;
                 }
 
                 ulong currentValue = GetAchievementValue(def.type);
-                SyncTapTapNumericProgress(def, currentValue, true);
-                SyncTapTapAchievement(def, true);
+                SyncTapTapNumericProgress(def, currentValue, false);
+                SyncTapTapAchievement(def);
             }
             catch (Exception ex)
             {
@@ -666,7 +694,7 @@ public class AchievementManager : MonoBehaviour
             }
         }
 
-        FlushPendingTapTapIncrements(true);
+        FlushPendingTapTapIncrements();
         return true;
     }
 
@@ -683,75 +711,18 @@ public class AchievementManager : MonoBehaviour
             return;
         }
 
-        if (TapTapSdk.IsInitialized && TrySetTapTapNumericProgress(def, targetProgress, forceResync))
+        if (!forceResync)
+        {
+            QueueTapTapNumericProgress(def, targetProgress, false);
+            return;
+        }
+
+        if (TapTapSdk.IsInitialized && TrySetTapTapNumericProgress(def, targetProgress, true))
         {
             return;
         }
 
-        QueueTapTapNumericProgress(def, targetProgress, forceResync);
-        if (TapTapSdk.IsInitialized)
-        {
-            FlushPendingTapTapIncrements(true);
-        }
-    }
-
-    private void FlushPendingTapTapIncrements(bool flushAll = false)
-    {
-        if (pendingTapTapIncrements.Count == 0) return;
-        if (!TapTapSdk.IsInitialized) return;
-
-        int remainingChunks = flushAll ? int.MaxValue : TapTapIncrementChunkBudgetPerFlush;
-        var keys = new List<string>(pendingTapTapIncrements.Keys);
-        foreach (string id in keys)
-        {
-            if (remainingChunks <= 0) break;
-            if (!pendingTapTapIncrements.TryGetValue(id, out ulong delta) || delta == 0)
-            {
-                pendingTapTapIncrements.Remove(id);
-                continue;
-            }
-
-            ulong sent = IncrementTapTapByChunks(id, delta, ref remainingChunks);
-            if (sent > 0)
-            {
-                AddTapTapSyncedNumericProgress(id, sent);
-            }
-            ulong remaining = delta - sent;
-            if (remaining == 0)
-            {
-                pendingTapTapIncrements.Remove(id);
-            }
-            else
-            {
-                pendingTapTapIncrements[id] = remaining;
-            }
-        }
-    }
-
-    private ulong IncrementTapTapByChunks(string achievementId, ulong delta, ref int remainingChunks)
-    {
-        if (string.IsNullOrEmpty(achievementId)) return 0;
-
-        ulong remaining = delta;
-        ulong sent = 0;
-        while (remaining > 0 && remainingChunks > 0)
-        {
-            int step = remaining > (ulong)TapTapIncrementChunkMaxStep ? TapTapIncrementChunkMaxStep : (int)remaining;
-            try
-            {
-                TapTapSdk.Instance.IncrementAchievement(achievementId, step);
-                remaining -= (ulong)step;
-                sent += (ulong)step;
-                remainingChunks--;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"同步 TapTap 数值成就进度失败：{achievementId}，step：{step}，错误：{ex.Message}");
-                break;
-            }
-        }
-
-        return sent;
+        QueueTapTapNumericProgress(def, targetProgress, true);
     }
 
     private ulong GetAchievementValue(AchievementType type)
@@ -770,12 +741,14 @@ public class AchievementManager : MonoBehaviour
 
     private ulong GetTapTapSyncedNumericProgress(string achievementId)
     {
-        return ParseUlongOrZero(PlayerPrefs.GetString(TapTapNumericSyncedPrefix + achievementId, "0"));
+        if (string.IsNullOrEmpty(achievementId)) return 0;
+        return tapTapSyncedNumericProgress.TryGetValue(achievementId, out ulong progress) ? progress : 0;
     }
 
     private void SetTapTapSyncedNumericProgress(string achievementId, ulong progress)
     {
         if (string.IsNullOrEmpty(achievementId)) return;
+        tapTapSyncedNumericProgress[achievementId] = progress;
         PlayerPrefs.SetString(TapTapNumericSyncedPrefix + achievementId, progress.ToString());
         MarkPlayerPrefsDirty();
     }
@@ -783,24 +756,15 @@ public class AchievementManager : MonoBehaviour
     private bool IsTapTapAchievementSynced(string achievementId)
     {
         if (string.IsNullOrEmpty(achievementId)) return false;
-        return PlayerPrefs.GetInt(TapTapAchievementSyncedPrefix + achievementId, 0) == 1;
+        return tapTapAchievementSynced.Contains(achievementId);
     }
 
     private void MarkTapTapAchievementSynced(string achievementId)
     {
         if (string.IsNullOrEmpty(achievementId)) return;
+        if (tapTapAchievementSynced.Contains(achievementId)) return;
+        tapTapAchievementSynced.Add(achievementId);
         PlayerPrefs.SetInt(TapTapAchievementSyncedPrefix + achievementId, 1);
-        MarkPlayerPrefsDirty();
-    }
-
-    private void AddTapTapSyncedNumericProgress(string achievementId, ulong delta)
-    {
-        if (string.IsNullOrEmpty(achievementId)) return;
-        if (delta == 0) return;
-
-        ulong current = GetTapTapSyncedNumericProgress(achievementId);
-        ulong updated = BaseCharacter.SaturatingAdd(current, delta);
-        PlayerPrefs.SetString(TapTapNumericSyncedPrefix + achievementId, updated.ToString());
         MarkPlayerPrefsDirty();
     }
 
@@ -861,6 +825,52 @@ public class AchievementManager : MonoBehaviour
         }
 
         pendingTapTapIncrements[def.id] = targetProgress - syncedProgress;
+    }
+
+    private void FlushPendingTapTapIncrements(bool flushAll = false)
+    {
+        if (pendingTapTapIncrements.Count == 0) return;
+        if (!TapTapSdk.IsInitialized) return;
+
+        int remainingChunks = flushAll ? int.MaxValue : TapTapIncrementChunkBudgetPerFlush;
+        var keys = new List<string>(pendingTapTapIncrements.Keys);
+        foreach (string id in keys)
+        {
+            if (remainingChunks <= 0) break;
+            if (!pendingTapTapIncrements.TryGetValue(id, out ulong delta) || delta == 0)
+            {
+                pendingTapTapIncrements.Remove(id);
+                continue;
+            }
+
+            if (!definitionsById.TryGetValue(id, out var def))
+            {
+                pendingTapTapIncrements.Remove(id);
+                continue;
+            }
+
+            ulong syncedProgress = GetTapTapSyncedNumericProgress(id);
+            ulong targetProgress = BaseCharacter.SaturatingAdd(syncedProgress, delta);
+            if (targetProgress > def.threshold)
+            {
+                targetProgress = def.threshold;
+            }
+
+            if (TrySetTapTapNumericProgress(def, targetProgress, false))
+            {
+                remainingChunks--;
+            }
+        }
+    }
+
+    private IReadOnlyList<AchievementDefinition> GetDefinitionsForType(AchievementType type)
+    {
+        if (definitionsByType.TryGetValue(type, out var typedDefinitions))
+        {
+            return typedDefinitions;
+        }
+
+        return Array.Empty<AchievementDefinition>();
     }
 
     private void MarkPlayerPrefsDirty()
