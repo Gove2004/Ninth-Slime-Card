@@ -61,7 +61,7 @@ public class TapTapSdk : MonoBehaviour
             // 屏幕方向：0-竖屏 1-横屏，仅移动端生效
             screenOrientation = 1,
             // 是否开启日志，Release 版本请设置为 false
-            enableLog = true
+            enableLog = false
         };
 
         // 成就配置
@@ -257,21 +257,10 @@ class AchievementCallback : ITapAchievementCallback
   
     public void OnAchievementSuccess(int code, TapAchievementResult result)
     {
-        // 成就状态更新成功
-        // code 70001 解锁成就成功
-        // code 70002 增加步长成功
-        // result 成就数据详情
-
-        Debug.Log($"成就状态更新成功，code：{code}，achievementId：{result.AchievementId}，currentSteps：{result.CurrentSteps}");
     }
   
     public void OnAchievementFailure(string achievementId, int errorCode, string errorMsg)
     {
-        // 成就状态更新失败或其他错误
-        // achievementId 触发失败的成就 ID， 如果调用的是 [ShowAchievements] 接口，则为 "" 空字符串。
-        // errorCode 错误码
-        // errorMsg 错误描述
-        Debug.Log($"成就状态更新失败，achievementId：{achievementId}，errorCode：{errorCode}，errorMsg：{errorMsg}");
 	}
 
 }
