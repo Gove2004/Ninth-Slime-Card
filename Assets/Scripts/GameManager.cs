@@ -67,6 +67,7 @@ public class GameManager : MonoBehaviour
     #region 状态
 
     private bool IsBattle = false;
+    public bool IsBattleActive => IsBattle;
     public GameObject battleUI;
     public GameObject mainUI;
     private BattleSnapshotData pendingSnapshot;
@@ -132,6 +133,8 @@ public class GameManager : MonoBehaviour
                      go.AddComponent<AudioManager>().PlayTitleBGM();
                 }
             }
+
+            AchievementManager.Instance?.NotifyEnteredTitleScreen();
         }
     }
 

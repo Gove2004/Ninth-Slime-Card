@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using TapSDK.Achievement;
 using TapSDK.Core;
@@ -18,6 +19,8 @@ public class TapTapSdk : MonoBehaviour
     private const string ClientToken = "kXbnn4wKsOA4Rcd5wPLnEWLIgecN8pW5Dpk6ov2E";
     private const string ClientPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7Pfrav0TTq4fHVkLrj/IJd/q/lpVJGeZ7jWVIgjeW9CeKi8zs46Uk+9Jyzd3Jmc8xG/sUb0gS2ZGMHSuZNHXV+IhC4MD2nqjW68yEuCGbgWuzkebFPGRsRwAFLk6MhsUoW+30f9TCHB5w/qnsmEwcXiko5H8+Gjp+vRCY4/ojTXBHpAegm7lqTh2cL15nYuzNdCZEZ6cqVNkJkLSgkkevq1rLZknznHZpymYlGCqHYcVsR1kJBcIL+kE/rqxHihOUILEZSstbHD8Ru8NZDieaP+Sz76t0f/3aqWOiJbWPEngofvOSEpdJaiGzoc2m6DTAsmErIZMZgiJ80uztVi/lQIDAQAB";
     private AchievementCallback achievementCallback;
+    private MethodInfo setAchievementStepsMethod;
+    private bool hasResolvedSetAchievementStepsMethod;
     
     void Awake()
     {
@@ -185,6 +188,62 @@ public class TapTapSdk : MonoBehaviour
     public void IncrementAchievement(string achievementId, int step)
     {
         TapTapAchievement.Increment(achievementId : achievementId, step : step);
+    }
+
+    public bool TrySetAchievementSteps(string achievementId, int step)
+    {
+        if (string.IsNullOrEmpty(achievementId) || step < 0)
+        {
+            return false;
+        }
+
+        MethodInfo method = ResolveSetAchievementStepsMethod();
+        if (method == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            method.Invoke(null, new object[] { achievementId, step });
+            return true;
+        }
+        catch (TargetInvocationException exception)
+        {
+            throw exception.InnerException ?? exception;
+        }
+    }
+
+    private MethodInfo ResolveSetAchievementStepsMethod()
+    {
+        if (hasResolvedSetAchievementStepsMethod)
+        {
+            return setAchievementStepsMethod;
+        }
+
+        hasResolvedSetAchievementStepsMethod = true;
+        Type achievementType = typeof(TapTapAchievement);
+        setAchievementStepsMethod =
+            FindStaticAchievementMethod(achievementType, "MakeSteps") ??
+            FindStaticAchievementMethod(achievementType, "SetSteps") ??
+            FindStaticAchievementMethod(achievementType, "makeSteps");
+        return setAchievementStepsMethod;
+    }
+
+    private static MethodInfo FindStaticAchievementMethod(Type achievementType, string methodName)
+    {
+        if (achievementType == null || string.IsNullOrEmpty(methodName))
+        {
+            return null;
+        }
+
+        return achievementType.GetMethod(
+            methodName,
+            BindingFlags.Public | BindingFlags.Static,
+            null,
+            new[] { typeof(string), typeof(int) },
+            null
+        );
     }
 }
 
