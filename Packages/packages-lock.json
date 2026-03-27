@@ -8,7 +8,7 @@
         "com.unity.nuget.newtonsoft-json": "3.0.2",
         "com.unity.test-framework": "1.1.31"
       },
-      "hash": "1000228b2cf10c2351d4340414313d6bf1847f4b"
+      "hash": "c348a3d089e9f61a1319f2e82ceb913aed447ab7"
     },
     "com.google.external-dependency-manager": {
       "version": "1.2.187",

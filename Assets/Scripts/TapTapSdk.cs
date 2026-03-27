@@ -14,6 +14,8 @@ public class TapTapSdk : MonoBehaviour
     /// </summary>
     public static TapTapSdk Instance { get; private set; }
     public static bool IsInitialized { get; private set; }
+    public static event Action<TapAchievementResult> AchievementSucceeded;
+    public static event Action<string, int, string> AchievementFailed;
 
     private const string ClientId = "irmjeyzoxpztwlne5z";
     private const string ClientToken = "kXbnn4wKsOA4Rcd5wPLnEWLIgecN8pW5Dpk6ov2E";
@@ -245,6 +247,16 @@ public class TapTapSdk : MonoBehaviour
             null
         );
     }
+
+    internal static void NotifyAchievementSuccess(TapAchievementResult result)
+    {
+        AchievementSucceeded?.Invoke(result);
+    }
+
+    internal static void NotifyAchievementFailure(string achievementId, int errorCode, string errorMsg)
+    {
+        AchievementFailed?.Invoke(achievementId, errorCode, errorMsg);
+    }
 }
 
 
@@ -257,10 +269,12 @@ class AchievementCallback : ITapAchievementCallback
   
     public void OnAchievementSuccess(int code, TapAchievementResult result)
     {
+        TapTapSdk.NotifyAchievementSuccess(result);
     }
   
     public void OnAchievementFailure(string achievementId, int errorCode, string errorMsg)
     {
+        TapTapSdk.NotifyAchievementFailure(achievementId, errorCode, errorMsg);
 	}
 
 }

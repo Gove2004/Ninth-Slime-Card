@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 public class LoginUI : MonoBehaviour
 {
-    private const string LoginAchievementId = "test";
+    private const string LoginAchievementId = "login";
     public Button loginButton;
     public TextMeshProUGUI loginTipText;
 
@@ -53,22 +53,9 @@ public class LoginUI : MonoBehaviour
 
     private void TryUnlockLoginAchievement()
     {
-        if (AchievementManager.Instance != null)
-        {
-            AchievementManager.Instance.UnlockCustomAchievement(LoginAchievementId);
-            return;
-        }
-
-        if (!TapTapSdk.IsInitialized) return;
-
-        try
-        {
-            TapTapSdk.Instance.IncrementAchievement(LoginAchievementId, 3);
-        }
-        catch (Exception exception)
-        {
-            Debug.LogWarning($"登录成就发放失败：{exception.Message}");
-        }
+        if (AchievementManager.Instance == null) return;
+        if (!AchievementManager.Instance.HasAchievement(LoginAchievementId)) return;
+        AchievementManager.Instance.UnlockCustomAchievement(LoginAchievementId);
     }
 
 

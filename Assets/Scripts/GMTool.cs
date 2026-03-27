@@ -23,8 +23,8 @@ public class GMTool : MonoBehaviour
     private bool wantsImeInput;
     private IMECompositionMode appliedImeCompositionMode = IMECompositionMode.Auto;
     private Vector2 imeCursorScreenPosition;
-    private Rect windowRect = new Rect(10, 10, 260, 470);
-    private const int FullHeight = 470;
+    private Rect windowRect = new Rect(10, 10, 340, 620);
+    private const int FullHeight = 620;
     private const int CollapsedHeight = 70;
     public static bool IsTextInputActive { get; private set; }
 
@@ -107,6 +107,7 @@ public class GMTool : MonoBehaviour
             if (battleManager == null) return;
             var player = battleManager.player;
             var enemy = battleManager.enemy as EnemyBoss;
+            var achievementManager = AchievementManager.Instance;
 
             if (GUILayout.Button(showPanel ? "隐藏" : "显示"))
             {
@@ -131,6 +132,18 @@ public class GMTool : MonoBehaviour
                     GUILayout.Label(message);
                 }
                 return;
+            }
+
+            if (achievementManager != null)
+            {
+                GUILayout.Label("玩家累计统计");
+                GUILayout.BeginVertical("box");
+                GUILayout.Label($"累计造成伤害：{FormatStatValue(achievementManager.TotalScore)}");
+                GUILayout.Label($"累计恢复血量：{FormatStatValue(achievementManager.TotalHeal)}");
+                GUILayout.Label($"累计抽牌：{FormatStatValue(achievementManager.TotalDraw)}");
+                GUILayout.Label($"累计出牌：{FormatStatValue(achievementManager.TotalPlay)}");
+                GUILayout.Label($"累计获得魔力：{FormatStatValue(achievementManager.TotalMana)}");
+                GUILayout.EndVertical();
             }
 
             GUILayout.Label("玩家生命值调整(可负数)");
@@ -310,6 +323,11 @@ public class GMTool : MonoBehaviour
                || controlName == ManaDeltaFieldName
                || controlName == CardIdFieldName
                || controlName == CardNameFieldName;
+    }
+
+    private static string FormatStatValue(ulong value)
+    {
+        return value.ToString("N0");
     }
 }
 
