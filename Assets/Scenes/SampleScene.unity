@@ -4639,7 +4639,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -7309319367163988266, guid: 9264a9d9b180146419bc3128a6119142, type: 3}
+  m_Sprite: {fileID: 6672292119385534245, guid: f513446f39a67ce4aaa1f24e59500c81, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -8868,7 +8868,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -4320295261928297051, guid: aa104094030d4b34ebb1d29e37114227, type: 3}
+  m_Sprite: {fileID: 3019103772139344920, guid: 8db17fce635ab5e45a6ae2a431fb5259, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -10310,7 +10310,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 7578986981128611489, guid: f90ddf55af60a6d4295a25e52e43090a, type: 3}
+  m_Sprite: {fileID: -1598830967234090821, guid: e6cec6af1a775e444b1b6f1a1e8504fd, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -11384,7 +11384,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -4320295261928297051, guid: aa104094030d4b34ebb1d29e37114227, type: 3}
+  m_Sprite: {fileID: 3019103772139344920, guid: 8db17fce635ab5e45a6ae2a431fb5259, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -15257,6 +15257,8 @@ MonoBehaviour:
   cardButtonPrefab: {fileID: 7984355025151876492, guid: 595417190018cfa42b5bc130eac068fe, type: 3}
   cardsParent: {fileID: 634725353}
   playerCardsParent: {fileID: 770652222}
+  oldTipObject: {fileID: 0}
+  playerListObject: {fileID: 0}
   okButton: {fileID: 1676059433}
   cancelButton: {fileID: 851400535}
 --- !u!1 &1885018769

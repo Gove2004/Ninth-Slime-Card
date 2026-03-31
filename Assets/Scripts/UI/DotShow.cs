@@ -22,6 +22,7 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     private static CanvasGroup sharedTooltipCanvasGroup;
     private static Canvas sharedTooltipCanvas;
     private static bool sharedTooltipReady;
+    private static readonly System.Collections.Generic.Dictionary<string, Sprite> IconCache = new();
 
 
     void Awake()
@@ -30,37 +31,18 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         EnsureSharedTooltip();
     }
 
-    void Update()
+    void LateUpdate()
     {
+        if (!isHovered) return;
+
         if (IsTooltipBlocked())
-        {
-            if (isHovered)
-            {
-                isHovered = false;
-                HideTooltip();
-            }
-            return;
-        }
-
-        bool shouldHover = currentDot != null && IsMouseOverSelf();
-        if (shouldHover)
-        {
-            if (!isHovered)
-            {
-                isHovered = true;
-                EnsureSharedTooltip();
-                ShowTooltip();
-            }
-            RefreshTooltipText();
-            UpdateTooltipPosition();
-            return;
-        }
-
-        if (isHovered)
         {
             isHovered = false;
             HideTooltip();
+            return;
         }
+
+        UpdateTooltipPosition();
     }
 
     void OnDisable()
@@ -85,7 +67,11 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
             string displayImagePath = dot.sourceCard.GetDisplayImagePath();
             if (!string.IsNullOrEmpty(displayImagePath))
             {
-                icon = Resources.Load<Sprite>(displayImagePath);
+                if (!IconCache.TryGetValue(displayImagePath, out icon))
+                {
+                    icon = Resources.Load<Sprite>(displayImagePath);
+                    IconCache[displayImagePath] = icon;
+                }
             }
         }
 
@@ -322,19 +308,6 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         Vector3 worldPoint;
         if (!RectTransformUtility.ScreenPointToWorldPointInRectangle(canvasRect, target, cam, out worldPoint)) return;
         sharedTooltipRect.position = worldPoint;
-    }
-
-    private bool IsMouseOverSelf()
-    {
-        if (rootRect == null) return false;
-
-        ResolveSharedTooltipCanvas();
-        Camera cam = null;
-        if (sharedTooltipCanvas != null && sharedTooltipCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
-        {
-            cam = sharedTooltipCanvas.worldCamera;
-        }
-        return RectTransformUtility.RectangleContainsScreenPoint(rootRect, Input.mousePosition, cam);
     }
 
     private static bool IsTooltipBlocked()

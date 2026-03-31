@@ -1,7 +1,6 @@
 
 using DG.Tweening;
 using TMPro;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -32,6 +31,8 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private readonly Color mirageNameColor = new(0.72f, 0.92f, 1f, 1f);
     private readonly Color mirageCostColor = new(0.75f, 0.96f, 1f, 1f);
     private readonly Color mirageImageColor = new(0.78f, 0.9f, 1f, 1f);
+    private readonly Vector3[] tooltipCorners = new Vector3[4];
+    private static readonly System.Collections.Generic.Dictionary<string, Sprite> CardSpriteCache = new();
     
     private bool dragging;
     public bool IsDragging => dragging; // Public property for CardList to access
@@ -158,11 +159,10 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         Camera cam = null;
         if (_parentCanvas.renderMode != RenderMode.ScreenSpaceOverlay) cam = _parentCanvas.worldCamera;
 
-        Vector3[] corners = new Vector3[4];
-        tooltipRect.GetWorldCorners(corners);
+        tooltipRect.GetWorldCorners(tooltipCorners);
 
-        Vector2 bottomLeft = RectTransformUtility.WorldToScreenPoint(cam, corners[0]);
-        Vector2 topRight = RectTransformUtility.WorldToScreenPoint(cam, corners[2]);
+        Vector2 bottomLeft = RectTransformUtility.WorldToScreenPoint(cam, tooltipCorners[0]);
+        Vector2 topRight = RectTransformUtility.WorldToScreenPoint(cam, tooltipCorners[2]);
 
         float shiftX = 0;
 
@@ -219,7 +219,19 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     {
         try
         {
-            image.sprite = Resources.Load<Sprite>(imagePath);
+            if (string.IsNullOrEmpty(imagePath))
+            {
+                image.sprite = null;
+                return;
+            }
+
+            if (!CardSpriteCache.TryGetValue(imagePath, out var sprite))
+            {
+                sprite = Resources.Load<Sprite>(imagePath);
+                CardSpriteCache[imagePath] = sprite;
+            }
+
+            image.sprite = sprite;
         }
         catch
         {
@@ -373,7 +385,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         dragging = false;
         var player = BattleManager.Instance?.player as Player;
-        bool canPlay = player != null && player.isReady && cardData != null && cardData.Cost <= player.mana;
+        bool canPlay = player != null && player.CanUseTurnActions && cardData != null && cardData.Cost <= player.mana;
         
         // Improved validation: Check if card is dragged high enough (e.g., > 150 pixels above original position or specific screen Y threshold)
         // Using a threshold relative to screen height is often safer for different resolutions.

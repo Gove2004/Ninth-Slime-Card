@@ -3,6 +3,7 @@ using UnityEngine;
 
 public static class CardFactory
 {
+    private const int InitialPlayerDeckSize = 10;
     private static readonly Dictionary<string, System.Func<BaseCard>> cardFactories = new()
     {
         { nameof(流血), () => new 流血() },
@@ -51,14 +52,12 @@ public static class CardFactory
         { nameof(奇点), () => new 奇点() },
         { nameof(传送), () => new 传送() }
     };
-    private static readonly List<string> allCardKeys = new(cardFactories.Keys);
-    private static readonly string[] initialPlayerDeckKeys =
+    private static readonly HashSet<string> disabledCardKeys = new()
     {
-        nameof(流血), nameof(流血), nameof(流血),
-        nameof(恢复), nameof(恢复), nameof(恢复),
-        nameof(入魔), nameof(入魔),
-        nameof(抽牌), nameof(抽牌)
+        nameof(色欲)
     };
+    private static readonly List<string> allCardKeys = new(cardFactories.Keys);
+    private static readonly List<string> enabledCardKeys = CreateEnabledCardKeys();
     private static readonly string[] initialEnemyDeckKeys =
     {
         nameof(流血),
@@ -72,13 +71,28 @@ public static class CardFactory
         nameof(入魔)
     };
     private static readonly List<BaseCard> allCards = CreateAllCards();
-    private static List<BaseCard> playerDeck = CreateDeck(initialPlayerDeckKeys);
+    private static List<BaseCard> playerDeck = CreateRandomDeck(InitialPlayerDeckSize, enabledCardKeys);
     private static List<BaseCard> enemyDeck = CreateDeck(initialEnemyDeckKeys);
 
     private static BaseCard CreateCardInstance(string cardName)
     {
         if (string.IsNullOrWhiteSpace(cardName)) return null;
+        if (disabledCardKeys.Contains(cardName)) return null;
         return cardFactories.TryGetValue(cardName, out var factory) ? factory() : null;
+    }
+
+    private static List<string> CreateEnabledCardKeys()
+    {
+        List<string> keys = new();
+        foreach (string cardKey in allCardKeys)
+        {
+            if (!disabledCardKeys.Contains(cardKey))
+            {
+                keys.Add(cardKey);
+            }
+        }
+
+        return keys;
     }
 
     private static List<BaseCard> CreateAllCards()
@@ -103,6 +117,21 @@ public static class CardFactory
         return deck;
     }
 
+    private static List<BaseCard> CreateRandomDeck(int count, IReadOnlyList<string> cardKeys)
+    {
+        List<BaseCard> deck = new(Mathf.Max(0, count));
+        if (cardKeys == null || cardKeys.Count == 0 || count <= 0) return deck;
+
+        for (int i = 0; i < count; i++)
+        {
+            string cardKey = cardKeys[Random.Range(0, cardKeys.Count)];
+            BaseCard card = CreateCardInstance(cardKey);
+            if (card != null) deck.Add(card);
+        }
+
+        return deck;
+    }
+
 
     /// <summary>
     /// 获取指定名称的卡牌
@@ -122,9 +151,9 @@ public static class CardFactory
     /// <returns></returns>
     public static BaseCard GetRandomCard()
     {
-        if (allCardKeys.Count == 0) return null;
-        int index = Random.Range(0, allCardKeys.Count);
-        return CreateCardInstance(allCardKeys[index]);
+        if (enabledCardKeys.Count == 0) return null;
+        int index = Random.Range(0, enabledCardKeys.Count);
+        return CreateCardInstance(enabledCardKeys[index]);
     }
 
     private static HashSet<string> GetEnemyBannedCards()
@@ -146,7 +175,7 @@ public static class CardFactory
         
         var bannedCards = GetEnemyBannedCards();
         var validCardKeys = new List<string>();
-        foreach (string cardKey in allCardKeys)
+        foreach (string cardKey in enabledCardKeys)
         {
             if (!bannedCards.Contains(cardKey))
             {
@@ -165,7 +194,7 @@ public static class CardFactory
         if (playerDeck.Count == 0) return null;
         int index = Random.Range(0, playerDeck.Count);
         var card = playerDeck[index];
-        return CreateCardInstance(card.Name);
+        return CardRuntimeHelper.CloneCardState(card);
     }
 
     // 用一张卡牌替换其中一张
@@ -176,12 +205,18 @@ public static class CardFactory
         playerDeck[index] = newCard;
     }
 
+    public static void AddCardToPlayerDeck(BaseCard card)
+    {
+        if (card == null) return;
+        playerDeck.Add(card);
+    }
+
     /// <summary>
     /// 重置玩家牌组为初始状态
     /// </summary>
     public static void ResetPlayerDeck()
     {
-        playerDeck = CreateDeck(initialPlayerDeckKeys);
+        playerDeck = CreateRandomDeck(InitialPlayerDeckSize, enabledCardKeys);
     }
 
     // 获取玩家牌组
@@ -197,7 +232,7 @@ public static class CardFactory
         if (enemyDeck.Count == 0) return null;
         int index = Random.Range(0, enemyDeck.Count);
         var card = enemyDeck[index];
-        return CreateCardInstance(card.Name);
+        return CardRuntimeHelper.CloneCardState(card);
     }
 
     public static List<BaseCard> GetDeckSnapshot(BaseCharacter character)
@@ -207,9 +242,21 @@ public static class CardFactory
         foreach (var card in sourceDeck)
         {
             if (card == null) continue;
-            BaseCard clone = CreateCardInstance(card.Name);
+            BaseCard clone = CardRuntimeHelper.CloneCardState(card);
             if (clone != null) result.Add(clone);
         }
+        return result;
+    }
+
+    public static List<BaseCard> GetShuffledDeckSnapshot(BaseCharacter character)
+    {
+        List<BaseCard> result = GetDeckSnapshot(character);
+        for (int i = result.Count - 1; i > 0; i--)
+        {
+            int swapIndex = Random.Range(0, i + 1);
+            (result[i], result[swapIndex]) = (result[swapIndex], result[i]);
+        }
+
         return result;
     }
 

@@ -35,8 +35,25 @@ public class HUD : MonoBehaviour
     private BaseCharacter lastEnemyInstance;
     private ulong lastPlayerHealth;
     private bool hasLastPlayerHealth;
+    private ulong lastPlayerShield;
+    private bool hasLastPlayerShield;
+    private ulong lastPlayerMana;
+    private bool hasLastPlayerMana;
+    private string lastPlayerHpText;
+    private string lastPlayerShieldText;
+    private string lastPlayerManaText;
     private ulong lastEnemyHealth;
     private bool hasLastEnemyHealth;
+    private ulong lastEnemyShield;
+    private bool hasLastEnemyShield;
+    private ulong lastEnemyMana;
+    private bool hasLastEnemyMana;
+    private ulong lastEnemyScore;
+    private bool hasLastEnemyScore;
+    private string lastEnemyHpText;
+    private string lastEnemyShieldText;
+    private string lastEnemyManaText;
+    private bool? lastEnemyEndlessState;
     private Sequence playerManaPulseSequence;
     private Sequence playerHpPulseSequence;
     private Sequence enemyHpPulseSequence;
@@ -126,18 +143,42 @@ public class HUD : MonoBehaviour
             {
                 lastPlayerInstance = player;
                 hasLastPlayerHealth = false;
+                hasLastPlayerShield = false;
+                hasLastPlayerMana = false;
+                lastPlayerHpText = null;
+                lastPlayerShieldText = null;
+                lastPlayerManaText = null;
             }
             if (enemy != lastEnemyInstance)
             {
                 lastEnemyInstance = enemy;
                 hasLastEnemyHealth = false;
+                hasLastEnemyShield = false;
+                hasLastEnemyMana = false;
+                hasLastEnemyScore = false;
+                lastEnemyHpText = null;
+                lastEnemyShieldText = null;
+                lastEnemyManaText = null;
+                lastEnemyEndlessState = null;
             }
 
             if (player != null)
             {
-                playerHPText.text = $"{player.health}";
-                playerSPText.text = $"SP={player.shiled}";
-                playerMPText.text = $"{player.mana}";
+                if (!hasLastPlayerHealth || player.health != lastPlayerHealth)
+                {
+                    lastPlayerHpText = player.health.ToString();
+                    SetTextIfChanged(playerHPText, lastPlayerHpText);
+                }
+                if (!hasLastPlayerShield || player.shiled != lastPlayerShield)
+                {
+                    lastPlayerShieldText = $"SP={player.shiled}";
+                    SetTextIfChanged(playerSPText, lastPlayerShieldText);
+                }
+                if (!hasLastPlayerMana || player.mana != lastPlayerMana)
+                {
+                    lastPlayerManaText = player.mana.ToString();
+                    SetTextIfChanged(playerMPText, lastPlayerManaText);
+                }
 
                 if (hasLastPlayerHealth && player.health != lastPlayerHealth)
                 {
@@ -145,6 +186,10 @@ public class HUD : MonoBehaviour
                 }
                 lastPlayerHealth = player.health;
                 hasLastPlayerHealth = true;
+                lastPlayerShield = player.shiled;
+                hasLastPlayerShield = true;
+                lastPlayerMana = player.mana;
+                hasLastPlayerMana = true;
 
                 if (pendingManaGainEffect)
                 {
@@ -159,18 +204,50 @@ public class HUD : MonoBehaviour
             {
                 EnemyBoss enemyBoss = enemy as EnemyBoss;
                 bool isEndless = enemyBoss != null && enemyBoss.IsEndlessMode;
+                if (!lastEnemyEndlessState.HasValue || lastEnemyEndlessState.Value != isEndless)
+                {
+                    if (isEndless)
+                    {
+                        RestoreEnemyHpStyle();
+                    }
+                    else
+                    {
+                        ApplyEnemyHpStyleForNonEndless();
+                    }
+
+                    lastEnemyEndlessState = isEndless;
+                }
+
                 if (isEndless)
                 {
-                    RestoreEnemyHpStyle();
-                    enemyHPText.text = FormatEnemyHpWithShield(enemyBoss.score, enemy.shiled);
+                    if (!hasLastEnemyScore || enemyBoss.score != lastEnemyScore || !hasLastEnemyShield || enemy.shiled != lastEnemyShield)
+                    {
+                        lastEnemyHpText = FormatEnemyHpWithShield(enemyBoss.score, enemy.shiled);
+                        SetTextIfChanged(enemyHPText, lastEnemyHpText);
+                    }
+                    lastEnemyScore = enemyBoss.score;
+                    hasLastEnemyScore = true;
                 }
                 else
                 {
-                    ApplyEnemyHpStyleForNonEndless();
-                    enemyHPText.text = FormatEnemyHpWithShield(enemy.health, enemy.shiled);
+                    if (!hasLastEnemyHealth || enemy.health != lastEnemyHealth || !hasLastEnemyShield || enemy.shiled != lastEnemyShield)
+                    {
+                        lastEnemyHpText = FormatEnemyHpWithShield(enemy.health, enemy.shiled);
+                        SetTextIfChanged(enemyHPText, lastEnemyHpText);
+                    }
+                    hasLastEnemyScore = false;
                 }
-                enemySPText.text = $"SP={enemy.shiled}";
-                enemyMPText.text = $"MP={enemy.mana}";
+
+                if (!hasLastEnemyShield || enemy.shiled != lastEnemyShield)
+                {
+                    lastEnemyShieldText = $"SP={enemy.shiled}";
+                    SetTextIfChanged(enemySPText, lastEnemyShieldText);
+                }
+                if (!hasLastEnemyMana || enemy.mana != lastEnemyMana)
+                {
+                    lastEnemyManaText = $"MP={enemy.mana}";
+                    SetTextIfChanged(enemyMPText, lastEnemyManaText);
+                }
 
                 if (hasLastEnemyHealth && enemy.health != lastEnemyHealth)
                 {
@@ -178,6 +255,10 @@ public class HUD : MonoBehaviour
                 }
                 lastEnemyHealth = enemy.health;
                 hasLastEnemyHealth = true;
+                lastEnemyShield = enemy.shiled;
+                hasLastEnemyShield = true;
+                lastEnemyMana = enemy.mana;
+                hasLastEnemyMana = true;
             }
         }
     }
@@ -259,6 +340,12 @@ public class HUD : MonoBehaviour
     {
         if (shieldValue == 0) return hpValue.ToString();
         return $"<color=#9AA0AA><size=70%>{shieldValue}+</size></color> {hpValue}";
+    }
+
+    private static void SetTextIfChanged(TextMeshProUGUI textComponent, string value)
+    {
+        if (textComponent == null || textComponent.text == value) return;
+        textComponent.text = value;
     }
 
     private void OnDestroy()

@@ -8,6 +8,12 @@ using UnityEngine.UI;
 public class AchievementToast : MonoBehaviour
 {
     private static AchievementToast instance;
+    private sealed class ToastInfo
+    {
+        public string title;
+        public string name;
+        public string description;
+    }
 
     public static void EnsureInstance()
     {
@@ -50,7 +56,16 @@ public class AchievementToast : MonoBehaviour
         }
     }
 
-    private readonly Queue<AchievementManager.AchievementUnlockedInfo> queue = new();
+    public static void ShowSystemMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return;
+        EnsureInstance();
+        if (instance == null) return;
+
+        instance.EnqueueToast("系统提示", "", message);
+    }
+
+    private readonly Queue<ToastInfo> queue = new();
     private Action onUnlockedUnsub;
 
     private RectTransform panel;
@@ -87,11 +102,7 @@ public class AchievementToast : MonoBehaviour
     private void OnAchievementUnlocked(AchievementManager.AchievementUnlockedInfo info)
     {
         if (info == null) return;
-        queue.Enqueue(info);
-        if (!isShowing)
-        {
-            StartCoroutine(PlayQueue());
-        }
+        EnqueueToast("成就达成", info.name, info.description);
     }
 
     private IEnumerator PlayQueue()
@@ -106,11 +117,14 @@ public class AchievementToast : MonoBehaviour
         isShowing = false;
     }
 
-    private void ShowText(AchievementManager.AchievementUnlockedInfo info)
+    private void ShowText(ToastInfo info)
     {
-        titleText.text = "成就达成";
-        nameText.text = info.name;
-        descText.text = info.description;
+        titleText.text = info?.title ?? "";
+        nameText.text = info?.name ?? "";
+        descText.text = info?.description ?? "";
+        bool hasName = !string.IsNullOrWhiteSpace(info?.name);
+        if (nameText != null) nameText.gameObject.SetActive(hasName);
+        if (descText != null) descText.gameObject.SetActive(!string.IsNullOrWhiteSpace(info?.description));
     }
 
     private IEnumerator AnimateToast()
@@ -214,8 +228,23 @@ public class AchievementToast : MonoBehaviour
         text.fontStyle = style;
         text.color = color;
         text.raycastTarget = false;
-        text.textWrappingMode = TextWrappingModes.NoWrap;
-        text.overflowMode = TextOverflowModes.Ellipsis;
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.overflowMode = TextOverflowModes.Overflow;
         return text;
+    }
+
+    private void EnqueueToast(string title, string name, string description)
+    {
+        queue.Enqueue(new ToastInfo
+        {
+            title = title ?? "",
+            name = name ?? "",
+            description = description ?? ""
+        });
+
+        if (!isShowing)
+        {
+            StartCoroutine(PlayQueue());
+        }
     }
 }

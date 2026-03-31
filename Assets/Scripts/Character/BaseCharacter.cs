@@ -16,10 +16,9 @@ public abstract class BaseCharacter
     public bool IsInTurn { get; private set; }
     private bool immuneThisTurn = false;
     private bool immuneSelfDamage = false;
-    private ulong overclockMultiplier = 1;
+    private ulong cardNumberScaleNumerator = 1;
+    private ulong cardNumberScaleDenominator = 1;
     protected int extraCardDuration = 0;
-    private ulong drawCountThisTurn = 0;
-    private const ulong MaxDrawCostPerTurn = 5;
     private float damageTakenMultiplier = 1f;
     private static int reflectDamageContextDepth = 0;
     private static readonly List<string> nestedTriggerCardNames = new();
@@ -65,8 +64,6 @@ public abstract class BaseCharacter
 
         IsInTurn = true;
         immuneThisTurn = false;
-        drawCountThisTurn = 0;
-
         shiled = SaturatingSub(shiled, 3);  // 另一个方案是每回合衰减3
 
         // Async Apply Dots
@@ -377,14 +374,12 @@ public abstract class BaseCharacter
     public void ApplyOverclock(ulong factor)
     {
         if (factor == 1) return;
-        overclockMultiplier = SaturatingMultiply(overclockMultiplier, factor);
+        ApplyCardNumberScale(factor, 1UL);
+    }
 
-
-        // 新的超频只对玩家手牌生效
-        foreach (var card in Cards)
-        {
-            card.MultiplyNumbers(factor);
-        }
+    public void ApplyDownclock()
+    {
+        ApplyCardNumberScale(1UL, 2UL);
     }
 
     public void AddGlobalDurationBonus(int amount)
@@ -396,9 +391,9 @@ public abstract class BaseCharacter
     private void ApplyBuffsToCard(BaseCard card)
     {
         if (card == null) return;
-        if (overclockMultiplier != 1)
+        if (cardNumberScaleNumerator != cardNumberScaleDenominator)
         {
-            // card.MultiplyNumbers(overclockMultiplier);  // // 新的超频只对玩家手牌生
+            card.ScaleNumbers(cardNumberScaleNumerator, cardNumberScaleDenominator);
         }
         if (extraCardDuration != 0)
         {
@@ -426,6 +421,10 @@ public abstract class BaseCharacter
         if (IsHandFull) return null;
         BaseCard newCard = this is Player ? CardFactory.GetRandomCard() : CardFactory.GetRandomEnemyCard();
         if (newCard == null) return null;
+        if (this is Player)
+        {
+            newCard = CardRuntimeHelper.PreparePlayerAcquiredCard(newCard);
+        }
         ApplyBuffsToCard(newCard);
         newCard.SetOwningCharacter(this);
         Cards.Add(newCard);
@@ -442,6 +441,10 @@ public abstract class BaseCharacter
     {
         if (card == null) return;
         if (IsHandFull) return;
+        if (this is Player)
+        {
+            card = CardRuntimeHelper.PreparePlayerAcquiredCard(card);
+        }
         ApplyBuffsToCard(card);
         card.SetOwningCharacter(this);
         Cards.Add(card);
@@ -452,12 +455,6 @@ public abstract class BaseCharacter
 
     public BaseCard DrawCard(ulong cost = 1)
     {
-        bool useProgressiveCost = cost == 1;
-        if (useProgressiveCost)
-        {
-            cost = GetCurrentDrawCardCost();
-        }
-
         if (IsHandFull) return null;
         if (mana < cost) return null;  // 抽卡需要消耗法力值
         ChangeMana(-(long)Math.Min(cost, (ulong)long.MaxValue));  // 抽卡消耗指定点法力值
@@ -482,18 +479,12 @@ public abstract class BaseCharacter
         if (this is Player) EventCenter.Publish(GameEvents.PlayerCardDrawnToHand, drawContext);
         NotifyHandChanged();
 
-        if (useProgressiveCost)
-        {
-            drawCountThisTurn = SaturatingAdd(drawCountThisTurn, 1);
-        }
-
         return baseCard;
     }
 
     public ulong GetCurrentDrawCardCost()
     {
-        if (drawCountThisTurn >= MaxDrawCostPerTurn) return MaxDrawCostPerTurn;
-        return drawCountThisTurn;
+        return 1UL;
     }
 
     public void PlayCard(BaseCard card)
@@ -523,6 +514,7 @@ public abstract class BaseCharacter
             ActiveCardContext = card;
             card.Execute(this, Target);
             ActiveCardContext = previousContext;
+            CardRuntimeHelper.TryTriggerPlayerJail(this, card);
             TransformRepriseCardsInHand(card);
 
             EventCenter.Publish(GameEvents.BattleCardResolved, playContext);
@@ -577,6 +569,41 @@ public abstract class BaseCharacter
         if (value >= 0) return (ulong)value;
         if (value == long.MinValue) return (ulong)long.MaxValue + 1UL;
         return (ulong)(-value);
+    }
+
+    private void ApplyCardNumberScale(ulong numerator, ulong denominator)
+    {
+        if (denominator == 0UL) return;
+        if (numerator == denominator) return;
+
+        cardNumberScaleNumerator = SaturatingMultiply(cardNumberScaleNumerator, numerator);
+        cardNumberScaleDenominator = SaturatingMultiply(cardNumberScaleDenominator, denominator);
+        ReduceCardNumberScale();
+
+        foreach (var card in Cards)
+        {
+            card.ScaleNumbers(numerator, denominator);
+        }
+    }
+
+    private void ReduceCardNumberScale()
+    {
+        ulong gcd = GreatestCommonDivisor(cardNumberScaleNumerator, cardNumberScaleDenominator);
+        if (gcd <= 1UL) return;
+        cardNumberScaleNumerator /= gcd;
+        cardNumberScaleDenominator /= gcd;
+    }
+
+    private static ulong GreatestCommonDivisor(ulong left, ulong right)
+    {
+        while (right != 0UL)
+        {
+            ulong remainder = left % right;
+            left = right;
+            right = remainder;
+        }
+
+        return left == 0UL ? 1UL : left;
     }
 
     public void RemoveCard(BaseCard card)

@@ -5,6 +5,17 @@ using static CardNumberUtil;
 
 public static class CardRuntimeHelper
 {
+    private const float PlayerDownclockChance = 0.15f;
+    private const float JailChance = 0.07f;
+    private const float BattleSpeedStep = 0.1f;
+    private static readonly HashSet<string> JailRiskCardNames = new()
+    {
+        "七罪", "暴怒", "傲慢", "嫉妒", "贪婪", "懒惰", "暴食",
+        "种子", "骰子", "命签", "运势", "赌徒", "轮盘",
+        "偷窃", "偷魔", "偷月"
+    };
+    private static readonly List<BaseCard> pendingTeleportedHand = new();
+
     public static void DiscardAllCards(BaseCharacter user)
     {
         if (user == null || user.Cards.Count == 0) return;
@@ -44,7 +55,7 @@ public static class CardRuntimeHelper
         BaseCard clone;
         if (source is 重奏 sourceReprise)
         {
-            重奏 cloneReprise = CardFactory.GetThisCard(source.Name) as 重奏;
+            重奏 cloneReprise = Activator.CreateInstance(source.GetType()) as 重奏;
             if (cloneReprise == null) return null;
             BaseCard mirrored = sourceReprise.GetMirroredCard();
             if (mirrored != null)
@@ -59,14 +70,112 @@ public static class CardRuntimeHelper
         }
         else
         {
-            clone = CardFactory.GetThisCard(source.Name);
+            clone = Activator.CreateInstance(source.GetType()) as BaseCard;
         }
         if (clone == null) return null;
         clone.SetCost(source.Cost);
         clone.SetValue(source.Value);
         clone.SetDuration(source.Duration);
         if (source.IsStolenFromOpponent) clone.MarkStolenFromOpponent();
+        if (source.PlayerAcquisitionMutationResolved) clone.MarkPlayerAcquisitionMutationResolved();
         return clone;
+    }
+
+    public static BaseCard PreparePlayerAcquiredCard(BaseCard card)
+    {
+        if (card == null) return null;
+        if (card.PlayerAcquisitionMutationResolved) return card;
+        if (card is 降频) return card;
+        if (card is not 超频)
+        {
+            card.MarkPlayerAcquisitionMutationResolved();
+            return card;
+        }
+        if (UnityEngine.Random.value >= PlayerDownclockChance)
+        {
+            card.MarkPlayerAcquisitionMutationResolved();
+            return card;
+        }
+
+        BaseCard downclock = new 降频();
+        downclock.SetCost(card.Cost);
+        downclock.SetValue(card.Value);
+        downclock.SetDuration(card.Duration);
+        if (card.IsStolenFromOpponent) downclock.MarkStolenFromOpponent();
+        downclock.MarkPlayerAcquisitionMutationResolved();
+        return downclock;
+    }
+
+    public static bool TryTriggerPlayerJail(BaseCharacter user, BaseCard sourceCard)
+    {
+        if (user is not Player player) return false;
+        if (sourceCard == null || string.IsNullOrEmpty(sourceCard.Name)) return false;
+        if (!JailRiskCardNames.Contains(sourceCard.Name)) return false;
+        if (UnityEngine.Random.value >= JailChance) return false;
+
+        player.SendToJail();
+        if (DamageEffectManager.Instance != null && DamageEffectManager.Instance.playerTransform != null)
+        {
+            DamageEffectManager.Instance.ShowFloatingText(DamageEffectManager.Instance.playerTransform, "进监狱了", Color.gray);
+        }
+        return true;
+    }
+
+    public static void AdjustBattleSpeed(float delta)
+    {
+        float targetSpeed = Mathf.Clamp(GameSettings.SettlementSpeed + delta, 0.1f, 3f);
+        GameSettings.SetSettlementSpeed(targetSpeed);
+    }
+
+    public static void TeleportHandToNextBattle(BaseCharacter user)
+    {
+        pendingTeleportedHand.Clear();
+        if (user == null) return;
+
+        foreach (BaseCard card in user.Cards)
+        {
+            BaseCard clone = CloneCardState(card);
+            if (clone != null)
+            {
+                pendingTeleportedHand.Add(clone);
+            }
+        }
+
+        ReplaceHand(user, new List<BaseCard>());
+    }
+
+    public static void ApplyTeleportedHand(Player player)
+    {
+        if (player == null || pendingTeleportedHand.Count == 0) return;
+
+        foreach (BaseCard card in pendingTeleportedHand)
+        {
+            BaseCard clone = CloneCardState(card);
+            if (clone != null)
+            {
+                player.GainCard(clone);
+            }
+        }
+
+        pendingTeleportedHand.Clear();
+    }
+
+    public static List<BaseCharacter> GetAffectedCharacters(BaseCharacter user, BaseCharacter target = null)
+    {
+        var characters = new List<BaseCharacter>();
+        if (BattleManager.Instance != null)
+        {
+            if (BattleManager.Instance.player != null) characters.Add(BattleManager.Instance.player);
+            if (BattleManager.Instance.enemy != null && !characters.Contains(BattleManager.Instance.enemy))
+            {
+                characters.Add(BattleManager.Instance.enemy);
+            }
+        }
+
+        if (user != null && !characters.Contains(user)) characters.Add(user);
+        if (target != null && !characters.Contains(target)) characters.Add(target);
+        if (user?.Target != null && !characters.Contains(user.Target)) characters.Add(user.Target);
+        return characters;
     }
 
     public static void ReplaceHand(BaseCharacter user, List<BaseCard> cards)
@@ -232,15 +341,15 @@ public class 加速 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (Duration <= 0) return;
+        CardRuntimeHelper.AdjustBattleSpeed(0.1f);
         ulong startDamage = Value;
-        ulong growth = BaseCharacter.SaturatingMultiply(Value, 2);
 
         Dot dot = null;
         dot = new Dot(user, target, Duration, d =>
         {
             d.source.DealDamage(d.target, startDamage);
-            startDamage = BaseCharacter.SaturatingAdd(startDamage, growth);
-        }, null, () => $"每回合造成递增伤害，当前{startDamage}点，剩余{dot.duration}回合");
+            startDamage = BaseCharacter.SaturatingMultiply(startDamage, 2UL);
+        }, null, () => $"每回合造成翻倍伤害，当前{startDamage}点，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
@@ -255,9 +364,13 @@ public class 延续 : BaseCard
         int add = ToInt(Value);
         if (add == 0) return;
 
-        foreach (var dot in user.dotBar)
+        foreach (var character in CardRuntimeHelper.GetAffectedCharacters(user, target))
         {
-            dot.duration += add;
+            character.AddGlobalDurationBonus(add);
+            foreach (var dot in character.dotBar)
+            {
+                dot.duration += add;
+            }
         }
     }
 }
@@ -270,7 +383,31 @@ public class 超频 : BaseCard
     {
         ulong factor = Value;
         if (factor <= 1) return;
-        user.ApplyOverclock(factor);
+        foreach (var character in CardRuntimeHelper.GetAffectedCharacters(user, target))
+        {
+            character.ApplyOverclock(factor);
+        }
+    }
+}
+
+public class 降频 : 超频
+{
+    public override string GetDisplayName()
+    {
+        return "降频";
+    }
+
+    public override string GetDynamicDescription()
+    {
+        return "使所有卡牌的魔力消耗和数值减半";
+    }
+
+    public override void Execute(BaseCharacter user, BaseCharacter target)
+    {
+        foreach (var character in CardRuntimeHelper.GetAffectedCharacters(user, target))
+        {
+            character.ApplyDownclock();
+        }
     }
 }
 
@@ -379,7 +516,7 @@ public class 重奏 : BaseCard
 public class 七罪 : BaseCard
 {
     protected override int id => 1200;
-    private static readonly string[] SinNames = { "暴怒", "傲慢", "嫉妒", "贪婪", "懒惰", "色欲", "暴食" };
+    private static readonly string[] SinNames = { "暴怒", "傲慢", "嫉妒", "贪婪", "懒惰", "暴食" };
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
@@ -544,6 +681,7 @@ public class 懒惰 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
+        CardRuntimeHelper.AdjustBattleSpeed(-0.1f);
         ulong spend = user.mana < Value ? user.mana : Value;
         if (spend == 0)
         {
@@ -567,22 +705,7 @@ public class 色欲 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        int addDuration = ToInt(Value);
-        if (addDuration <= 0 || BattleManager.Instance == null) return;
-        var player = BattleManager.Instance.player;
-        var enemy = BattleManager.Instance.enemy;
-        if (player == null || enemy == null) return;
-
-        List<Dot> allDots = new();
-        allDots.AddRange(player.dotBar);
-        allDots.AddRange(enemy.dotBar);
-        if (allDots.Count == 0) return;
-
-        Dot randomDot = allDots[UnityEngine.Random.Range(0, allDots.Count)];
-        if (randomDot != null)
-        {
-            randomDot.duration += addDuration;
-        }
+        return;
     }
 }
 
@@ -820,10 +943,17 @@ public class 献祭 : BaseCard
             ulong damage = BaseCharacter.SaturatingAdd(baseValue, sacrificeBonus);
             d.source.DealDamage(d.source, damage);
             if (d.target != null && !ReferenceEquals(d.target, d.source)) d.source.DealDamage(d.target, damage);
-            sacrificeBonus = BaseCharacter.SaturatingAdd(sacrificeBonus, 1);
-        }, null, () => $"每回合对双方造成{CurrentDamage}点伤害（献祭永久+1），剩余{dot.duration}回合");
+            sacrificeBonus = GetNextDoubledBonus(baseValue, sacrificeBonus);
+        }, null, () => $"每回合对双方造成{CurrentDamage}点伤害（献祭永久翻倍），剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
+    }
+
+    private static ulong GetNextDoubledBonus(ulong baseValue, ulong currentBonus)
+    {
+        ulong currentDamage = BaseCharacter.SaturatingAdd(baseValue, currentBonus);
+        ulong doubledDamage = BaseCharacter.SaturatingMultiply(currentDamage, 2UL);
+        return BaseCharacter.SaturatingSub(doubledDamage, baseValue);
     }
 }
 
@@ -1240,14 +1370,14 @@ public class 激光 : BaseCard
         return IsPlayerCharacter(character) ? playerBonusDamage : enemyBonusDamage;
     }
 
-    private static void IncreaseBonusForCharacter(BaseCharacter character)
+    private static void IncreaseBonusForCharacter(BaseCharacter character, ulong baseValue)
     {
         if (IsPlayerCharacter(character))
         {
-            playerBonusDamage = BaseCharacter.SaturatingAdd(playerBonusDamage, 1);
+            playerBonusDamage = GetNextDoubledBonus(baseValue, playerBonusDamage);
             return;
         }
-        enemyBonusDamage = BaseCharacter.SaturatingAdd(enemyBonusDamage, 1);
+        enemyBonusDamage = GetNextDoubledBonus(baseValue, enemyBonusDamage);
     }
 
     private ulong GetDisplayDamage()
@@ -1268,7 +1398,14 @@ public class 激光 : BaseCard
     {
         ulong damage = BaseCharacter.SaturatingAdd(Value, GetBonusForCharacter(user));
         user.DealDamage(target, damage);
-        IncreaseBonusForCharacter(user);
+        IncreaseBonusForCharacter(user, Value);
+    }
+
+    private static ulong GetNextDoubledBonus(ulong baseValue, ulong currentBonus)
+    {
+        ulong currentDamage = BaseCharacter.SaturatingAdd(baseValue, currentBonus);
+        ulong doubledDamage = BaseCharacter.SaturatingMultiply(currentDamage, 2UL);
+        return BaseCharacter.SaturatingSub(doubledDamage, baseValue);
     }
 }
 
@@ -1283,7 +1420,7 @@ public class 视界 : BaseCard
         if (effectTarget == null) return;
 
         List<BaseCard> originalHand = new List<BaseCard>(user.Cards);
-        List<BaseCard> replacedHand = CardFactory.GetDeckSnapshot(effectTarget);
+        List<BaseCard> replacedHand = CardFactory.GetShuffledDeckSnapshot(effectTarget);
         CardRuntimeHelper.ReplaceHand(user, replacedHand);
 
         int remainingPlays = ToInt(Value);
@@ -1329,37 +1466,8 @@ public class 奇点 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        ulong resetValue = Value;
-        var characters = new List<BaseCharacter>();
-        if (BattleManager.Instance != null)
-        {
-            if (BattleManager.Instance.player != null) characters.Add(BattleManager.Instance.player);
-            if (BattleManager.Instance.enemy != null) characters.Add(BattleManager.Instance.enemy);
-        }
-        else
-        {
-            if (user != null) characters.Add(user);
-            if (target != null && !ReferenceEquals(target, user)) characters.Add(target);
-        }
-
-        foreach (var character in characters)
-        {
-            SetManaExact(character, resetValue);
-            character.autoManaPerTurn = resetValue;
-        }
-    }
-
-    private static void SetManaExact(BaseCharacter character, ulong value)
-    {
-        if (character == null) return;
-        if (character.mana == value) return;
-        if (character.mana > value)
-        {
-            character.ChangeMana(NegToLong(character.mana - value));
-            return;
-        }
-
-        character.ChangeMana(ToLong(value - character.mana));
+        if (BattleManager.Instance == null) return;
+        BattleManager.Instance.RestartBattleSoon();
     }
 }
 
@@ -1370,36 +1478,7 @@ public class 传送 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (user == null) return;
-        int copiesPerTurn = ToInt(Value);
-        if (copiesPerTurn <= 0) return;
-
-        List<BaseCard> storedHand = new List<BaseCard>(user.Cards);
-        CardRuntimeHelper.ReplaceHand(user, new List<BaseCard>());
-        if (storedHand.Count == 0) return;
-
-        int delay = 3;
-        int sustain = 3;
-        int totalDuration = delay + sustain;
-        Dot dot = null;
-        dot = new Dot(user, user, totalDuration, d =>
-        {
-            if (delay > 0)
-            {
-                delay--;
-                return;
-            }
-
-            for (int i = 0; i < copiesPerTurn; i++)
-            {
-                foreach (var template in storedHand)
-                {
-                    BaseCard copy = CardRuntimeHelper.CloneCardState(template);
-                    if (copy != null) d.source.GainCard(copy);
-                }
-            }
-        }, null, () => delay > 0 ? $"{delay}回合后开始传送手牌复制" : $"每回合获得{copiesPerTurn}份手牌复制，剩余{dot.duration}回合");
-
-        user.dotBar.Add(dot);
+        CardRuntimeHelper.TeleportHandToNextBattle(user);
     }
 }
 

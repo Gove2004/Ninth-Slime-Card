@@ -40,6 +40,9 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     private RectTransform viewportRect;
     private Vector2 resizeStartTopLeftLocal;
     private int gridColumnCount = 1;
+    private int lastGridColumnCount = -1;
+    private int lastDotSignature = int.MinValue;
+    private BaseCharacter lastDotOwner;
 
     void Start()
     {
@@ -74,18 +77,7 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
 
     void Update()
     {
-        if (BattleManager.Instance == null) return;
-
-        gridColumnCount = CalculateColumnCount();
-
-        if (isPlayer)
-        {
-            UpdateDotShows(BattleManager.Instance.player?.dotBar);
-        }
-        else
-        {
-            UpdateDotShows(BattleManager.Instance.enemy?.dotBar);
-        }
+        RefreshDotShowsIfNeeded();
     }
 
     #region Drag and Resize
@@ -141,6 +133,7 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
                 lastExpandedSize = newSize;
             }
             RefreshViewportLayout();
+            lastGridColumnCount = -1;
             return;
         }
 
@@ -212,19 +205,21 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
 
         RefreshHeaderLayout();
         RefreshViewportLayout();
+        lastGridColumnCount = -1;
+        lastDotSignature = int.MinValue;
     }
 
     private void UpdateDotShows(System.Collections.Generic.List<Dot> dots)
     {
         if (dotListContainer == null) return;
-        if (dots == null) return;
+        int dotCount = dots?.Count ?? 0;
 
-        EnsureDotItems(dots.Count);
+        EnsureDotItems(dotCount);
 
         for (int i = 0; i < dotListContainer.transform.childCount; i++)
         {
             var dotShow = dotListContainer.transform.GetChild(i).GetComponent<DotShow>();
-            if (i < dots.Count)
+            if (i < dotCount)
             {
                 dotShow.gameObject.SetActive(true);
                 dotShow.SetData(dots[i]);
@@ -236,7 +231,7 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         }
         if (contentRect != null)
         {
-            LayoutDotItems(dots.Count);
+            LayoutDotItems(dotCount);
         }
     }
 
@@ -431,8 +426,6 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         int rows = Mathf.Max(1, Mathf.CeilToInt(activeCount / (float)columns));
         float contentHeight = dotGridPaddingTop + dotGridPaddingBottom + rows * cellHeight + Mathf.Max(0, rows - 1) * dotIconSpacing.y;
         contentRect.sizeDelta = new Vector2(contentRect.sizeDelta.x, contentHeight);
-
-        LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
     }
 
     private void RefreshHeaderLayout()
@@ -521,5 +514,47 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     {
         if (rootRect == null || rootRect.anchoredPosition != Vector2.zero) return;
         rootRect.anchoredPosition = isPlayer ? new Vector2(-250f, -100f) : new Vector2(250f, -100f);
+    }
+
+    private void RefreshDotShowsIfNeeded()
+    {
+        if (BattleManager.Instance == null) return;
+
+        BaseCharacter owner = isPlayer ? BattleManager.Instance.player : BattleManager.Instance.enemy;
+        var dots = owner?.dotBar;
+
+        gridColumnCount = CalculateColumnCount();
+        int dotSignature = CalculateDotSignature(dots);
+
+        if (owner == lastDotOwner &&
+            gridColumnCount == lastGridColumnCount &&
+            dotSignature == lastDotSignature)
+        {
+            return;
+        }
+
+        lastDotOwner = owner;
+        lastGridColumnCount = gridColumnCount;
+        lastDotSignature = dotSignature;
+        UpdateDotShows(dots);
+    }
+
+    private static int CalculateDotSignature(System.Collections.Generic.List<Dot> dots)
+    {
+        if (dots == null || dots.Count == 0) return 0;
+
+        unchecked
+        {
+            int hash = dots.Count;
+            for (int i = 0; i < dots.Count; i++)
+            {
+                Dot dot = dots[i];
+                hash = (hash * 397) ^ (dot != null ? dot.GetHashCode() : 0);
+                if (dot == null) continue;
+                hash = (hash * 397) ^ dot.duration;
+                hash = (hash * 397) ^ (dot.sourceCard != null ? dot.sourceCard.GetHashCode() : 0);
+            }
+            return hash;
+        }
     }
 }

@@ -46,13 +46,21 @@ public abstract class BaseCard
     public string ImagePath { get; private set; }
     public BaseCharacter OwningCharacter { get; private set; }
     public bool IsStolenFromOpponent { get; private set; }
+    public bool PlayerAcquisitionMutationResolved { get; private set; }
     public static ulong OverclockMultiplier { get; private set; } = 1;
 
     public void MultiplyNumbers(ulong multiplier)
     {
-        if (multiplier == 1) return;
-        Cost = BaseCharacter.SaturatingMultiply(Cost, multiplier);
-        Value = BaseCharacter.SaturatingMultiply(Value, multiplier);
+        ScaleNumbers(multiplier, 1UL);
+    }
+
+    public void ScaleNumbers(ulong numerator, ulong denominator)
+    {
+        if (denominator == 0UL) return;
+        if (numerator == denominator) return;
+
+        Cost = ScaleValue(Cost, numerator, denominator);
+        Value = ScaleValue(Value, numerator, denominator);
     }
 
     public void SetCost(ulong cost)
@@ -84,6 +92,11 @@ public abstract class BaseCard
     public void MarkStolenFromOpponent()
     {
         IsStolenFromOpponent = true;
+    }
+
+    public void MarkPlayerAcquisitionMutationResolved()
+    {
+        PlayerAcquisitionMutationResolved = true;
     }
 
     public void SetOwningCharacter(BaseCharacter character)
@@ -163,4 +176,27 @@ public abstract class BaseCard
     /// <param name="user">使用卡牌的角色。</param>
     /// <param name="target">卡牌的目标角色。</param>
     public abstract void Execute(BaseCharacter user, BaseCharacter target);
+
+    private static ulong ScaleValue(ulong value, ulong numerator, ulong denominator)
+    {
+        if (denominator == 0UL) return value;
+        if (numerator == denominator) return value;
+        if (value == 0UL || numerator == 0UL) return 0UL;
+
+        if (numerator >= denominator)
+        {
+            ulong factor = numerator / denominator;
+            ulong remainder = numerator % denominator;
+            ulong scaled = BaseCharacter.SaturatingMultiply(value, factor);
+            if (remainder == 0UL)
+            {
+                return scaled;
+            }
+
+            ulong fractional = BaseCharacter.SaturatingMultiply(value, remainder) / denominator;
+            return BaseCharacter.SaturatingAdd(scaled, fractional);
+        }
+
+        return BaseCharacter.SaturatingMultiply(value, numerator) / denominator;
+    }
 }

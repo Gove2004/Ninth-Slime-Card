@@ -185,6 +185,7 @@ public class BattleManager : MonoBehaviour
 
         player.Target = enemy;
         enemy.Target = player;
+        CardRuntimeHelper.ApplyTeleportedHand(player as Player);
 
         player.ChangeHealth(0);  // 触发UI更新
         enemy.ChangeHealth(0);  // 触发UI更新
@@ -205,17 +206,31 @@ public class BattleManager : MonoBehaviour
         NextTurn();
     }
 
+    public void RestartBattleSoon()
+    {
+        if (!isActiveAndEnabled)
+        {
+            StartBattle();
+            return;
+        }
+
+        StartCoroutine(RestartBattleAtFrameEnd());
+    }
+
+    private IEnumerator RestartBattleAtFrameEnd()
+    {
+        yield return null;
+        StartBattle();
+    }
+
     private void RegisterBattleEvents()
     {
         onPhaseChangedUnsub = EventCenter.Register<EnemyBossPhaseChangedEventContext>(GameEvents.EnemyBossPhaseChanged, context =>
         {
             if (player != null)
             {
-                if (player.autoManaPerTurn < 10)
-                {
-                    player.autoManaPerTurn++;
-                    Debug.Log($"阶段提升，玩家每回合自动回蓝增加至: {player.autoManaPerTurn}");
-                }
+                player.autoManaPerTurn++;
+                Debug.Log($"阶段提升，玩家每回合自动回蓝增加至: {player.autoManaPerTurn}");
             }
         });
 
@@ -501,6 +516,7 @@ public class BattleManager : MonoBehaviour
         if (character is Player playerCharacter)
         {
             data.isPlayerReady = playerCharacter.isReady;
+            data.jailedTurnsRemaining = playerCharacter.GetJailTurnsRemaining();
         }
 
         return data;
@@ -591,6 +607,7 @@ public class BattleManager : MonoBehaviour
         if (character is Player playerCharacter)
         {
             playerCharacter.isReady = data.isPlayerReady;
+            playerCharacter.RestoreJailState(data.jailedTurnsRemaining);
         }
 
         character.NotifyHandChanged();
@@ -601,18 +618,18 @@ public class BattleManager : MonoBehaviour
         if (saved == null) return null;
 
         BaseCard card = null;
-        if (!string.IsNullOrEmpty(saved.name))
-        {
-            card = CardFactory.GetThisCard(saved.name);
-        }
-
-        if (card == null && !string.IsNullOrEmpty(saved.typeName))
+        if (!string.IsNullOrEmpty(saved.typeName))
         {
             var cardType = Type.GetType(saved.typeName);
             if (cardType != null && typeof(BaseCard).IsAssignableFrom(cardType))
             {
                 card = Activator.CreateInstance(cardType) as BaseCard;
             }
+        }
+
+        if (card == null && !string.IsNullOrEmpty(saved.name))
+        {
+            card = CardFactory.GetThisCard(saved.name);
         }
 
         if (card == null) return null;

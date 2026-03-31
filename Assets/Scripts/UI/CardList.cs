@@ -24,6 +24,8 @@ public class CardList : MonoBehaviour
     // 选中的卡牌
     public bool AblePlay => selectedCard != null && BattleManager.Instance?.player is Player player && player.mana >= selectedCard.Cost;
     public BaseCard selectedCard;
+    private bool layoutDirty = true;
+    private float lastContainerWidth = -1f;
 
     void Start()
     {
@@ -64,16 +66,25 @@ public class CardList : MonoBehaviour
         });
 
         SyncFromBattleHand();
+        MarkLayoutDirty();
     }
 
     void Update()
     {
-        UpdateCardLayout();
+        if (layoutDirty || HasContainerWidthChanged())
+        {
+            UpdateCardLayout();
+        }
     }
 
     private void UpdateCardLayout()
     {
-        if (cardUIItems.Count == 0) return;
+        if (cardUIItems.Count == 0)
+        {
+            layoutDirty = false;
+            CacheContainerWidth();
+            return;
+        }
 
         // --- Auto-detect card width ---
         if (cardUIItems.Count > 0)
@@ -113,6 +124,9 @@ public class CardList : MonoBehaviour
                 item.transform.SetSiblingIndex(i);
             }
         }
+
+        layoutDirty = false;
+        CacheContainerWidth();
     }
 
     private float GetAdaptiveTotalAngle(int count)
@@ -182,6 +196,7 @@ public class CardList : MonoBehaviour
         CardUIItem temp = cardUIItems[indexA];
         cardUIItems[indexA] = cardUIItems[indexB];
         cardUIItems[indexB] = temp;
+        MarkLayoutDirty();
     }
 
     public void DrawCard(BaseCard card)
@@ -192,10 +207,12 @@ public class CardList : MonoBehaviour
         if (existing != null)
         {
             existing.SetData(card);
+            MarkLayoutDirty();
             return;
         }
 
         cardUIItems.Add(CreateCardUIItem(card));
+        MarkLayoutDirty();
     }
 
     public void PlayCard(BaseCard card)
@@ -214,6 +231,11 @@ public class CardList : MonoBehaviour
         {
             selectedCard = null;
         }
+
+        if (removed)
+        {
+            MarkLayoutDirty();
+        }
     }
 
     public void RefreshCard(BaseCard card)
@@ -231,6 +253,7 @@ public class CardList : MonoBehaviour
         }
         cardUIItems.Clear();
         selectedCard = null;
+        MarkLayoutDirty();
     }
 
     public void SyncFromBattleHand()
@@ -268,6 +291,7 @@ public class CardList : MonoBehaviour
         }
 
         cardUIItems = orderedItems;
+        MarkLayoutDirty();
 
         if (selectedCard != null && !player.Cards.Contains(selectedCard))
         {
@@ -296,5 +320,24 @@ public class CardList : MonoBehaviour
             }
         }
         return null;
+    }
+
+    private void MarkLayoutDirty()
+    {
+        layoutDirty = true;
+    }
+
+    private bool HasContainerWidthChanged()
+    {
+        RectTransform containerRect = container as RectTransform;
+        if (containerRect == null) return false;
+        return !Mathf.Approximately(containerRect.rect.width, lastContainerWidth);
+    }
+
+    private void CacheContainerWidth()
+    {
+        RectTransform containerRect = container as RectTransform;
+        if (containerRect == null) return;
+        lastContainerWidth = containerRect.rect.width;
     }
 }

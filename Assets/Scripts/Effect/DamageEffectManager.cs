@@ -38,6 +38,10 @@ public class DamageEffectManager : MonoBehaviour
     private readonly Dictionary<SpriteRenderer, Tween> spriteHitTweens = new Dictionary<SpriteRenderer, Tween>();
     private readonly Dictionary<Graphic, Color> graphicBaseColors = new Dictionary<Graphic, Color>();
     private readonly Dictionary<Graphic, Tween> graphicHitTweens = new Dictionary<Graphic, Tween>();
+    private readonly Dictionary<SpriteRenderer, Color> spriteOriginalColors = new Dictionary<SpriteRenderer, Color>();
+    private readonly Dictionary<Graphic, Color> graphicOriginalColors = new Dictionary<Graphic, Color>();
+    private readonly Queue<DamagePopup> damagePopupPool = new Queue<DamagePopup>();
+    private readonly Queue<SlashEffect> slashEffectPool = new Queue<SlashEffect>();
     private bool hasReparentedCanvasChildren;
     private Vector2 shakeRootBaseAnchoredPosition;
     private bool hasShakeRootBaseAnchoredPosition;
@@ -46,6 +50,7 @@ public class DamageEffectManager : MonoBehaviour
     private bool hasShakeRectBaseAnchoredPosition;
     private Vector3 shakeCameraBasePosition;
     private bool hasShakeCameraBasePosition;
+    private bool lastPlayerJailedState;
 
     private void Awake()
     {
@@ -97,6 +102,14 @@ public class DamageEffectManager : MonoBehaviour
                 BattleManager.Instance.enemy.HealTaken -= OnEnemyHeal;
             }
         }
+    }
+
+    private void Update()
+    {
+        bool jailed = BattleManager.Instance?.player is Player player && player.IsJailed;
+        if (jailed == lastPlayerJailedState) return;
+        lastPlayerJailedState = jailed;
+        SetCharacterMuted(playerTransform, jailed);
     }
 
     private void FindPositions()
@@ -176,6 +189,12 @@ public class DamageEffectManager : MonoBehaviour
     {
         if (sprite == null) return;
 
+        if (!spriteOriginalColors.TryGetValue(sprite, out var originalColor))
+        {
+            originalColor = sprite.color;
+            spriteOriginalColors[sprite] = originalColor;
+        }
+
         if (!spriteBaseColors.TryGetValue(sprite, out var baseColor))
         {
             baseColor = sprite.color;
@@ -212,6 +231,12 @@ public class DamageEffectManager : MonoBehaviour
     private void PlayGraphicHitFlash(Graphic graphic)
     {
         if (graphic == null) return;
+
+        if (!graphicOriginalColors.TryGetValue(graphic, out var originalColor))
+        {
+            originalColor = graphic.color;
+            graphicOriginalColors[graphic] = originalColor;
+        }
 
         if (!graphicBaseColors.TryGetValue(graphic, out var baseColor))
         {
@@ -261,23 +286,72 @@ public class DamageEffectManager : MonoBehaviour
         graphicHitTweens.Clear();
     }
 
+    private void SetCharacterMuted(Transform target, bool muted)
+    {
+        if (target == null) return;
+
+        var sprites = target.GetComponentsInChildren<SpriteRenderer>(true);
+        for (int i = 0; i < sprites.Length; i++)
+        {
+            var sprite = sprites[i];
+            if (sprite == null) continue;
+            if (!spriteOriginalColors.TryGetValue(sprite, out var originalColor))
+            {
+                originalColor = sprite.color;
+                spriteOriginalColors[sprite] = originalColor;
+            }
+
+            if (spriteHitTweens.TryGetValue(sprite, out var spriteTween) && spriteTween != null && spriteTween.IsActive())
+            {
+                spriteTween.Kill(false);
+            }
+
+            Color targetColor = muted ? CreateMutedColor(originalColor) : originalColor;
+            spriteBaseColors[sprite] = targetColor;
+            sprite.color = targetColor;
+        }
+
+        var graphics = target.GetComponentsInChildren<Graphic>(true);
+        for (int i = 0; i < graphics.Length; i++)
+        {
+            var graphic = graphics[i];
+            if (graphic == null) continue;
+            if (!graphicOriginalColors.TryGetValue(graphic, out var originalColor))
+            {
+                originalColor = graphic.color;
+                graphicOriginalColors[graphic] = originalColor;
+            }
+
+            if (graphicHitTweens.TryGetValue(graphic, out var graphicTween) && graphicTween != null && graphicTween.IsActive())
+            {
+                graphicTween.Kill(false);
+            }
+
+            Color targetColor = muted ? CreateMutedColor(originalColor) : originalColor;
+            graphicBaseColors[graphic] = targetColor;
+            graphic.color = targetColor;
+        }
+    }
+
+    private static Color CreateMutedColor(Color color)
+    {
+        float gray = color.grayscale;
+        return new Color(gray, gray, gray, color.a);
+    }
+
     public void ShowFloatingText(Transform targetDetails, string text, Color color, Vector3? offsetOverride = null)
     {
         var canvas = GetCanvas();
         if (canvas == null) return;
 
-        GameObject popupObj = new GameObject("FloatingText_Center");
-        popupObj.transform.SetParent(GetEffectParentTransform(canvas), false);
-        
-        RectTransform rect = popupObj.AddComponent<RectTransform>();
+        var popup = RentDamagePopup(canvas, "FloatingText_Center");
+        RectTransform rect = popup.transform as RectTransform;
         rect.anchorMin = new Vector2(0, 0.5f);
         rect.anchorMax = new Vector2(1, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(0, 100); // Full width, height 100
-        
-        var popup = popupObj.AddComponent<DamagePopup>();
-        popup.Setup(text, color);
+        rect.sizeDelta = new Vector2(0, 100);
+        popup.Setup(text, color, ReleaseDamagePopup);
     }
 
     private void ShowEffect(Transform targetDetails, ulong amount, Vector2 offset, BaseCharacter source)
@@ -293,27 +367,16 @@ public class DamageEffectManager : MonoBehaviour
         var canvas = GetCanvas();
         if (canvas == null) return;
 
-        GameObject slashObj = new GameObject("SlashEffect");
-        slashObj.transform.SetParent(GetEffectParentTransform(canvas), false);
-        var slashRect = slashObj.AddComponent<RectTransform>();
+        var slash = RentSlashEffect(canvas, "SlashEffect");
+        var slashRect = slash.transform as RectTransform;
         slashRect.sizeDelta = new Vector2(128, 128);
         slashRect.anchoredPosition = GetCanvasPosition(targetDetails.position) + offset;
-        
-        var slash = slashObj.AddComponent<SlashEffect>();
-        var img = slashObj.AddComponent<UnityEngine.UI.Image>();
-        img.sprite = CreateSlashSprite();
-        img.color = effectColor;
-        slashObj.transform.rotation = Quaternion.Euler(0, 0, Random.Range(-45f, 45f));
-        
-        slash.Setup();
+        slash.Setup(CreateSlashSprite(), effectColor, Random.Range(-45f, 45f), ReleaseSlashEffect);
 
-        GameObject popupObj = new GameObject("DamagePopup");
-        popupObj.transform.SetParent(GetEffectParentTransform(canvas), false);
-        var popupRect = popupObj.AddComponent<RectTransform>();
+        var popup = RentDamagePopup(canvas, "DamagePopup");
+        var popupRect = popup.transform as RectTransform;
         popupRect.anchoredPosition = GetCanvasPosition(targetDetails.position) + offset;
-        
-        var popup = popupObj.AddComponent<DamagePopup>();
-        popup.Setup(amount);
+        popup.Setup(amount, ReleaseDamagePopup);
     }
 
     private void ShowHealEffect(Transform targetDetails, ulong amount, Vector2 offset)
@@ -325,26 +388,16 @@ public class DamageEffectManager : MonoBehaviour
         var canvas = GetCanvas();
         if (canvas == null) return;
 
-        GameObject healObj = new GameObject("HealEffect");
-        healObj.transform.SetParent(GetEffectParentTransform(canvas), false);
-        var healRect = healObj.AddComponent<RectTransform>();
+        var slash = RentSlashEffect(canvas, "HealEffect");
+        var healRect = slash.transform as RectTransform;
         healRect.sizeDelta = new Vector2(128, 128);
         healRect.anchoredPosition = GetCanvasPosition(targetDetails.position) + offset;
-        
-        var slash = healObj.AddComponent<SlashEffect>();
-        var img = healObj.AddComponent<UnityEngine.UI.Image>();
-        img.sprite = CreateHealSprite();
-        img.color = Color.green;
-        
-        slash.Setup();
+        slash.Setup(CreateHealSprite(), Color.green, 0f, ReleaseSlashEffect);
 
-        GameObject popupObj = new GameObject("HealPopup");
-        popupObj.transform.SetParent(GetEffectParentTransform(canvas), false);
-        var popupRect = popupObj.AddComponent<RectTransform>();
+        var popup = RentDamagePopup(canvas, "HealPopup");
+        var popupRect = popup.transform as RectTransform;
         popupRect.anchoredPosition = GetCanvasPosition(targetDetails.position) + offset;
-        
-        var popup = popupObj.AddComponent<DamagePopup>();
-        popup.Setup("+" + amount, Color.green);
+        popup.Setup("+" + amount, Color.green, ReleaseDamagePopup);
     }
 
     private Canvas GetCanvas()
@@ -438,6 +491,63 @@ public class DamageEffectManager : MonoBehaviour
         var root = EnsureShakeRoot();
         if (root != null) return root;
         return canvas.transform;
+    }
+
+    private DamagePopup RentDamagePopup(Canvas canvas, string objectName)
+    {
+        DamagePopup popup = damagePopupPool.Count > 0 ? damagePopupPool.Dequeue() : CreateDamagePopup();
+        popup.gameObject.name = objectName;
+        popup.transform.SetParent(GetEffectParentTransform(canvas), false);
+        popup.gameObject.SetActive(true);
+        var rect = popup.transform as RectTransform;
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.localScale = Vector3.one;
+        return popup;
+    }
+
+    private SlashEffect RentSlashEffect(Canvas canvas, string objectName)
+    {
+        SlashEffect slash = slashEffectPool.Count > 0 ? slashEffectPool.Dequeue() : CreateSlashEffect();
+        slash.gameObject.name = objectName;
+        slash.transform.SetParent(GetEffectParentTransform(canvas), false);
+        slash.gameObject.SetActive(true);
+        var rect = slash.transform as RectTransform;
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.localScale = Vector3.one;
+        rect.localRotation = Quaternion.identity;
+        return slash;
+    }
+
+    private DamagePopup CreateDamagePopup()
+    {
+        GameObject popupObj = new GameObject("DamagePopup", typeof(RectTransform), typeof(DamagePopup));
+        popupObj.SetActive(false);
+        popupObj.transform.SetParent(transform, false);
+        return popupObj.GetComponent<DamagePopup>();
+    }
+
+    private SlashEffect CreateSlashEffect()
+    {
+        GameObject slashObj = new GameObject("SlashEffect", typeof(RectTransform), typeof(Image), typeof(SlashEffect));
+        slashObj.SetActive(false);
+        slashObj.transform.SetParent(transform, false);
+        return slashObj.GetComponent<SlashEffect>();
+    }
+
+    private void ReleaseDamagePopup(DamagePopup popup)
+    {
+        if (popup == null) return;
+        popup.gameObject.SetActive(false);
+        popup.transform.SetParent(transform, false);
+        damagePopupPool.Enqueue(popup);
+    }
+
+    private void ReleaseSlashEffect(SlashEffect slash)
+    {
+        if (slash == null) return;
+        slash.gameObject.SetActive(false);
+        slash.transform.SetParent(transform, false);
+        slashEffectPool.Enqueue(slash);
     }
 
     private RectTransform GetShakeRectTransform()

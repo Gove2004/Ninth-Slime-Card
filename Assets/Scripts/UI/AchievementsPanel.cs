@@ -22,6 +22,18 @@ public class AchievementsPanel : MonoBehaviour
         Refresh();
     }
 
+    private void Update()
+    {
+        var manager = AchievementManager.Instance;
+        if (manager == null || !manager.IsReverseCountingEnabled) return;
+        if (!IsDeviceTurnedOver()) return;
+
+        if (manager.RestoreForwardCounting())
+        {
+            Refresh();
+        }
+    }
+
     public void Refresh()
     {
         EnsureReferences();
@@ -95,5 +107,30 @@ public class AchievementsPanel : MonoBehaviour
     {
         if (fontAsset != null) return fontAsset;
         return TMP_Settings.defaultFontAsset;
+    }
+
+    private static bool IsDeviceTurnedOver()
+    {
+        DeviceOrientation orientation = Input.deviceOrientation;
+        if (orientation == DeviceOrientation.PortraitUpsideDown ||
+            orientation == DeviceOrientation.LandscapeRight ||
+            orientation == DeviceOrientation.FaceDown)
+        {
+            return true;
+        }
+
+        if (orientation != DeviceOrientation.Unknown && orientation != DeviceOrientation.FaceUp)
+        {
+            return false;
+        }
+
+        Vector3 acceleration = Input.acceleration;
+        if (acceleration.sqrMagnitude <= 0.01f) return false;
+        if (Mathf.Abs(acceleration.x) >= Mathf.Abs(acceleration.y))
+        {
+            return acceleration.x >= 0.75f;
+        }
+
+        return acceleration.y <= -0.75f;
     }
 }

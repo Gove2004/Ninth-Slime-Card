@@ -21,7 +21,10 @@ public class Player : BaseCharacter
 
 
     public bool isReady { get; set; } = false;
+    public bool IsJailed => jailedTurnsRemaining > 0;
+    public bool CanUseTurnActions => isReady && !IsJailed;
     private bool isEndingTurn = false;
+    private int jailedTurnsRemaining;
     protected override int MaxHandSize => HandLimit;
 
     protected override void Action()
@@ -63,7 +66,16 @@ public class Player : BaseCharacter
     // UI：调用使用卡牌
     public void UI_PlayCard(BaseCard card)
     {
-        if (isReady && Cards.Contains(card) && card.Cost <= mana)
+        if (isReady && IsJailed)
+        {
+            if (DamageEffectManager.Instance != null && DamageEffectManager.Instance.playerTransform != null)
+            {
+                DamageEffectManager.Instance.ShowFloatingText(DamageEffectManager.Instance.playerTransform, "你已因罪入狱，只能结束回合", Color.gray);
+            }
+            return;
+        }
+
+        if (CanUseTurnActions && Cards.Contains(card) && card.Cost <= mana)
         {
             PlayCard(card);
         }
@@ -73,7 +85,7 @@ public class Player : BaseCharacter
     // UI：调用抽卡
     public void UI_DrawCard()
     {
-        if (isReady)
+        if (CanUseTurnActions)
         {
             DrawCard();
         }
@@ -128,7 +140,27 @@ public class Player : BaseCharacter
         // BattleManager 监听了这个事件并增加了 player.autoManaPerTurn
         // 所以这里调用 EndTurn 时的 ChangeMana 已经是增加了之后的数值
         base.EndTurn();
+        if (jailedTurnsRemaining > 0)
+        {
+            jailedTurnsRemaining--;
+        }
         isEndingTurn = false;
+    }
+
+    public void SendToJail(int turns = 1)
+    {
+        if (turns <= 0) return;
+        jailedTurnsRemaining = Mathf.Max(jailedTurnsRemaining, turns);
+    }
+
+    public void RestoreJailState(int turns)
+    {
+        jailedTurnsRemaining = Mathf.Max(0, turns);
+    }
+
+    public int GetJailTurnsRemaining()
+    {
+        return jailedTurnsRemaining;
     }
 
 

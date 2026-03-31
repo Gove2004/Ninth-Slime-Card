@@ -185,11 +185,13 @@ public class BattleUI : MonoBehaviour
         {
             Player player = (Player)BattleManager.Instance.player;
             bool isPlayerTurn = player.isReady;
+            bool canUseTurnActions = player.CanUseTurnActions;
             ulong drawCost = player.GetCurrentDrawCardCost();
-            if (drawCardButton != null) drawCardButton.interactable = isPlayerTurn && player.mana >= drawCost && player.Cards.Count < Player.HandLimit;
-            if (playCardButton != null) playCardButton.interactable = isPlayerTurn && cardList.AblePlay;
+            if (drawCardButton != null) drawCardButton.interactable = canUseTurnActions && player.mana >= drawCost && player.Cards.Count < Player.HandLimit;
+            if (playCardButton != null) playCardButton.interactable = canUseTurnActions && cardList.AblePlay;
             if (endTurnButton != null) endTurnButton.interactable = isPlayerTurn;
-            if (exitButton != null && exitButton.gameObject.activeSelf != isPlayerTurn) exitButton.gameObject.SetActive(isPlayerTurn);
+            bool showExitButton = isPlayerTurn && !player.IsJailed;
+            if (exitButton != null && exitButton.gameObject.activeSelf != showExitButton) exitButton.gameObject.SetActive(showExitButton);
 
             if (drawCardButtonText != null && lastDrawCost != drawCost)
             {

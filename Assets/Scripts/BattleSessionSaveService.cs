@@ -22,6 +22,7 @@ public class SavedCharacterData
     public ulong shiled;
     public ulong autoManaPerTurn;
     public bool isPlayerReady;
+    public int jailedTurnsRemaining;
     public List<SavedCardData> cards = new List<SavedCardData>();
 }
 
