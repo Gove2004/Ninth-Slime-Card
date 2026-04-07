@@ -20,6 +20,7 @@ public static class GameEvents
     public const string PlayerHandChanged = "Player_HandChanged";
     public const string PlayerGainedMana = "Player_GainedMana";
     public const string PlayerHealed = "Player_Healed";
+    public const string PlayerJailStateChanged = "Player_JailStateChanged";
     public const string PlayerCardRefreshed = "Player_CardRefreshed";
     public const string PlayerCardDrawnToHand = "Player_CardDrawnToHand";
     public const string PlayerCardGeneratedToHand = "Player_CardGeneratedToHand";

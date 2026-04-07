@@ -5,6 +5,7 @@ using UnityEngine.UI;
 
 public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerDownHandler
 {
+    private const float DotRefreshInterval = 0.1f;
     public bool isPlayer;
     public DotShow dotShowPrefab;
     public Button zhankaiButton;
@@ -43,6 +44,7 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     private int lastGridColumnCount = -1;
     private int lastDotSignature = int.MinValue;
     private BaseCharacter lastDotOwner;
+    private float nextDotRefreshTime;
 
     void Start()
     {
@@ -77,6 +79,12 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
 
     void Update()
     {
+        if (Time.unscaledTime < nextDotRefreshTime)
+        {
+            return;
+        }
+
+        nextDotRefreshTime = Time.unscaledTime + DotRefreshInterval;
         RefreshDotShowsIfNeeded();
     }
 
@@ -207,6 +215,7 @@ public class DotShowList : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         RefreshViewportLayout();
         lastGridColumnCount = -1;
         lastDotSignature = int.MinValue;
+        nextDotRefreshTime = 0f;
     }
 
     private void UpdateDotShows(System.Collections.Generic.List<Dot> dots)

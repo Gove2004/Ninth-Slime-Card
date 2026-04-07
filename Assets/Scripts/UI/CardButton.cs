@@ -2,7 +2,6 @@
 using System;
 using DG.Tweening;
 using TMPro;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -24,9 +23,10 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private string lastDescription = "";
     private ulong lastCost = 0;
     private bool hasLastCost = false;
-    private Vector3 originalPosition;
-    private Transform originalParent;
-    private bool dragging;
+    private const float VisualRefreshInterval = 0.1f;
+    private static readonly System.Collections.Generic.Dictionary<string, Sprite> CardSpriteCache = new();
+    private bool visualRefreshRequested = true;
+    private float nextVisualRefreshTime;
 
     void Awake()
     {
@@ -49,6 +49,10 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     void Update()
     {
         if (JustUIShow) return;
+        if (!visualRefreshRequested && Time.unscaledTime < nextVisualRefreshTime) return;
+
+        visualRefreshRequested = false;
+        nextVisualRefreshTime = Time.unscaledTime + VisualRefreshInterval;
 
         if (cardData == null) return;
         string description = cardData.GetDynamicDescription();
@@ -62,6 +66,15 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
             costText.text = cardData.Cost.ToString();
             lastCost = cardData.Cost;
             hasLastCost = true;
+        }
+    }
+
+    private void RequestVisualRefresh(bool immediate = false)
+    {
+        visualRefreshRequested = true;
+        if (immediate)
+        {
+            nextVisualRefreshTime = 0f;
         }
     }
 
@@ -80,7 +93,19 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         lastDescription = cardDescriptionText.text;
         try
         {
-            image.sprite = Resources.Load<Sprite>(card.ImagePath);
+            if (!string.IsNullOrEmpty(card.ImagePath))
+            {
+                if (!CardSpriteCache.TryGetValue(card.ImagePath, out var sprite))
+                {
+                    sprite = Resources.Load<Sprite>(card.ImagePath);
+                    CardSpriteCache[card.ImagePath] = sprite;
+                }
+                image.sprite = sprite;
+            }
+            else
+            {
+                image.sprite = null;
+            }
         }
         catch
         {
@@ -89,6 +114,7 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         costText.text = card.Cost.ToString();
         lastCost = card.Cost;
         hasLastCost = true;
+        RequestVisualRefresh(true);
     }
 
     #region 点击选中卡牌
@@ -129,7 +155,7 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     {
         if (JustUIShow) return;
         
-        if (sequence.IsActive())
+        if (sequence != null && sequence.IsActive())
         {
             sequence.Kill(true);
         }
@@ -150,7 +176,7 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     {
          if (JustUIShow) return;
 
-        if (sequence.IsActive())
+        if (sequence != null && sequence.IsActive())
         {
             sequence.Kill(true);
         }
@@ -162,6 +188,7 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         sequence.Append(transform.DOScale(Vector3.one * 1.1f, 0.2f));
         sequence.Join(tooltip.transform.DOMoveY(tooltip.transform.position.y + 20, 0.2f));
         sequence.Join(tooltipCanvasGroup.DOFade(1, 0.2f));
+        RequestVisualRefresh(true);
     }
     #endregion
 
@@ -171,4 +198,12 @@ public class CardButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private Action action;
 
     public void SetAction(Action action) { this.action = action; }
+
+    private void OnDestroy()
+    {
+        if (sequence != null && sequence.IsActive())
+        {
+            sequence.Kill(false);
+        }
+    }
 }

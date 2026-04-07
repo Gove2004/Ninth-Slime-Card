@@ -6,6 +6,7 @@ using UnityEngine.UI;
 
 public class DamageEffectManager : MonoBehaviour
 {
+    private const string PlayerJailVisualName = "栏杆_0";
     public static DamageEffectManager Instance;
 
     [Header("Positions")]
@@ -51,6 +52,10 @@ public class DamageEffectManager : MonoBehaviour
     private Vector3 shakeCameraBasePosition;
     private bool hasShakeCameraBasePosition;
     private bool lastPlayerJailedState;
+    private Transform playerJailVisual;
+    private Transform cachedPlayerJailRoot;
+    private System.Action onBattleStartedUnsub;
+    private System.Action onPlayerJailStateChangedUnsub;
 
     private void Awake()
     {
@@ -63,18 +68,22 @@ public class DamageEffectManager : MonoBehaviour
         EnsureShakeRoot();
         ApplyVibrationSetting(GameSettings.VibrationEnabled);
 
-        EventCenter.Register<BattleEventContext>(GameEvents.BattleStarted, _ => 
+        onBattleStartedUnsub = EventCenter.Register<BattleEventContext>(GameEvents.BattleStarted, _ =>
         {
             FindPositions();
             EnsureShakeRoot();
             SubscribeToCharacters();
+            UpdatePlayerJailVisual(true);
         });
+        onPlayerJailStateChangedUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.PlayerJailStateChanged, _ => UpdatePlayerJailVisual(true));
         
         // If battle already started (e.g. reload or late init)
         if (BattleManager.Instance != null && BattleManager.Instance.player != null)
         {
             SubscribeToCharacters();
         }
+
+        UpdatePlayerJailVisual(true);
     }
 
     public void ApplyVibrationSetting(bool enabled)
@@ -89,6 +98,10 @@ public class DamageEffectManager : MonoBehaviour
     {
         StopScreenShake();
         KillAllHitFlashTweens();
+        onBattleStartedUnsub?.Invoke();
+        onBattleStartedUnsub = null;
+        onPlayerJailStateChangedUnsub?.Invoke();
+        onPlayerJailStateChangedUnsub = null;
         if (BattleManager.Instance != null)
         {
             if (BattleManager.Instance.player != null)
@@ -102,14 +115,6 @@ public class DamageEffectManager : MonoBehaviour
                 BattleManager.Instance.enemy.HealTaken -= OnEnemyHeal;
             }
         }
-    }
-
-    private void Update()
-    {
-        bool jailed = BattleManager.Instance?.player is Player player && player.IsJailed;
-        if (jailed == lastPlayerJailedState) return;
-        lastPlayerJailedState = jailed;
-        SetCharacterMuted(playerTransform, jailed);
     }
 
     private void FindPositions()
@@ -286,57 +291,46 @@ public class DamageEffectManager : MonoBehaviour
         graphicHitTweens.Clear();
     }
 
-    private void SetCharacterMuted(Transform target, bool muted)
+    private void UpdatePlayerJailVisual(bool force = false)
     {
-        if (target == null) return;
-
-        var sprites = target.GetComponentsInChildren<SpriteRenderer>(true);
-        for (int i = 0; i < sprites.Length; i++)
+        bool jailed = BattleManager.Instance?.player is Player player && player.IsJailed;
+        Transform previousJailVisual = playerJailVisual;
+        Transform jailVisual = ResolvePlayerJailVisual();
+        if (!force && jailed == lastPlayerJailedState && jailVisual == previousJailVisual) return;
+        lastPlayerJailedState = jailed;
+        if (jailVisual != null && jailVisual.gameObject.activeSelf != jailed)
         {
-            var sprite = sprites[i];
-            if (sprite == null) continue;
-            if (!spriteOriginalColors.TryGetValue(sprite, out var originalColor))
-            {
-                originalColor = sprite.color;
-                spriteOriginalColors[sprite] = originalColor;
-            }
-
-            if (spriteHitTweens.TryGetValue(sprite, out var spriteTween) && spriteTween != null && spriteTween.IsActive())
-            {
-                spriteTween.Kill(false);
-            }
-
-            Color targetColor = muted ? CreateMutedColor(originalColor) : originalColor;
-            spriteBaseColors[sprite] = targetColor;
-            sprite.color = targetColor;
-        }
-
-        var graphics = target.GetComponentsInChildren<Graphic>(true);
-        for (int i = 0; i < graphics.Length; i++)
-        {
-            var graphic = graphics[i];
-            if (graphic == null) continue;
-            if (!graphicOriginalColors.TryGetValue(graphic, out var originalColor))
-            {
-                originalColor = graphic.color;
-                graphicOriginalColors[graphic] = originalColor;
-            }
-
-            if (graphicHitTweens.TryGetValue(graphic, out var graphicTween) && graphicTween != null && graphicTween.IsActive())
-            {
-                graphicTween.Kill(false);
-            }
-
-            Color targetColor = muted ? CreateMutedColor(originalColor) : originalColor;
-            graphicBaseColors[graphic] = targetColor;
-            graphic.color = targetColor;
+            jailVisual.gameObject.SetActive(jailed);
         }
     }
 
-    private static Color CreateMutedColor(Color color)
+    private Transform ResolvePlayerJailVisual()
     {
-        float gray = color.grayscale;
-        return new Color(gray, gray, gray, color.a);
+        if (playerTransform == null)
+        {
+            cachedPlayerJailRoot = null;
+            playerJailVisual = null;
+            return null;
+        }
+
+        if (cachedPlayerJailRoot == playerTransform && playerJailVisual != null)
+        {
+            return playerJailVisual;
+        }
+
+        cachedPlayerJailRoot = playerTransform;
+        var children = playerTransform.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < children.Length; i++)
+        {
+            if (children[i] != null && children[i].name == PlayerJailVisualName)
+            {
+                playerJailVisual = children[i];
+                return playerJailVisual;
+            }
+        }
+
+        playerJailVisual = null;
+        return null;
     }
 
     public void ShowFloatingText(Transform targetDetails, string text, Color color, Vector3? offsetOverride = null)

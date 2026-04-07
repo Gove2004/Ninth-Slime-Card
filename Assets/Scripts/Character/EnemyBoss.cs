@@ -1,6 +1,4 @@
 using System.Collections;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 
@@ -12,7 +10,8 @@ public class EnemyBoss : BaseCharacter
     private const int ActionGapMaxMs = 650;
     private const string EnemyPlayAnimationTag = "play";
     private const string EnemyDrawAnimationTag = "draw";
-    private CancellationTokenSource _cts;
+    private Coroutine aiRoutine;
+    private System.Action animationCompletedUnlisten;
     private bool isDead = false;
     public ulong score { get; private set; }
     public bool IsEndlessMode => GameManager.Instance != null && GameManager.Instance.difficultyLevel >= 4;
@@ -34,17 +33,23 @@ public class EnemyBoss : BaseCharacter
 
     public void Stop()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = null;
+        if (aiRoutine != null && BattleManager.Instance != null)
+        {
+            BattleManager.Instance.StopCoroutine(aiRoutine);
+        }
+        aiRoutine = null;
+        animationCompletedUnlisten?.Invoke();
+        animationCompletedUnlisten = null;
     }
 
     // 这里是敌人的行动逻辑
     protected override void Action()
     {
-        Stop(); // Cancel previous task if any
-        _cts = new CancellationTokenSource();
-        _ = AIAction(_cts.Token);
+        Stop();
+        if (BattleManager.Instance != null)
+        {
+            aiRoutine = BattleManager.Instance.StartCoroutine(AIActionRoutine());
+        }
     }
 
     public static bool AllowPlay = true;
@@ -103,8 +108,6 @@ public class EnemyBoss : BaseCharacter
 
         // 超过界定后Boss成长加速
         autoManaPerTurn = SaturatingAdd(autoManaPerTurn, (ulong)((phase / 10) + 1));
-        Debug.Log($"魔力回复 +{(int)(phase/10)}");
-
         EventCenter.Publish(GameEvents.EnemyBossPhaseChanged, new EnemyBossPhaseChangedEventContext(this, phase));  // 提前发布事件，让玩家先知道阶段提升了，可能会有一些反应措施
 
         nextPhaseHealthThreshold = GetThresholdForPhase(phase);  // 更新下一阶段的生命阈值
@@ -123,7 +126,6 @@ public class EnemyBoss : BaseCharacter
 
         CardFactory.AddRandomCardToEnemyDeck();
 
-        Debug.Log($"进入阶段 {phase}，下一阶段阈值 {nextPhaseHealthThreshold}");
     }
 
 
@@ -156,7 +158,7 @@ public class EnemyBoss : BaseCharacter
         return value;
     }
 
-    private async Task WaitRandomSeconds(CancellationToken token, int min = ActionGapMinMs, int max = ActionGapMaxMs)
+    private IEnumerator WaitRandomSecondsRoutine(int min = ActionGapMinMs, int max = ActionGapMaxMs)
     {
         float settlementScale = GameSettings.GetSettlementDelayScale();
         float scale = GetAISpeedScale() * settlementScale;
@@ -170,10 +172,10 @@ public class EnemyBoss : BaseCharacter
 
         while (elapsed < duration)
         {
-            if (token.IsCancellationRequested) return;
+            if (!IsInTurn) yield break;
 
             elapsed += Time.unscaledDeltaTime;
-            await Task.Yield();
+            yield return null;
         }
     }
 
@@ -222,10 +224,11 @@ public class EnemyBoss : BaseCharacter
         return false;
     }
 
-    private async Task WaitForAnimationCompletion(CancellationToken token, string animationTag)
+    private IEnumerator WaitForAnimationCompletionRoutine(string animationTag)
     {
         bool completed = false;
-        var unlisten = EventCenter.Register<EnemyAnimationEventContext>(GameEvents.EnemyActionAnimationCompleted, context =>
+        animationCompletedUnlisten?.Invoke();
+        animationCompletedUnlisten = EventCenter.Register<EnemyAnimationEventContext>(GameEvents.EnemyActionAnimationCompleted, context =>
         {
             if (context.Tag == animationTag)
             {
@@ -237,96 +240,109 @@ public class EnemyBoss : BaseCharacter
         float elapsed = 0f;
         while (!completed && elapsed < timeout)
         {
-            if (token.IsCancellationRequested)
-            {
-                unlisten?.Invoke();
-                return;
-            }
+            if (!IsInTurn) yield break;
 
             elapsed += Time.unscaledDeltaTime;
-            await Task.Yield();
+            yield return null;
         }
-        unlisten?.Invoke();
+        animationCompletedUnlisten?.Invoke();
+        animationCompletedUnlisten = null;
     }
 
-    private async Task WaitForAnimationThenGap(CancellationToken token, string animationTag)
+    private IEnumerator WaitForAnimationThenGapRoutine(string animationTag)
     {
-        await WaitForAnimationCompletion(token, animationTag);
-        if (token.IsCancellationRequested || !IsInTurn) return;
+        yield return WaitForAnimationCompletionRoutine(animationTag);
+        if (!IsInTurn) yield break;
 
         if (!CanTakeAnyAction())
         {
             EndTurn();
-            return;
+            yield break;
         }
 
-        await WaitRandomSeconds(token, ActionGapMinMs, ActionGapMaxMs);
+        yield return WaitRandomSecondsRoutine(ActionGapMinMs, ActionGapMaxMs);
     }
 
 
-    private async Task AIAction(CancellationToken token)
+    private IEnumerator AIActionRoutine()
     {
-        try
+        yield return WaitRandomSecondsRoutine(InitialThinkMinMs, InitialThinkMaxMs);
+        if (!IsInTurn)
         {
-            await WaitRandomSeconds(token, InitialThinkMinMs, InitialThinkMaxMs);
-            if (token.IsCancellationRequested || !IsInTurn) return;
-            
-            while (!token.IsCancellationRequested && IsInTurn)
-            {
-                if (Random.value < 0.1f)
-                {
-                    EndTurn();
-                    return;
-                }
-
-
-                if (AllowPlay)
-                {
-                    BaseCard playable = null;
-                    foreach (var card in Cards)
-                    {
-                        if (card.Cost <= mana)
-                        {
-                            playable = card;
-                            break;
-                        }
-                    }
-                    if (playable != null)
-                    {
-                        PlayCard(playable);
-
-                        EventCenter.Publish(GameEvents.EnemyCardPlayed, new CardEventContext(this, playable));
-
-                        await WaitForAnimationThenGap(token, EnemyPlayAnimationTag);
-                        if (token.IsCancellationRequested || !IsInTurn) return;
-                        continue;
-                    }
-                }
-
-                if (AllowDraw && mana > 0)
-                {
-                    var card = DrawCard();
-                    if (card != null)
-                    {
-                        EventCenter.Publish(GameEvents.EnemyCardDrawn, new CardEventContext(this, card));
-
-                        await WaitForAnimationThenGap(token, EnemyDrawAnimationTag);
-                        if (token.IsCancellationRequested || !IsInTurn) return;
-                        continue;
-                    }
-                }
-
-                EndTurn();
-                return;
-            }
+            aiRoutine = null;
+            yield break;
         }
-        catch (System.Exception ex)
+
+        while (IsInTurn)
         {
-            Debug.LogError($"EnemyBoss AIAction failed: {ex}");
-            if (!token.IsCancellationRequested && IsInTurn)
+            if (Random.value < 0.1f)
             {
                 EndTurn();
+                aiRoutine = null;
+                yield break;
+            }
+
+
+            if (AllowPlay)
+            {
+                BaseCard playable = null;
+                foreach (var card in Cards)
+                {
+                    if (card.Cost <= mana)
+                    {
+                        playable = card;
+                        break;
+                    }
+                }
+                if (playable != null)
+                {
+                    PlayCard(playable);
+
+                    EventCenter.Publish(GameEvents.EnemyCardPlayed, new CardEventContext(this, playable));
+
+                    yield return WaitForAnimationThenGapRoutine(EnemyPlayAnimationTag);
+                    if (!IsInTurn)
+                    {
+                        aiRoutine = null;
+                        yield break;
+                    }
+                    continue;
+                }
+            }
+
+            if (AllowDraw && mana > 0)
+            {
+                var card = DrawCard();
+                if (card != null)
+                {
+                    EventCenter.Publish(GameEvents.EnemyCardDrawn, new CardEventContext(this, card));
+
+                    yield return WaitForAnimationThenGapRoutine(EnemyDrawAnimationTag);
+                    if (!IsInTurn)
+                    {
+                        aiRoutine = null;
+                        yield break;
+                    }
+                    continue;
+                }
             }
         }
+
+        if (IsInTurn)
+        {
+            EndTurn();
+        }
+
+        aiRoutine = null;
+    }
+
+    private void OnDisable()
+    {
+        Stop();
+    }
+
+    private void OnDestroy()
+    {
+        Stop();
     }
 }

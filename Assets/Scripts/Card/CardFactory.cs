@@ -25,7 +25,6 @@ public static class CardFactory
         { nameof(嫉妒), () => new 嫉妒() },
         { nameof(贪婪), () => new 贪婪() },
         { nameof(懒惰), () => new 懒惰() },
-        { nameof(色欲), () => new 色欲() },
         { nameof(暴食), () => new 暴食() },
         { nameof(种子), () => new 种子() },
         { nameof(骰子), () => new 骰子() },
@@ -52,10 +51,7 @@ public static class CardFactory
         { nameof(奇点), () => new 奇点() },
         { nameof(传送), () => new 传送() }
     };
-    private static readonly HashSet<string> disabledCardKeys = new()
-    {
-        nameof(色欲)
-    };
+    private static readonly HashSet<string> disabledCardKeys = new();
     private static readonly List<string> allCardKeys = new(cardFactories.Keys);
     private static readonly List<string> enabledCardKeys = CreateEnabledCardKeys();
     private static readonly string[] initialEnemyDeckKeys =
@@ -70,8 +66,48 @@ public static class CardFactory
         nameof(抽牌),
         nameof(入魔)
     };
+    private static readonly string[] initialDamageCardKeys =
+    {
+        nameof(流血),
+        nameof(加速),
+        nameof(闪击),
+        nameof(诅咒),
+        nameof(镜像),
+        nameof(激光),
+        nameof(骰子),
+        nameof(轮盘),
+        nameof(献祭),
+        nameof(暴怒)
+    };
+    private static readonly string[] initialHealCardKeys =
+    {
+        nameof(恢复),
+        nameof(吸血),
+        nameof(急救),
+        nameof(命签),
+        nameof(未来),
+        nameof(暴食),
+        nameof(羽化)
+    };
+    private static readonly string[] initialManaCardKeys =
+    {
+        nameof(入魔),
+        nameof(运势),
+        nameof(苦修),
+        nameof(急救),
+        nameof(偷魔)
+    };
+    private static readonly string[] initialDrawCardKeys =
+    {
+        nameof(抽牌),
+        nameof(制衡),
+        nameof(懒惰),
+        nameof(种子),
+        nameof(赌徒),
+        nameof(卖血)
+    };
     private static readonly List<BaseCard> allCards = CreateAllCards();
-    private static List<BaseCard> playerDeck = CreateRandomDeck(InitialPlayerDeckSize, enabledCardKeys);
+    private static List<BaseCard> playerDeck = CreateStructuredInitialPlayerDeck();
     private static List<BaseCard> enemyDeck = CreateDeck(initialEnemyDeckKeys);
 
     private static BaseCard CreateCardInstance(string cardName)
@@ -130,6 +166,48 @@ public static class CardFactory
         }
 
         return deck;
+    }
+
+    private static List<BaseCard> CreateStructuredInitialPlayerDeck()
+    {
+        List<BaseCard> deck = new(InitialPlayerDeckSize);
+        AddRandomCardsByPool(deck, initialDamageCardKeys, 3);
+        AddRandomCardsByPool(deck, initialHealCardKeys, 3);
+        AddRandomCardsByPool(deck, initialManaCardKeys, 2);
+        AddRandomCardsByPool(deck, initialDrawCardKeys, 2);
+        return deck;
+    }
+
+    private static void AddRandomCardsByPool(List<BaseCard> deck, IReadOnlyList<string> preferredKeys, int count)
+    {
+        if (deck == null || count <= 0) return;
+        List<string> pool = CreateAvailablePool(preferredKeys);
+        if (pool.Count == 0)
+        {
+            pool = new List<string>(enabledCardKeys);
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (pool.Count == 0) break;
+            string cardKey = pool[Random.Range(0, pool.Count)];
+            BaseCard card = CreateCardInstance(cardKey);
+            if (card != null) deck.Add(card);
+        }
+    }
+
+    private static List<string> CreateAvailablePool(IReadOnlyList<string> preferredKeys)
+    {
+        List<string> pool = new();
+        if (preferredKeys == null) return pool;
+        for (int i = 0; i < preferredKeys.Count; i++)
+        {
+            string key = preferredKeys[i];
+            if (string.IsNullOrWhiteSpace(key) || disabledCardKeys.Contains(key)) continue;
+            if (!cardFactories.ContainsKey(key)) continue;
+            pool.Add(key);
+        }
+        return pool;
     }
 
 
@@ -216,7 +294,7 @@ public static class CardFactory
     /// </summary>
     public static void ResetPlayerDeck()
     {
-        playerDeck = CreateRandomDeck(InitialPlayerDeckSize, enabledCardKeys);
+        playerDeck = CreateStructuredInitialPlayerDeck();
     }
 
     // 获取玩家牌组

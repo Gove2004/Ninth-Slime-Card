@@ -80,8 +80,6 @@ public class BattleManager : MonoBehaviour
             if (healClip != null) audioMgr.healClip = healClip;
             if (manaClip != null) audioMgr.manaClip = manaClip;
             
-            Debug.Log($"[BattleManager] Injecting clips to AudioManager. ManaClip: {manaClip}");
-            
             audioMgr.RegisterClips();
         }
     }
@@ -147,6 +145,33 @@ public class BattleManager : MonoBehaviour
     private Action onEnemyDeadUnsub;
     private Action onCharacterEndedTurnUnsub;
 
+    private void CleanupBattleRuntimeState(bool clearGlobalEvents = false, bool resetEndingBattleFlag = true)
+    {
+        StopAllCoroutines();
+        player?.OnBattleEnd();
+        enemy?.OnBattleEnd();
+        if (player != null) player.AbortTurn();
+        if (enemy != null) enemy.AbortTurn();
+        onPhaseChangedUnsub?.Invoke();
+        onPhaseChangedUnsub = null;
+        onPlayerDeadUnsub?.Invoke();
+        onPlayerDeadUnsub = null;
+        onEnemyDeadUnsub?.Invoke();
+        onEnemyDeadUnsub = null;
+        onCharacterEndedTurnUnsub?.Invoke();
+        onCharacterEndedTurnUnsub = null;
+        Time.timeScale = 1f;
+        if (resetEndingBattleFlag)
+        {
+            isEndingBattle = false;
+        }
+
+        if (clearGlobalEvents)
+        {
+            EventCenter.ClearAllEvents();
+        }
+    }
+
 
     public void StartBattle()
     {
@@ -155,17 +180,8 @@ public class BattleManager : MonoBehaviour
 
     public void StartBattle(bool autoStartTurns)
     {
-        Debug.Log("战斗开始！");
         EnsureGMToolState();
-
-        StopAllCoroutines();
-        player?.OnBattleEnd();
-        enemy?.OnBattleEnd();
-        onPhaseChangedUnsub?.Invoke();
-        onPlayerDeadUnsub?.Invoke();
-        onEnemyDeadUnsub?.Invoke();
-        onCharacterEndedTurnUnsub?.Invoke();
-        Time.timeScale = 1f;
+        CleanupBattleRuntimeState();
         EnemyBoss.AllowPlay = true;
         EnemyBoss.AllowDraw = true;
         var gmTool = GetComponent<GMTool>();
@@ -230,22 +246,40 @@ public class BattleManager : MonoBehaviour
             if (player != null)
             {
                 player.autoManaPerTurn++;
-                Debug.Log($"阶段提升，玩家每回合自动回蓝增加至: {player.autoManaPerTurn}");
             }
         });
 
         onPlayerDeadUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.PlayerDefeated, context =>
         {
-            EndBattle(true);
+            if (!IsCurrentBattleCharacter(context, player)) return;
+            StartCoroutine(ConfirmBattleEndAtFrameEnd(player));
         });
         onEnemyDeadUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.EnemyDefeated, context =>
         {
-            EndBattle(true);
+            if (!IsCurrentBattleCharacter(context, enemy)) return;
+            StartCoroutine(ConfirmBattleEndAtFrameEnd(enemy));
         });
         onCharacterEndedTurnUnsub = EventCenter.Register<CharacterEventContext>(GameEvents.CharacterTurnEnded, context =>
         {
             NextTurn();
         });
+    }
+
+    private bool IsCurrentBattleCharacter(CharacterEventContext context, BaseCharacter expectedCharacter)
+    {
+        if (context == null || expectedCharacter == null) return false;
+        return ReferenceEquals(context.Character, expectedCharacter);
+    }
+
+    private IEnumerator ConfirmBattleEndAtFrameEnd(BaseCharacter defeatedCharacter)
+    {
+        yield return null;
+
+        if (isEndingBattle || defeatedCharacter == null) yield break;
+        if (!ReferenceEquals(defeatedCharacter, player) && !ReferenceEquals(defeatedCharacter, enemy)) yield break;
+        if (defeatedCharacter.health > 0) yield break;
+
+        EndBattle(true);
     }
 
 
@@ -267,46 +301,30 @@ public class BattleManager : MonoBehaviour
 
     public void ExitToMainMenuWithoutSettlement()
     {
-        StopAllCoroutines();
-        player?.OnBattleEnd();
-        enemy?.OnBattleEnd();
-        onPhaseChangedUnsub?.Invoke();
-        onPlayerDeadUnsub?.Invoke();
-        onEnemyDeadUnsub?.Invoke();
-        onCharacterEndedTurnUnsub?.Invoke();
-        Time.timeScale = 1f;
-        if (player != null) player.AbortTurn();
-        if (enemy != null) enemy.AbortTurn();
+        CleanupBattleRuntimeState();
         EventCenter.Publish(GameEvents.BattleEnded, CreateBattleEventContext());
         player = null;
         enemy = null;
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         GameManager.Instance.SwitchSecne(false);
-        isEndingBattle = false;
     }
 
     private IEnumerator EndBattleRoutine()
     {
         isEndingBattle = true;
-        Debug.Log("战斗结束。");
-
-        player?.OnBattleEnd();
-        enemy?.OnBattleEnd();
-        onPhaseChangedUnsub?.Invoke();
-        onPlayerDeadUnsub?.Invoke();
-        onEnemyDeadUnsub?.Invoke();
-        onCharacterEndedTurnUnsub?.Invoke();
-        Time.timeScale = 1f;
-
-        if (player != null) player.AbortTurn();
-        if (enemy != null) enemy.AbortTurn();
+        CleanupBattleRuntimeState(resetEndingBattleFlag: false);
 
         EventCenter.Publish(GameEvents.BattleEnded, CreateBattleEventContext());
 
         // 显示游戏结束 UI
         ShowGameOverUI();
 
-        yield return new WaitForSeconds(1.0f);
+        if (deleteCurrentSaveOnEnd && BattleSessionSaveService.Instance != null)
+        {
+            BattleSessionSaveService.Instance.DeleteCurrentSlotIfAny();
+        }
+
+        yield return new WaitForSecondsRealtime(3.0f);
 
         // 结算分数
         ulong score = 0;
@@ -322,11 +340,6 @@ public class BattleManager : MonoBehaviour
 
         // UI跳转
         GameManager.Instance.SwitchSecne(false);
-        isEndingBattle = false;
-        if (deleteCurrentSaveOnEnd && BattleSessionSaveService.Instance != null)
-        {
-            BattleSessionSaveService.Instance.DeleteCurrentSlotIfAny();
-        }
         deleteCurrentSaveOnEnd = false;
     }
 
@@ -386,8 +399,6 @@ public class BattleManager : MonoBehaviour
     {
         if (player == null || enemy == null) return; // Add null check
         currentTurn++;
-
-        Debug.Log($"第{currentTurn}回合开始");
 
         // 轮流行动
         if (currentTurn % 2 == 1)
@@ -570,6 +581,7 @@ public class BattleManager : MonoBehaviour
             typeName = card.GetType().AssemblyQualifiedName,
             cost = card.Cost,
             value = card.Value,
+            values = new List<ulong>(card.Values),
             duration = card.Duration,
             isStolenFromOpponent = card.IsStolenFromOpponent
         };
@@ -652,7 +664,14 @@ public class BattleManager : MonoBehaviour
         }
 
         card.SetCost(saved.cost);
-        card.SetValue(saved.value);
+        if (saved.values != null && saved.values.Count > 0)
+        {
+            card.SetValues(saved.values);
+        }
+        else
+        {
+            card.SetValue(saved.value);
+        }
         card.SetDuration(saved.duration);
         if (saved.isStolenFromOpponent) card.MarkStolenFromOpponent();
     }
@@ -752,14 +771,13 @@ public class BattleManager : MonoBehaviour
     //     }
     // }
 
+    void OnDisable()
+    {
+        CleanupBattleRuntimeState();
+    }
+
     void OnDestroy()
     {
-        onPhaseChangedUnsub?.Invoke();
-        onPlayerDeadUnsub?.Invoke();
-        onEnemyDeadUnsub?.Invoke();
-        onCharacterEndedTurnUnsub?.Invoke();
-        
-        // 游戏退出或重新加载时，清理所有静态事件，防止引用已销毁的对象
-        EventCenter.ClearAllEvents();
+        CleanupBattleRuntimeState(true);
     }
 }

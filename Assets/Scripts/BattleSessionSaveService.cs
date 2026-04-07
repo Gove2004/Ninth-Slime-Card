@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 [Serializable]
@@ -9,6 +10,7 @@ public class SavedCardData
     public string typeName;
     public ulong cost;
     public ulong value;
+    public List<ulong> values = new List<ulong>();
     public int duration;
     public bool isStolenFromOpponent;
     public SavedCardData mirroredCard;
@@ -78,8 +80,14 @@ public class BattleSessionSaveService : MonoBehaviour
 {
     public static BattleSessionSaveService Instance { get; private set; }
     private const string SaveCollectionKey = "BattleSaveSlots";
+    private const string SaveFileName = "battle_save_slots.json";
     private BattleSaveSlotCollection collection = new BattleSaveSlotCollection();
     private string currentSlotId;
+
+    private static string GetSaveFilePath()
+    {
+        return Path.Combine(Application.persistentDataPath, SaveFileName);
+    }
 
     private void Awake()
     {
@@ -197,14 +205,42 @@ public class BattleSessionSaveService : MonoBehaviour
 
     private void LoadCollection()
     {
-        string json = PlayerPrefs.GetString(SaveCollectionKey, string.Empty);
+        string json = string.Empty;
+        string filePath = GetSaveFilePath();
+
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                json = File.ReadAllText(filePath);
+            }
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"读取战斗存档文件失败: {exception.Message}");
+        }
+
+        if (string.IsNullOrEmpty(json))
+        {
+            json = PlayerPrefs.GetString(SaveCollectionKey, string.Empty);
+        }
+
         if (string.IsNullOrEmpty(json))
         {
             collection = new BattleSaveSlotCollection();
             return;
         }
 
-        var loaded = JsonUtility.FromJson<BattleSaveSlotCollection>(json);
+        BattleSaveSlotCollection loaded = null;
+        try
+        {
+            loaded = JsonUtility.FromJson<BattleSaveSlotCollection>(json);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"解析战斗存档失败: {exception.Message}");
+        }
+
         collection = loaded ?? new BattleSaveSlotCollection();
         if (collection.slots == null) collection.slots = new List<BattleSaveSlotData>();
     }
@@ -214,7 +250,34 @@ public class BattleSessionSaveService : MonoBehaviour
         if (collection == null) collection = new BattleSaveSlotCollection();
         if (collection.slots == null) collection.slots = new List<BattleSaveSlotData>();
         string json = JsonUtility.ToJson(collection);
-        PlayerPrefs.SetString(SaveCollectionKey, json);
-        PlayerPrefs.Save();
+        string filePath = GetSaveFilePath();
+        string tempPath = filePath + ".tmp";
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath) ?? Application.persistentDataPath);
+            File.WriteAllText(tempPath, json);
+
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+
+            File.Move(tempPath, filePath);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"写入战斗存档文件失败: {exception.Message}");
+
+            try
+            {
+                PlayerPrefs.SetString(SaveCollectionKey, json);
+                PlayerPrefs.Save();
+            }
+            catch (Exception fallbackException)
+            {
+                Debug.LogError($"回退保存战斗存档到 PlayerPrefs 失败: {fallbackException.Message}");
+            }
+        }
     }
 }

@@ -33,6 +33,7 @@ public abstract class BaseCharacter
     public event Action<ulong, BaseCharacter> DamageTaken;
     public event Action<ulong, BaseCharacter> DamageDealt;
     public event Action<ulong> HealTaken;
+    public event Func<ulong, BaseCharacter, ulong> IncomingDamageProcessing;
     
     public abstract void ChangeHealth(long amount);
     
@@ -280,15 +281,22 @@ public abstract class BaseCharacter
         if (amount < 0 && immuneThisTurn) return;
         if (amount < 0 && source == this && immuneSelfDamage) return;
 
-        if (amount < 0 && damageTakenMultiplier != 1f)
+        ulong processedDamage = 0UL;
+        if (amount < 0)
         {
-            ulong damage = MagnitudeFromSigned(amount);
-            double scaled = damage * damageTakenMultiplier;
-            if (scaled <= 0d) return;
-            if (scaled >= ulong.MaxValue) damage = ulong.MaxValue;
-            else damage = (ulong)Math.Round(scaled);
-            if (damage == 0) return;
-            amount = -(long)Math.Min(damage, (ulong)long.MaxValue);
+            processedDamage = MagnitudeFromSigned(amount);
+            if (damageTakenMultiplier != 1f)
+            {
+                double scaled = processedDamage * damageTakenMultiplier;
+                if (scaled <= 0d) return;
+                if (scaled >= ulong.MaxValue) processedDamage = ulong.MaxValue;
+                else processedDamage = (ulong)Math.Round(scaled);
+                if (processedDamage == 0) return;
+            }
+
+            processedDamage = ProcessIncomingDamage(processedDamage, source);
+            if (processedDamage == 0) return;
+            amount = -(long)Math.Min(processedDamage, (ulong)long.MaxValue);
         }
 
         if (amount < 0)
@@ -302,9 +310,8 @@ public abstract class BaseCharacter
 
         if (amount < 0)
         {
-            ulong damage = MagnitudeFromSigned(amount);
-            DamageTaken?.Invoke(damage, source);
-            source?.DamageDealt?.Invoke(damage, this);
+            DamageTaken?.Invoke(processedDamage, source);
+            source?.DamageDealt?.Invoke(processedDamage, this);
         }
         else if (amount > 0)
         {
@@ -604,6 +611,25 @@ public abstract class BaseCharacter
         }
 
         return left == 0UL ? 1UL : left;
+    }
+
+    private ulong ProcessIncomingDamage(ulong damage, BaseCharacter source)
+    {
+        if (damage == 0) return 0;
+        if (IncomingDamageProcessing == null) return damage;
+
+        Delegate[] handlers = IncomingDamageProcessing.GetInvocationList();
+        ulong currentDamage = damage;
+        for (int i = 0; i < handlers.Length; i++)
+        {
+            if (handlers[i] is Func<ulong, BaseCharacter, ulong> handler)
+            {
+                currentDamage = handler(currentDamage, source);
+                if (currentDamage == 0) break;
+            }
+        }
+
+        return currentDamage;
     }
 
     public void RemoveCard(BaseCard card)

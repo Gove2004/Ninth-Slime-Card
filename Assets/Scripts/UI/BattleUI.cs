@@ -5,6 +5,7 @@ using DG.Tweening;
 
 public class BattleUI : MonoBehaviour
 {
+    private const float ActionStateRefreshInterval = 0.1f;
     // UI按钮引用
     public Button drawCardButton;
     public Button playCardButton;
@@ -18,6 +19,7 @@ public class BattleUI : MonoBehaviour
     private ulong lastDrawCost = ulong.MaxValue;
     private ulong lastAutoMana = 0;
     private bool hasLastAutoMana = false;
+    private float nextActionStateRefreshTime;
 
     public CardList cardList;
 
@@ -37,7 +39,10 @@ public class BattleUI : MonoBehaviour
         EventCenter.Register<BattleEventContext>(GameEvents.BattleStarted, _ => 
         {
             if (cardList != null) cardList.SyncFromBattleHand();
+            RefreshActionState(true);
         });
+
+        RefreshActionState(true);
     }
 
     private void EnsureReferences()
@@ -128,7 +133,7 @@ public class BattleUI : MonoBehaviour
 
     void Update()
     {
-        IsPlayerTurn();
+        RefreshActionState(false);
 
         if (GMTool.IsTextInputActive)
         {
@@ -153,18 +158,21 @@ public class BattleUI : MonoBehaviour
     {
         if (!CanUseDraw()) return;
         ((Player)BattleManager.Instance.player).UI_DrawCard();
+        RefreshActionState(true);
     }
 
     private void OnPlayCardClicked()
     {
         if (!CanUsePlay()) return;
         ((Player)BattleManager.Instance.player).UI_PlayCard(cardList.selectedCard);
+        RefreshActionState(true);
     }
 
     private void OnEndTurnClicked()
     {
         if (!CanUseEndTurn()) return;
         ((Player)BattleManager.Instance.player).UI_EndTurn();
+        RefreshActionState(true);
     }
 
     private void OnExitClicked()
@@ -179,8 +187,15 @@ public class BattleUI : MonoBehaviour
         OnExitClicked();
     }
 
-    private void IsPlayerTurn()
+    private void RefreshActionState(bool immediate)
     {
+        if (!immediate && Time.unscaledTime < nextActionStateRefreshTime)
+        {
+            return;
+        }
+
+        nextActionStateRefreshTime = Time.unscaledTime + ActionStateRefreshInterval;
+
         if ((Player)BattleManager.Instance?.player != null)
         {
             Player player = (Player)BattleManager.Instance.player;
@@ -190,7 +205,7 @@ public class BattleUI : MonoBehaviour
             if (drawCardButton != null) drawCardButton.interactable = canUseTurnActions && player.mana >= drawCost && player.Cards.Count < Player.HandLimit;
             if (playCardButton != null) playCardButton.interactable = canUseTurnActions && cardList.AblePlay;
             if (endTurnButton != null) endTurnButton.interactable = isPlayerTurn;
-            bool showExitButton = isPlayerTurn && !player.IsJailed;
+            bool showExitButton = isPlayerTurn;
             if (exitButton != null && exitButton.gameObject.activeSelf != showExitButton) exitButton.gameObject.SetActive(showExitButton);
 
             if (drawCardButtonText != null && lastDrawCost != drawCost)

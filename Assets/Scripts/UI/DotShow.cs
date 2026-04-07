@@ -214,7 +214,6 @@ public class DotShow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         if (descriptionText != null && descriptionText.font != null)
         {
             sharedTooltipText.font = descriptionText.font;
-            sharedTooltipText.fontSharedMaterial = descriptionText.fontSharedMaterial;
         }
         sharedTooltipText.color = Color.white;
         sharedTooltipText.fontSize = 16f;

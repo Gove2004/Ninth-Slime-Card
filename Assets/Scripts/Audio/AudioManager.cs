@@ -104,19 +104,16 @@ public class AudioManager : MonoBehaviour
         if (b2 != null) battleBGMClips.Add(b2);
         else Debug.LogError("Failed to load Music/战斗bgm2");
 
-        Debug.Log($"[AudioManager] Loaded {titleBGMClips.Count} Title BGMs and {battleBGMClips.Count} Battle BGMs.");
     }
 
     public void PlayTitleBGM()
     {
-        Debug.Log("[AudioManager] Request to play Title BGM");
         EnsureBGMLoaded();
         PlayRandomBGM(titleBGMClips);
     }
 
     public void PlayBattleBGM()
     {
-        Debug.Log("[AudioManager] Request to play Battle BGM");
         EnsureBGMLoaded();
         PlayRandomBGM(battleBGMClips);
     }
@@ -141,19 +138,15 @@ public class AudioManager : MonoBehaviour
 
         if (musicSource.clip == clipToPlay && musicSource.isPlaying)
         {
-            Debug.Log($"[AudioManager] Already playing {clipToPlay.name}");
             return; 
         }
 
-        Debug.Log($"[AudioManager] Playing BGM: {clipToPlay.name}");
         musicSource.clip = clipToPlay;
         musicSource.Play();
     }
 
     public void RegisterClips()
     {
-        Debug.Log($"[AudioManager] Registering Clips. Draw:{drawClip!=null}, Play:{playClip!=null}, Slash:{damageClip!=null}, PlayerSlash:{playerDamageClip!=null}, EnemySlash:{enemyDamageClip!=null}, Heal:{healClip!=null}, Mana:{manaClip!=null}");
-
         if (drawClip != null) proceduralClips["Draw"] = drawClip;
         if (playClip != null) proceduralClips["Play"] = playClip;
         var playerClip = playerDamageClip != null ? playerDamageClip : damageClip;

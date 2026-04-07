@@ -33,6 +33,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private readonly Color mirageImageColor = new(0.78f, 0.9f, 1f, 1f);
     private readonly Vector3[] tooltipCorners = new Vector3[4];
     private static readonly System.Collections.Generic.Dictionary<string, Sprite> CardSpriteCache = new();
+    private const float VisualRefreshInterval = 0.1f;
     
     private bool dragging;
     public bool IsDragging => dragging; // Public property for CardList to access
@@ -48,6 +49,8 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
     private CardList cardList;
     private Canvas _parentCanvas;
+    private bool visualRefreshRequested = true;
+    private float nextVisualRefreshTime;
 
     public void Init(CardList list)
     {
@@ -82,7 +85,14 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
     void Update()
     {
-        if (JustUIShow) return;
+        if (JustUIShow)
+        {
+            // Let layout groups fully control collection-view card placement.
+            var rect = (RectTransform)transform;
+            rect.localRotation = Quaternion.identity;
+            rect.localScale = Vector3.one;
+            return;
+        }
 
         // Smooth movement and rotation
         if (!dragging)
@@ -118,6 +128,15 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
              rect.localScale = Vector3.Lerp(rect.localScale, Vector3.one * 1.2f, Time.deltaTime * 15f);
         }
 
+        if (!visualRefreshRequested && Time.unscaledTime < nextVisualRefreshTime) return;
+
+        visualRefreshRequested = false;
+        nextVisualRefreshTime = Time.unscaledTime + VisualRefreshInterval;
+        RefreshVisualData();
+    }
+
+    private void RefreshVisualData()
+    {
         if (cardData == null) return;
         string description = cardData.GetDynamicDescription();
         if (description != lastDescription)
@@ -148,6 +167,15 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         {
             lastMirageState = cardData.IsMirageCard;
             ApplyMirageVisual(lastMirageState);
+        }
+    }
+
+    private void RequestVisualRefresh(bool immediate = false)
+    {
+        visualRefreshRequested = true;
+        if (immediate)
+        {
+            nextVisualRefreshTime = 0f;
         }
     }
 
@@ -213,6 +241,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         hasLastCost = true;
         lastMirageState = card.IsMirageCard;
         ApplyMirageVisual(lastMirageState);
+        RequestVisualRefresh(true);
     }
 
     private void TryLoadCardImage(string imagePath)
@@ -286,7 +315,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         isHovered = false;
         
-        if (sequence.IsActive())
+        if (sequence != null && sequence.IsActive())
         {
             sequence.Kill(true);
         }
@@ -309,7 +338,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         isHovered = true;
 
-        if (sequence.IsActive())
+        if (sequence != null && sequence.IsActive())
         {
             sequence.Kill(true);
         }
@@ -322,6 +351,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         // transform scale is handled in Update
         sequence.Join(tooltipRect.DOAnchorPosY(originalTooltipAnchored.y + 20, 0.2f));
         sequence.Join(tooltipCanvasGroup.DOFade(1, 0.2f));
+        RequestVisualRefresh(true);
     }
     #endregion
 
@@ -418,6 +448,14 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         {
             // Just let the update loop handle the return animation
             outline.enabled = IsSelected;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (sequence != null && sequence.IsActive())
+        {
+            sequence.Kill(false);
         }
     }
 

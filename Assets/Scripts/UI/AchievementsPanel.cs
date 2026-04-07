@@ -5,12 +5,15 @@ using UnityEngine.UI;
 
 public class AchievementsPanel : MonoBehaviour
 {
+    private const float TurnoverCheckInterval = 0.25f;
     public TMP_FontAsset fontAsset;
     public Color completedColor = new Color(0.2f, 0.8f, 0.2f, 1f);
     public ScrollRect scrollRect;
     public RectTransform contentRect;
     public GameObject itemTemplate;
     private readonly List<GameObject> items = new();
+    private bool turnoverTriggered;
+    private float nextTurnoverCheckTime;
 
     private void Awake()
     {
@@ -24,11 +27,22 @@ public class AchievementsPanel : MonoBehaviour
 
     private void Update()
     {
-        var manager = AchievementManager.Instance;
-        if (manager == null || !manager.IsReverseCountingEnabled) return;
-        if (!IsDeviceTurnedOver()) return;
+        if (Time.unscaledTime < nextTurnoverCheckTime) return;
+        nextTurnoverCheckTime = Time.unscaledTime + TurnoverCheckInterval;
 
-        if (manager.RestoreForwardCounting())
+        var manager = AchievementManager.Instance;
+        if (manager == null) return;
+        bool turnedOver = IsDeviceTurnedOver();
+        if (!turnedOver)
+        {
+            turnoverTriggered = false;
+            return;
+        }
+
+        if (turnoverTriggered) return;
+        turnoverTriggered = true;
+
+        if (manager.UnlockAllAchievementsAndSync())
         {
             Refresh();
         }

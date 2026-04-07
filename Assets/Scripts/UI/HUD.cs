@@ -5,6 +5,7 @@ using DG.Tweening;
 
 public class HUD : MonoBehaviour
 {
+    private const float HudRefreshInterval = 0.1f;
     // UI元素
     public TextMeshProUGUI playerHPText;
     public TextMeshProUGUI playerSPText;
@@ -67,6 +68,7 @@ public class HUD : MonoBehaviour
     private bool hasPlayerHpBaseScale;
     private Vector3 enemyHpBaseScale = Vector3.one;
     private bool hasEnemyHpBaseScale;
+    private float nextHudRefreshTime;
 
     void Start()
     {
@@ -117,21 +119,27 @@ public class HUD : MonoBehaviour
             originalEnemyHpColor = enemyHPText.color;
             originalEnemyHpFont = enemyHPText.font;
             originalEnemyHpFontStyle = enemyHPText.fontStyle;
-            originalEnemyHpFontMaterial = enemyHPText.fontSharedMaterial;
             originalEnemyHpEnableVertexGradient = enemyHPText.enableVertexGradient;
             originalEnemyHpVertexGradient = enemyHPText.colorGradient;
-            originalEnemyHpColorGradientPreset = enemyHPText.colorGradientPreset;
             hasOriginalEnemyHpTextStyle = true;
         }
         nonEndlessEnemyHpSprite = LoadBloodSprite();
         onPlayerGainManaUnsub = EventCenter.Register<CharacterValueEventContext>(GameEvents.PlayerGainedMana, _ =>
         {
             pendingManaGainEffect = true;
+            nextHudRefreshTime = 0f;
         });
     }
 
     void Update()
     {
+        if (Time.unscaledTime < nextHudRefreshTime)
+        {
+            return;
+        }
+
+        nextHudRefreshTime = Time.unscaledTime + HudRefreshInterval;
+
         // 简化逻辑， 每帧更新UI显示
         if (BattleManager.Instance != null)
         {
@@ -380,10 +388,8 @@ public class HUD : MonoBehaviour
             enemyHPText.fontSize = playerHPText.fontSize;
             enemyHPText.color = playerHPText.color;
             enemyHPText.fontStyle = playerHPText.fontStyle;
-            enemyHPText.fontSharedMaterial = playerHPText.fontSharedMaterial;
             enemyHPText.enableVertexGradient = playerHPText.enableVertexGradient;
             enemyHPText.colorGradient = playerHPText.colorGradient;
-            enemyHPText.colorGradientPreset = playerHPText.colorGradientPreset;
         }
         if (enemyHPBgImage != null)
         {
@@ -414,10 +420,8 @@ public class HUD : MonoBehaviour
             enemyHPText.fontSize = originalEnemyHpFontSize;
             enemyHPText.color = originalEnemyHpColor;
             enemyHPText.fontStyle = originalEnemyHpFontStyle;
-            enemyHPText.fontSharedMaterial = originalEnemyHpFontMaterial;
             enemyHPText.enableVertexGradient = originalEnemyHpEnableVertexGradient;
             enemyHPText.colorGradient = originalEnemyHpVertexGradient;
-            enemyHPText.colorGradientPreset = originalEnemyHpColorGradientPreset;
         }
         if (enemyHPBgImage != null && hasOriginalEnemyHpBgState)
         {

@@ -15,6 +15,7 @@ public static class CardRuntimeHelper
         "偷窃", "偷魔", "偷月"
     };
     private static readonly List<BaseCard> pendingTeleportedHand = new();
+    private static int pendingTeleportedBattlesRemaining;
 
     public static void DiscardAllCards(BaseCharacter user)
     {
@@ -74,7 +75,7 @@ public static class CardRuntimeHelper
         }
         if (clone == null) return null;
         clone.SetCost(source.Cost);
-        clone.SetValue(source.Value);
+        clone.SetValues(source.Values);
         clone.SetDuration(source.Duration);
         if (source.IsStolenFromOpponent) clone.MarkStolenFromOpponent();
         if (source.PlayerAcquisitionMutationResolved) clone.MarkPlayerAcquisitionMutationResolved();
@@ -99,7 +100,7 @@ public static class CardRuntimeHelper
 
         BaseCard downclock = new 降频();
         downclock.SetCost(card.Cost);
-        downclock.SetValue(card.Value);
+        downclock.SetValues(card.Values);
         downclock.SetDuration(card.Duration);
         if (card.IsStolenFromOpponent) downclock.MarkStolenFromOpponent();
         downclock.MarkPlayerAcquisitionMutationResolved();
@@ -127,10 +128,11 @@ public static class CardRuntimeHelper
         GameSettings.SetSettlementSpeed(targetSpeed);
     }
 
-    public static void TeleportHandToNextBattle(BaseCharacter user)
+    public static void TeleportHandToNextBattles(BaseCharacter user, int battleCount)
     {
         pendingTeleportedHand.Clear();
-        if (user == null) return;
+        pendingTeleportedBattlesRemaining = Mathf.Max(0, battleCount);
+        if (user == null || pendingTeleportedBattlesRemaining <= 0) return;
 
         foreach (BaseCard card in user.Cards)
         {
@@ -146,7 +148,7 @@ public static class CardRuntimeHelper
 
     public static void ApplyTeleportedHand(Player player)
     {
-        if (player == null || pendingTeleportedHand.Count == 0) return;
+        if (player == null || pendingTeleportedHand.Count == 0 || pendingTeleportedBattlesRemaining <= 0) return;
 
         foreach (BaseCard card in pendingTeleportedHand)
         {
@@ -157,7 +159,11 @@ public static class CardRuntimeHelper
             }
         }
 
-        pendingTeleportedHand.Clear();
+        pendingTeleportedBattlesRemaining--;
+        if (pendingTeleportedBattlesRemaining <= 0)
+        {
+            pendingTeleportedHand.Clear();
+        }
     }
 
     public static List<BaseCharacter> GetAffectedCharacters(BaseCharacter user, BaseCharacter target = null)
@@ -313,7 +319,8 @@ public class 吸血 : BaseCard
             if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
             try
             {
-                dot.source.ApplyHealthChange(ToLong(amount), dot.source);
+                ulong heal = BaseCharacter.SaturatingMultiply(amount, Value);
+                dot.source.ApplyHealthChange(ToLong(heal), dot.source);
             }
             finally
             {
@@ -325,7 +332,7 @@ public class 吸血 : BaseCard
         dot = new Dot(user, target, Duration, d => { }, d =>
         {
             if (d.source != null) d.source.DamageDealt -= handler;
-        }, () => $"造成伤害后恢复等量生命，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
+        }, () => $"造成伤害后恢复{Value}倍生命，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
         {
             if (oldSource != null) oldSource.DamageDealt -= handler;
             if (d.source != null) d.source.DamageDealt += handler;
@@ -342,14 +349,17 @@ public class 加速 : BaseCard
     {
         if (Duration <= 0) return;
         CardRuntimeHelper.AdjustBattleSpeed(0.1f);
-        ulong startDamage = Value;
+        ulong currentDamage = GetValueAt(0);
+        ulong multiplier = GetValueAt(1);
+        if (currentDamage == 0) return;
+        if (multiplier == 0) multiplier = 1;
 
         Dot dot = null;
         dot = new Dot(user, target, Duration, d =>
         {
-            d.source.DealDamage(d.target, startDamage);
-            startDamage = BaseCharacter.SaturatingMultiply(startDamage, 2UL);
-        }, null, () => $"每回合造成翻倍伤害，当前{startDamage}点，剩余{dot.duration}回合");
+            d.source.DealDamage(d.target, currentDamage);
+            currentDamage = BaseCharacter.SaturatingMultiply(currentDamage, multiplier);
+        }, null, () => $"每回合造成伤害，当前{currentDamage}点，下次×{multiplier}，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
@@ -429,9 +439,10 @@ public class 急救 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        ulong value = Value;
-        user.ChangeMana(ToLong(value));
-        user.ApplyHealthChange(ToLong(BaseCharacter.SaturatingMultiply(value, 3)), user);
+        ulong manaGain = GetValueAt(0);
+        ulong heal = GetValueAt(1);
+        user.ChangeMana(ToLong(manaGain));
+        user.ApplyHealthChange(ToLong(heal), user);
     }
 }
 
@@ -471,13 +482,13 @@ public class 重奏 : BaseCard
         if (nextMirror == null) return;
 
         nextMirror.SetCost(effectiveSource.Cost);
-        nextMirror.SetValue(effectiveSource.Value);
+        nextMirror.SetValues(effectiveSource.Values);
         nextMirror.SetDuration(effectiveSource.Duration);
         if (effectiveSource.IsStolenFromOpponent) nextMirror.MarkStolenFromOpponent();
 
         mirroredCard = nextMirror;
         SetCost(nextMirror.Cost);
-        SetValue(nextMirror.Value);
+        SetValues(nextMirror.Values);
         SetDuration(nextMirror.Duration);
     }
 
@@ -521,8 +532,8 @@ public class 七罪 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (Duration <= 0) return;
-        int gainCount = ToInt(Value);
-        int initialGain = Mathf.Min(gainCount, SinNames.Length);
+        int initialGain = Mathf.Min(ToInt(GetValueAt(0)), SinNames.Length);
+        int perTurnGain = ToInt(GetValueAt(1));
         for (int i = 0; i < initialGain; i++)
         {
             var initialCard = CardFactory.GetThisCard(SinNames[i]);
@@ -532,10 +543,13 @@ public class 七罪 : BaseCard
         Dot dot = null;
         dot = new Dot(user, user, Duration, d =>
         {
-            string randomName = SinNames[UnityEngine.Random.Range(0, SinNames.Length)];
-            var card = CardFactory.GetThisCard(randomName);
-            if (card != null) d.source.GainCard(card);
-        }, null, () => $"每回合获得1张原罪卡，剩余{dot.duration}回合");
+            for (int i = 0; i < perTurnGain; i++)
+            {
+                string randomName = SinNames[UnityEngine.Random.Range(0, SinNames.Length)];
+                var card = CardFactory.GetThisCard(randomName);
+                if (card != null) d.source.GainCard(card);
+            }
+        }, null, () => $"每回合获得{perTurnGain}张原罪卡，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
@@ -547,13 +561,14 @@ public class 暴怒 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        ulong value = Value;
-        if (value == 0) return;
-        user.DealDamage(target, value);
-        float selfDamageProbability = Mathf.Clamp01(ToFloat(value) / 100f);
+        ulong damage = GetValueAt(0);
+        ulong selfDamageChance = GetValueAt(1);
+        if (damage == 0) return;
+        user.DealDamage(target, damage);
+        float selfDamageProbability = Mathf.Clamp01(ToFloat(selfDamageChance) / 100f);
         if (UnityEngine.Random.value < selfDamageProbability)
         {
-            user.DealDamage(user, value);
+            user.DealDamage(user, damage);
         }
     }
 }
@@ -569,30 +584,22 @@ public class 傲慢 : BaseCard
         if (remainingHits <= 0) return;
 
         Dot dot = null;
-        Action<ulong, BaseCharacter> handler = (amount, source) =>
+        Func<ulong, BaseCharacter, ulong> handler = (amount, source) =>
         {
-            if (dot == null || dot.source == null) return;
-            if (remainingHits <= 0 || amount == 0) return;
-            if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
-            try
-            {
-                dot.source.ApplyHealthChange(ToLong(amount), dot.source);
-                remainingHits--;
-            }
-            finally
-            {
-                BaseCharacter.ExitNestedTrigger(dot.sourceCard, previousContext);
-            }
+            if (dot == null || dot.source == null) return amount;
+            if (remainingHits <= 0 || amount == 0) return amount;
+            remainingHits--;
+            return 0UL;
         };
 
-        user.DamageTaken += handler;
+        user.IncomingDamageProcessing += handler;
         dot = new Dot(user, user, duration, d => { }, d =>
         {
-            if (d.source != null) d.source.DamageTaken -= handler;
+            if (d.source != null) d.source.IncomingDamageProcessing -= handler;
         }, () => $"剩余免疫{remainingHits}次，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
         {
-            if (oldSource != null) oldSource.DamageTaken -= handler;
-            if (d.source != null) d.source.DamageTaken += handler;
+            if (oldSource != null) oldSource.IncomingDamageProcessing -= handler;
+            if (d.source != null) d.source.IncomingDamageProcessing += handler;
         });
 
         user.dotBar.Add(dot);
@@ -699,30 +706,20 @@ public class 懒惰 : BaseCard
     }
 }
 
-public class 色欲 : BaseCard
-{
-    protected override int id => 1206;
-
-    public override void Execute(BaseCharacter user, BaseCharacter target)
-    {
-        return;
-    }
-}
-
 public class 暴食 : BaseCard
 {
     protected override int id => 1207;
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        ulong value = Value;
-        int eatCount = Mathf.Min(ToInt(value), user.Cards.Count);
+        int eatCount = Mathf.Min(ToInt(GetValueAt(0)), user.Cards.Count);
+        ulong healPerCard = GetValueAt(1);
         if (eatCount <= 0) return;
         for (int i = 0; i < eatCount; i++)
         {
             BaseCard card = user.Cards[0];
             user.RemoveCard(card);
-            user.ApplyHealthChange(ToLong(value), user);
+            user.ApplyHealthChange(ToLong(healPerCard), user);
         }
     }
 }
@@ -735,7 +732,11 @@ public class 种子 : BaseCard
     {
         int seed = Guid.NewGuid().GetHashCode();
         UnityEngine.Random.InitState(seed);
-        user?.GainRandomCard();
+        int gainCount = Mathf.Max(0, ToInt(Value));
+        for (int i = 0; i < gainCount; i++)
+        {
+            user?.GainRandomCard();
+        }
     }
 }
 
@@ -837,8 +838,8 @@ public class 轮盘 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (Duration <= 0) return;
-        ulong hitValue = BaseCharacter.SaturatingMultiply(Value, 6);
-        ulong selfDamage = Value / 6;
+        ulong selfDamage = GetValueAt(0);
+        ulong hitValue = GetValueAt(1);
 
         Dot dot = null;
         dot = new Dot(user, target, Duration, d =>
@@ -916,21 +917,25 @@ public class 献祭 : BaseCard
         sacrificeBonus = value;
     }
 
-    private ulong CurrentDamage => BaseCharacter.SaturatingAdd(Value, sacrificeBonus);
+    private ulong BaseDamage => GetValueAt(0);
+    private ulong GrowthMultiplier => GetValueAt(1) == 0 ? 1UL : GetValueAt(1);
+    private ulong CurrentDamage => BaseCharacter.SaturatingAdd(BaseDamage, sacrificeBonus);
 
     public override string GetDynamicDescription()
     {
         if (string.IsNullOrEmpty(Description)) return Description;
         return Description
             .Replace("[费用]", Cost.ToString())
-            .Replace("[数值]", CurrentDamage.ToString())
+            .Replace("[数值1]", CurrentDamage.ToString())
+            .Replace("[数值2]", GrowthMultiplier.ToString())
             .Replace("[持续时间]", Duration.ToString());
     }
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (Duration <= 0) return;
-        ulong baseValue = Value;
+        ulong baseValue = BaseDamage;
+        ulong multiplier = GrowthMultiplier;
         BaseCharacter effectTarget = target ?? user.Target;
         if (effectTarget == null && BattleManager.Instance != null)
         {
@@ -943,17 +948,17 @@ public class 献祭 : BaseCard
             ulong damage = BaseCharacter.SaturatingAdd(baseValue, sacrificeBonus);
             d.source.DealDamage(d.source, damage);
             if (d.target != null && !ReferenceEquals(d.target, d.source)) d.source.DealDamage(d.target, damage);
-            sacrificeBonus = GetNextDoubledBonus(baseValue, sacrificeBonus);
-        }, null, () => $"每回合对双方造成{CurrentDamage}点伤害（献祭永久翻倍），剩余{dot.duration}回合");
+            sacrificeBonus = GetNextScaledBonus(baseValue, sacrificeBonus, multiplier);
+        }, null, () => $"每回合对双方造成{CurrentDamage}点伤害（献祭永久×{multiplier}），剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
 
-    private static ulong GetNextDoubledBonus(ulong baseValue, ulong currentBonus)
+    private static ulong GetNextScaledBonus(ulong baseValue, ulong currentBonus, ulong multiplier)
     {
         ulong currentDamage = BaseCharacter.SaturatingAdd(baseValue, currentBonus);
-        ulong doubledDamage = BaseCharacter.SaturatingMultiply(currentDamage, 2UL);
-        return BaseCharacter.SaturatingSub(doubledDamage, baseValue);
+        ulong scaledDamage = BaseCharacter.SaturatingMultiply(currentDamage, multiplier);
+        return BaseCharacter.SaturatingSub(scaledDamage, baseValue);
     }
 }
 
@@ -964,19 +969,19 @@ public class 卖血 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         int duration = Duration;
-        ulong value = Value;
-        int drawCount = ToInt(value / 2);
+        ulong selfDamage = GetValueAt(0);
+        int drawCount = ToInt(GetValueAt(1));
         if (duration <= 0) return;
 
         Dot dot = null;
         dot = new Dot(user, user, duration, d =>
         {
-            d.source.ApplyHealthChange(NegToLong(value), d.source);
+            d.source.ApplyHealthChange(NegToLong(selfDamage), d.source);
             for (int i = 0; i < drawCount; i++)
             {
                 d.source.DrawCard(0);
             }
-        }, null, () => $"每回合失{value}点生命并抽{drawCount}张牌，剩余{dot.duration}回合");
+        }, null, () => $"每回合失去{selfDamage}点生命并抽{drawCount}张牌，剩余{dot.duration}回合");
 
         user.dotBar.Add(dot);
     }
@@ -999,7 +1004,8 @@ public class 反伤 : BaseCard
             if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
             try
             {
-                dot.source.DealReflectDamage(dot.target, amount);
+                ulong reflectedDamage = BaseCharacter.SaturatingMultiply(amount, Value);
+                dot.source.DealReflectDamage(dot.target, reflectedDamage);
             }
             finally
             {
@@ -1011,7 +1017,7 @@ public class 反伤 : BaseCard
         dot = new Dot(user, target, Duration, d => { }, d =>
         {
             if (d.source != null) d.source.DamageTaken -= handler;
-        }, () => $"受伤反弹等量伤害，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
+        }, () => $"受伤反弹{Value}倍伤害，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
         {
             if (oldSource != null) oldSource.DamageTaken -= handler;
             if (d.source != null) d.source.DamageTaken += handler;
@@ -1042,7 +1048,8 @@ public class 血契 : BaseCard
             if (!BaseCharacter.TryEnterNestedTrigger(dot.sourceCard, out BaseCard previousContext)) return;
             try
             {
-                dot.source.DealDamage(dot.target, amount);
+                ulong damage = BaseCharacter.SaturatingMultiply(amount, Value);
+                dot.source.DealDamage(dot.target, damage);
             }
             finally
             {
@@ -1054,7 +1061,7 @@ public class 血契 : BaseCard
         dot = new Dot(user, effectTarget, Duration, d => { }, d =>
         {
             if (d.source != null) d.source.HealTaken -= handler;
-        }, () => $"恢复生命时造成等量伤害，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
+        }, () => $"恢复生命时造成{Value}倍伤害，剩余{dot.duration}回合", (d, oldSource, oldTarget) =>
         {
             if (oldSource != null) oldSource.HealTaken -= handler;
             if (d.source != null) d.source.HealTaken += handler;
@@ -1370,19 +1377,19 @@ public class 激光 : BaseCard
         return IsPlayerCharacter(character) ? playerBonusDamage : enemyBonusDamage;
     }
 
-    private static void IncreaseBonusForCharacter(BaseCharacter character, ulong baseValue)
+    private static void IncreaseBonusForCharacter(BaseCharacter character, ulong baseValue, ulong multiplier)
     {
         if (IsPlayerCharacter(character))
         {
-            playerBonusDamage = GetNextDoubledBonus(baseValue, playerBonusDamage);
+            playerBonusDamage = GetNextScaledBonus(baseValue, playerBonusDamage, multiplier);
             return;
         }
-        enemyBonusDamage = GetNextDoubledBonus(baseValue, enemyBonusDamage);
+        enemyBonusDamage = GetNextScaledBonus(baseValue, enemyBonusDamage, multiplier);
     }
 
     private ulong GetDisplayDamage()
     {
-        return BaseCharacter.SaturatingAdd(Value, GetBonusForCharacter(OwningCharacter));
+        return BaseCharacter.SaturatingAdd(GetValueAt(0), GetBonusForCharacter(OwningCharacter));
     }
 
     public override string GetDynamicDescription()
@@ -1390,22 +1397,26 @@ public class 激光 : BaseCard
         if (string.IsNullOrEmpty(Description)) return Description;
         return Description
             .Replace("[费用]", Cost.ToString())
-            .Replace("[数值]", GetDisplayDamage().ToString())
+            .Replace("[数值1]", GetDisplayDamage().ToString())
+            .Replace("[数值2]", (GetValueAt(1) == 0 ? 1UL : GetValueAt(1)).ToString())
             .Replace("[持续时间]", Duration.ToString());
     }
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        ulong damage = BaseCharacter.SaturatingAdd(Value, GetBonusForCharacter(user));
+        ulong baseDamage = GetValueAt(0);
+        ulong multiplier = GetValueAt(1);
+        if (multiplier == 0) multiplier = 1;
+        ulong damage = BaseCharacter.SaturatingAdd(baseDamage, GetBonusForCharacter(user));
         user.DealDamage(target, damage);
-        IncreaseBonusForCharacter(user, Value);
+        IncreaseBonusForCharacter(user, baseDamage, multiplier);
     }
 
-    private static ulong GetNextDoubledBonus(ulong baseValue, ulong currentBonus)
+    private static ulong GetNextScaledBonus(ulong baseValue, ulong currentBonus, ulong multiplier)
     {
         ulong currentDamage = BaseCharacter.SaturatingAdd(baseValue, currentBonus);
-        ulong doubledDamage = BaseCharacter.SaturatingMultiply(currentDamage, 2UL);
-        return BaseCharacter.SaturatingSub(doubledDamage, baseValue);
+        ulong scaledDamage = BaseCharacter.SaturatingMultiply(currentDamage, multiplier);
+        return BaseCharacter.SaturatingSub(scaledDamage, baseValue);
     }
 }
 
@@ -1466,8 +1477,12 @@ public class 奇点 : BaseCard
 
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
-        if (BattleManager.Instance == null) return;
-        BattleManager.Instance.RestartBattleSoon();
+        ulong resetValue = Value;
+        foreach (var character in CardRuntimeHelper.GetAffectedCharacters(user, target))
+        {
+            character.mana = resetValue;
+            character.autoManaPerTurn = resetValue;
+        }
     }
 }
 
@@ -1478,7 +1493,7 @@ public class 传送 : BaseCard
     public override void Execute(BaseCharacter user, BaseCharacter target)
     {
         if (user == null) return;
-        CardRuntimeHelper.TeleportHandToNextBattle(user);
+        CardRuntimeHelper.TeleportHandToNextBattles(user, ToInt(Value));
     }
 }
 

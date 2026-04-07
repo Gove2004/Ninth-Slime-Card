@@ -57,7 +57,6 @@ public class RougeUI : MonoBehaviour
 
         EventCenter.Register<EnemyBossPhaseChangedEventContext>(GameEvents.EnemyBossPhaseChanged, _ =>
         {
-            Debug.Log("阶段改变，显示换牌界面");
             this.gameObject.SetActive(true);
             Show();
         });
@@ -74,9 +73,12 @@ public class RougeUI : MonoBehaviour
     }
 
 
-    void Update()
+    private void UpdateOkButton()
     {
-        okButton.interactable = selectedCard != null;
+        if (okButton != null)
+        {
+            okButton.interactable = selectedCard != null;
+        }
     }
 
 
@@ -113,6 +115,7 @@ public class RougeUI : MonoBehaviour
         Time.timeScale = 0f;
         ClearSelectionState();
         HideReplacementUi();
+        UpdateOkButton();
 
         // 随机三个卡牌
         System.Collections.Generic.HashSet<string> selectedNames = new System.Collections.Generic.HashSet<string>();
@@ -148,6 +151,7 @@ public class RougeUI : MonoBehaviour
         {
             cardButtons[index].Selected();
         }
+        UpdateOkButton();
     }
 
     private void SelectReplaceIndex(int index)
@@ -182,6 +186,7 @@ public class RougeUI : MonoBehaviour
                 playerCardButtons[i].Deselected();
             }
         }
+        UpdateOkButton();
     }
 
     private void HideAndReset()

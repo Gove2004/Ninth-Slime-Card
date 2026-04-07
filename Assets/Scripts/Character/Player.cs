@@ -11,9 +11,10 @@ public class Player : BaseCharacter
         int difficultyLevel = GameManager.Instance.difficultyLevel;
         health = difficultyLevel switch
         {
-            1 => 10UL,
-            2 => 6UL,
-            _ => 3L
+            1 => 40UL,
+            2 => 30UL,
+            3 => 20UL,
+            _ => 10UL
         };
         mana = difficultyLevel >= 3 ? 2UL : 3UL;
         autoManaPerTurn = difficultyLevel >= 3 ? 2UL : 3UL;
@@ -22,10 +23,15 @@ public class Player : BaseCharacter
 
     public bool isReady { get; set; } = false;
     public bool IsJailed => jailedTurnsRemaining > 0;
-    public bool CanUseTurnActions => isReady && !IsJailed;
+    public bool CanUseTurnActions => isReady;
     private bool isEndingTurn = false;
     private int jailedTurnsRemaining;
     protected override int MaxHandSize => HandLimit;
+
+    private void NotifyJailStateChanged()
+    {
+        EventCenter.Publish(GameEvents.PlayerJailStateChanged, new CharacterEventContext(this));
+    }
 
     protected override void Action()
     {
@@ -66,15 +72,6 @@ public class Player : BaseCharacter
     // UI：调用使用卡牌
     public void UI_PlayCard(BaseCard card)
     {
-        if (isReady && IsJailed)
-        {
-            if (DamageEffectManager.Instance != null && DamageEffectManager.Instance.playerTransform != null)
-            {
-                DamageEffectManager.Instance.ShowFloatingText(DamageEffectManager.Instance.playerTransform, "你已因罪入狱，只能结束回合", Color.gray);
-            }
-            return;
-        }
-
         if (CanUseTurnActions && Cards.Contains(card) && card.Cost <= mana)
         {
             PlayCard(card);
@@ -122,10 +119,7 @@ public class Player : BaseCharacter
         {
             if (enemy.score >= enemy.nextPhaseHealthThreshold)
             {
-                Debug.Log($"回合结束结算：当前分数 {enemy.score} >= 阈值 {enemy.nextPhaseHealthThreshold}，触发升级。");
-                
                 enemy.TriggerPhaseChange();
-                
                 yield return null; 
                 
                 while (Time.timeScale == 0f)
@@ -143,6 +137,7 @@ public class Player : BaseCharacter
         if (jailedTurnsRemaining > 0)
         {
             jailedTurnsRemaining--;
+            NotifyJailStateChanged();
         }
         isEndingTurn = false;
     }
@@ -150,12 +145,18 @@ public class Player : BaseCharacter
     public void SendToJail(int turns = 1)
     {
         if (turns <= 0) return;
-        jailedTurnsRemaining = Mathf.Max(jailedTurnsRemaining, turns);
+        int newTurns = Mathf.Max(jailedTurnsRemaining, turns);
+        if (newTurns == jailedTurnsRemaining) return;
+        jailedTurnsRemaining = newTurns;
+        NotifyJailStateChanged();
     }
 
     public void RestoreJailState(int turns)
     {
-        jailedTurnsRemaining = Mathf.Max(0, turns);
+        int restoredTurns = Mathf.Max(0, turns);
+        if (restoredTurns == jailedTurnsRemaining) return;
+        jailedTurnsRemaining = restoredTurns;
+        NotifyJailStateChanged();
     }
 
     public int GetJailTurnsRemaining()
