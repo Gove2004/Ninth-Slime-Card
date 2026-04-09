@@ -145,9 +145,12 @@ public class BattleManager : MonoBehaviour
     private Action onEnemyDeadUnsub;
     private Action onCharacterEndedTurnUnsub;
 
-    private void CleanupBattleRuntimeState(bool clearGlobalEvents = false, bool resetEndingBattleFlag = true)
+    private void CleanupBattleRuntimeState(bool clearGlobalEvents = false, bool resetEndingBattleFlag = true, bool stopCoroutines = true)
     {
-        StopAllCoroutines();
+        if (stopCoroutines)
+        {
+            StopAllCoroutines();
+        }
         player?.OnBattleEnd();
         enemy?.OnBattleEnd();
         if (player != null) player.AbortTurn();
@@ -312,17 +315,13 @@ public class BattleManager : MonoBehaviour
     private IEnumerator EndBattleRoutine()
     {
         isEndingBattle = true;
-        CleanupBattleRuntimeState(resetEndingBattleFlag: false);
+        // 保留当前结束协程，避免在清理时把 3 秒后的回主菜单流程一起停掉。
+        CleanupBattleRuntimeState(resetEndingBattleFlag: false, stopCoroutines: false);
 
         EventCenter.Publish(GameEvents.BattleEnded, CreateBattleEventContext());
 
         // 显示游戏结束 UI
         ShowGameOverUI();
-
-        if (deleteCurrentSaveOnEnd && BattleSessionSaveService.Instance != null)
-        {
-            BattleSessionSaveService.Instance.DeleteCurrentSlotIfAny();
-        }
 
         yield return new WaitForSecondsRealtime(3.0f);
 
@@ -330,6 +329,11 @@ public class BattleManager : MonoBehaviour
         ulong score = 0;
         if (enemy is EnemyBoss enemyBoss) score = enemyBoss.score;
         GameManager.Instance.Save(score);
+
+        if (deleteCurrentSaveOnEnd && BattleSessionSaveService.Instance != null)
+        {
+            BattleSessionSaveService.Instance.DeleteCurrentSlotIfAny();
+        }
 
         // 清理战斗数据
         player = null;
