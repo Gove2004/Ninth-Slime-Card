@@ -164,6 +164,22 @@ public class TapTapSdk : MonoBehaviour
         }
     }
 
+    public async Task<TapTapAccount> TryRestoreLoginAsync()
+    {
+        Initialize();
+        TapTapAccount account = await TapTapLogin.Instance.GetCurrentTapAccount();
+        if (isShuttingDown) return null;
+
+        if (account == null)
+        {
+            ClearLoggedInAccount();
+            return null;
+        }
+
+        SetLoggedInAccount(account);
+        return account;
+    }
+
 
 
     // public void Logout()

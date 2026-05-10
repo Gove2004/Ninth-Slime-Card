@@ -11,9 +11,20 @@ public class LoginUI : MonoBehaviour
     public Button loginButton;
     public TextMeshProUGUI loginTipText;
 
-    void Start()
+    private async void Start()
     {
-        loginButton.onClick.AddListener(OnLoginButtonClicked);
+        if (loginButton != null)
+        {
+            loginButton.onClick.AddListener(OnLoginButtonClicked);
+            loginButton.interactable = false;
+        }
+
+        if (loginTipText != null)
+        {
+            loginTipText.text = "检查登录状态中...";
+        }
+
+        await TryAutoLoginAsync();
     }
 
     public void OnLoginButtonClicked()
@@ -28,17 +39,40 @@ public class LoginUI : MonoBehaviour
         Debug.Log("登录按钮被点击，正在触发登录流程...");
     }
 
+    private async Task TryAutoLoginAsync()
+    {
+        if (TapTapSdk.Instance == null)
+        {
+            if (loginButton != null) loginButton.interactable = true;
+            if (loginTipText != null) loginTipText.text = "点击登录";
+            return;
+        }
+
+        try
+        {
+            TapTapAccount result = await TapTapSdk.Instance.TryRestoreLoginAsync();
+            if (result != null)
+            {
+                ApplyLoginSuccess(ResolveUserId(result), ResolveUserName(result), false);
+                return;
+            }
+
+            if (loginButton != null) loginButton.interactable = true;
+            if (loginTipText != null) loginTipText.text = "点击登录";
+        }
+        catch (Exception exception)
+        {
+            Debug.Log($"自动登录失败，出现异常：{exception}");
+            TapTapSdk.Instance?.ClearLoggedInAccount();
+            if (loginButton != null) loginButton.interactable = true;
+            if (loginTipText != null) loginTipText.text = "自动登录失败，请手动登录";
+        }
+    }
 
     private void OnLoginSuccess(TapTapAccount result)
     {
         TapTapSdk.Instance?.SetLoggedInAccount(result);
-        string userId = result == null
-            ? (TapTapSdk.Instance?.CurrentUserId ?? "unknown")
-            : (!string.IsNullOrEmpty(result.openId) ? result.openId : result.unionId);
-        string userName = result == null
-            ? (TapTapSdk.Instance?.CurrentUserName ?? "TapTap用户")
-            : (string.IsNullOrEmpty(result.name) ? "TapTap用户" : result.name);
-        ApplyLoginSuccess(userId, userName, true);
+        ApplyLoginSuccess(ResolveUserId(result), ResolveUserName(result), true);
     }
 
     private void ApplyLoginSuccess(string userId, string userName, bool unlockAchievement)
@@ -55,6 +89,20 @@ public class LoginUI : MonoBehaviour
         }
 
         gameObject.SetActive(false); // 隐藏登录界面
+    }
+
+    private string ResolveUserId(TapTapAccount account)
+    {
+        return account == null
+            ? (TapTapSdk.Instance?.CurrentUserId ?? "unknown")
+            : (!string.IsNullOrEmpty(account.openId) ? account.openId : account.unionId);
+    }
+
+    private string ResolveUserName(TapTapAccount account)
+    {
+        return account == null
+            ? (TapTapSdk.Instance?.CurrentUserName ?? "TapTap用户")
+            : (string.IsNullOrEmpty(account.name) ? "TapTap用户" : account.name);
     }
 
     private void TryUnlockLoginAchievement()
@@ -80,5 +128,13 @@ public class LoginUI : MonoBehaviour
         Debug.Log("登录被用户取消");
         if (loginButton != null) loginButton.interactable = true;
         if (loginTipText != null) loginTipText.text = "登录被取消";
+    }
+
+    private void OnDestroy()
+    {
+        if (loginButton != null)
+        {
+            loginButton.onClick.RemoveListener(OnLoginButtonClicked);
+        }
     }
 }

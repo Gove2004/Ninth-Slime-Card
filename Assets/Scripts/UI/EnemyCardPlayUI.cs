@@ -18,6 +18,7 @@ public class EnemyCardPlayUI : MonoBehaviour
         disposableDraw = EventCenter.Register<CardEventContext>(GameEvents.EnemyCardDrawn, context => OnEnemyDrawCard(context.Card));
 
         cardUI = GetComponent<CardUIItem>();
+        cardUI.JustUIShow = true;
         cardUI.gameObject.SetActive(false);
 
     }
@@ -61,6 +62,7 @@ public class EnemyCardPlayUI : MonoBehaviour
         currentAnimation?.Kill(false);
         currentAnimation = null;
         cardUI.transform.DOKill(false);
+        cardUI.EndExternalAnimation();
     }
 
     private void PublishAnimationCompleted(string tag)
@@ -73,6 +75,7 @@ public class EnemyCardPlayUI : MonoBehaviour
     {
         // 这里可以添加显示动画等效果
         StopCurrentAnimation();
+        cardUI.BeginExternalAnimation();
         cardUI.gameObject.SetActive(true);
         cardUI.transform.localRotation = Quaternion.identity;
         cardUI.transform.localScale = Vector3.zero;
@@ -94,6 +97,7 @@ public class EnemyCardPlayUI : MonoBehaviour
                 notified = true;
                 PublishAnimationCompleted(EnemyPlayAnimationTag);
             }
+            cardUI.EndExternalAnimation();
             cardUI.gameObject.SetActive(false);
             currentAnimation = null;
         });
@@ -104,6 +108,7 @@ public class EnemyCardPlayUI : MonoBehaviour
                 notified = true;
                 PublishAnimationCompleted(EnemyPlayAnimationTag);
             }
+            cardUI.EndExternalAnimation();
             if (currentAnimation == sequence) currentAnimation = null;
         });
         currentAnimation = sequence;
@@ -113,6 +118,7 @@ public class EnemyCardPlayUI : MonoBehaviour
     {
         // 这里可以添加显示动画等效果
         StopCurrentAnimation();
+        cardUI.BeginExternalAnimation();
         cardUI.gameObject.SetActive(true);
 
         float scale = GetEnemyAnimationScale();
@@ -128,6 +134,7 @@ public class EnemyCardPlayUI : MonoBehaviour
                 notified = true;
                 PublishAnimationCompleted(EnemyDrawAnimationTag);
             }
+            cardUI.EndExternalAnimation();
             cardUI.gameObject.SetActive(false);
             currentAnimation = null;
         });
@@ -138,6 +145,7 @@ public class EnemyCardPlayUI : MonoBehaviour
                 notified = true;
                 PublishAnimationCompleted(EnemyDrawAnimationTag);
             }
+            cardUI.EndExternalAnimation();
             if (currentAnimation == tween) currentAnimation = null;
         });
         currentAnimation = tween;

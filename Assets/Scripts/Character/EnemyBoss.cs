@@ -75,7 +75,10 @@ public class EnemyBoss : BaseCharacter
     {
         if (amount > 0)
         {
-            shiled = SaturatingAdd(shiled, (ulong)amount);
+            if (!IsEndlessMode)
+            {
+                health = SaturatingAdd(health, (ulong)amount);
+            }
         }
         else
         {

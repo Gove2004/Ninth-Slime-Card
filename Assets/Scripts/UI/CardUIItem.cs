@@ -51,6 +51,7 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private Canvas _parentCanvas;
     private bool visualRefreshRequested = true;
     private float nextVisualRefreshTime;
+    private int externalAnimationLockCount;
 
     public void Init(CardList list)
     {
@@ -85,12 +86,19 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
     void Update()
     {
+        if (IsExternalAnimationActive)
+        {
+            RefreshVisualDataIfNeeded();
+            return;
+        }
+
         if (JustUIShow)
         {
             // Let layout groups fully control collection-view card placement.
             var rect = (RectTransform)transform;
             rect.localRotation = Quaternion.identity;
             rect.localScale = Vector3.one;
+            RefreshVisualDataIfNeeded();
             return;
         }
 
@@ -128,6 +136,26 @@ public class CardUIItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
              rect.localScale = Vector3.Lerp(rect.localScale, Vector3.one * 1.2f, Time.deltaTime * 15f);
         }
 
+        RefreshVisualDataIfNeeded();
+    }
+
+    public bool IsExternalAnimationActive => externalAnimationLockCount > 0;
+
+    public void BeginExternalAnimation()
+    {
+        externalAnimationLockCount++;
+    }
+
+    public void EndExternalAnimation()
+    {
+        if (externalAnimationLockCount > 0)
+        {
+            externalAnimationLockCount--;
+        }
+    }
+
+    private void RefreshVisualDataIfNeeded()
+    {
         if (!visualRefreshRequested && Time.unscaledTime < nextVisualRefreshTime) return;
 
         visualRefreshRequested = false;

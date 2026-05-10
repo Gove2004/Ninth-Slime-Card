@@ -280,6 +280,7 @@ public abstract class BaseCharacter
     {
         if (amount < 0 && immuneThisTurn) return;
         if (amount < 0 && source == this && immuneSelfDamage) return;
+        if (amount > 0 && this is EnemyBoss enemyBoss && enemyBoss.IsEndlessMode) return;
 
         ulong processedDamage = 0UL;
         if (amount < 0)
