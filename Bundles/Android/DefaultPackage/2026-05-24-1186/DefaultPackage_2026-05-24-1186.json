@@ -1,0 +1,184 @@
+{
+    "FileVersion": "2025.9.30",
+    "EnableAddressable": true,
+    "SupportExtensionless": true,
+    "LocationToLower": false,
+    "IncludeAssetGUID": false,
+    "ReplaceAssetPathWithAddress": false,
+    "OutputNameStyle": 0,
+    "BuildBundleType": 2,
+    "BuildPipeline": "ScriptableBuildPipeline",
+    "PackageName": "DefaultPackage",
+    "PackageVersion": "2026-05-24-1186",
+    "PackageNote": "2026/5/24 19:49:43",
+    "AssetList": [
+        {
+            "Address": "Alibaba_PuHuiTi_2.0_65_Medium_65_Medium",
+            "AssetPath": "Assets/Arts/Fonts/Alibaba_PuHuiTi_2.0_65_Medium_65_Medium.ttf",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 0,
+            "DependBundleIDs": [
+                6
+            ]
+        },
+        {
+            "Address": "Alibaba_PuHuiTi_2",
+            "AssetPath": "Assets/Arts/Fonts/Alibaba_PuHuiTi_2.asset",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 0,
+            "DependBundleIDs": [
+                6
+            ]
+        },
+        {
+            "Address": "all+symbols",
+            "AssetPath": "Assets/Arts/Fonts/all+symbols.txt",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 0,
+            "DependBundleIDs": [
+                6
+            ]
+        },
+        {
+            "Address": "4171494378afc00e840b7da6736097ed",
+            "AssetPath": "Assets/Arts/Images/BG/4171494378afc00e840b7da6736097ed.png",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 1,
+            "DependBundleIDs": []
+        },
+        {
+            "Address": "Panel",
+            "AssetPath": "Assets/Arts/Images/UI/Panel.png",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 2,
+            "DependBundleIDs": []
+        },
+        {
+            "Address": "HotUpdate.dll",
+            "AssetPath": "Assets/GameRes/HybridCLRBytes/HotUpdate.dll.bytes",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 3,
+            "DependBundleIDs": []
+        },
+        {
+            "Address": "Battle",
+            "AssetPath": "Assets/Scenes/Battle.unity",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 4,
+            "DependBundleIDs": [
+                6
+            ]
+        },
+        {
+            "Address": "Boot",
+            "AssetPath": "Assets/Scenes/Boot.unity",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 4,
+            "DependBundleIDs": [
+                0,
+                1,
+                2,
+                5,
+                6
+            ]
+        },
+        {
+            "Address": "Home",
+            "AssetPath": "Assets/Scenes/Home.unity",
+            "AssetGUID": "",
+            "AssetTags": [],
+            "BundleID": 4,
+            "DependBundleIDs": [
+                6
+            ]
+        }
+    ],
+    "BundleList": [
+        {
+            "BundleName": "defaultpackage_assets_arts_fonts.bundle",
+            "UnityCRC": 2361684739,
+            "FileHash": "734628c6dd1517425cffa297075080da",
+            "FileCRC": 2502932051,
+            "FileSize": 9321273,
+            "Encrypted": false,
+            "Tags": [],
+            "DependBundleIDs": [
+                6
+            ]
+        },
+        {
+            "BundleName": "defaultpackage_assets_arts_images_bg.bundle",
+            "UnityCRC": 1338614327,
+            "FileHash": "f9ef91cacbe4183bdb3c01e490f3b66a",
+            "FileCRC": 1537781441,
+            "FileSize": 659068,
+            "Encrypted": false,
+            "Tags": [],
+            "DependBundleIDs": []
+        },
+        {
+            "BundleName": "defaultpackage_assets_arts_images_ui.bundle",
+            "UnityCRC": 3928982042,
+            "FileHash": "de15a9b97f107c1477e16b67811fd265",
+            "FileCRC": 3334193838,
+            "FileSize": 31018,
+            "Encrypted": false,
+            "Tags": [],
+            "DependBundleIDs": []
+        },
+        {
+            "BundleName": "defaultpackage_assets_gameres_hybridclrbytes.bundle",
+            "UnityCRC": 2773612213,
+            "FileHash": "195e6d58cf648d438078f90f2aaf88b4",
+            "FileCRC": 2926537275,
+            "FileSize": 3512,
+            "Encrypted": false,
+            "Tags": [],
+            "DependBundleIDs": []
+        },
+        {
+            "BundleName": "defaultpackage_assets_scenes.bundle",
+            "UnityCRC": 296666242,
+            "FileHash": "22d44ef920f8a9dd474c01fe6d433317",
+            "FileCRC": 2657806657,
+            "FileSize": 17758,
+            "Encrypted": false,
+            "Tags": [],
+            "DependBundleIDs": [
+                0,
+                1,
+                2,
+                5,
+                6
+            ]
+        },
+        {
+            "BundleName": "defaultpackage_share_packages_com_unity_inputsystem_inputsystem_plugins_playerinput.bundle",
+            "UnityCRC": 2344352476,
+            "FileHash": "394e5ab0731786904e5802bf4e74335b",
+            "FileCRC": 3446516006,
+            "FileSize": 7706,
+            "Encrypted": false,
+            "Tags": [],
+            "DependBundleIDs": []
+        },
+        {
+            "BundleName": "defaultpackage_unityshaders.bundle",
+            "UnityCRC": 979165668,
+            "FileHash": "631a3f088e40adcbddff60e46416e50e",
+            "FileCRC": 2182601556,
+            "FileSize": 172237,
+            "Encrypted": false,
+            "Tags": [],
+            "DependBundleIDs": []
+        }
+    ]
+}
