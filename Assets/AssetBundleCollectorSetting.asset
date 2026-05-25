@@ -30,8 +30,32 @@ MonoBehaviour:
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
-      - CollectPath: Assets/GameRes
-        CollectorGUID: 9854eb2a190c28a43a1b776953afacc2
+      - CollectPath: Assets/GameRes/Arts
+        CollectorGUID: 0235d4b7ddf6832429cb08717ff52bef
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
+        FilterRuleName: CollectAll
+        AssetTags: 
+        UserData: 
+      - CollectPath: Assets/GameRes/HybridCLRBytes
+        CollectorGUID: c644bafa5be37d64f9a83b56d709b069
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
+        FilterRuleName: CollectAll
+        AssetTags: 
+        UserData: 
+      - CollectPath: Assets/GameRes/Prefabs
+        CollectorGUID: c3fc701b1b7f1104d9a52e2e6a1c0711
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
+        FilterRuleName: CollectAll
+        AssetTags: 
+        UserData: 
+      - CollectPath: Assets/GameRes/Scenes
+        CollectorGUID: 109e9bdd0fcc649c5bc59085c35bdc83
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackDirectory
