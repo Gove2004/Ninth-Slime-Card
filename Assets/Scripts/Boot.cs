@@ -28,8 +28,6 @@ public class Boot : MonoSingleton<Boot>
         base.Awake();
 
         _ = InitializeAsync();
-
-        versionTextUI.text = $"version: {Application.version}";
     }
 
     private async Task InitializeAsync()
@@ -216,7 +214,6 @@ public class Boot : MonoSingleton<Boot>
 
     #region UI
 
-    public TextMeshProUGUI versionTextUI;
     public GameObject loadingPanelUI;
     public TextMeshProUGUI tipTextUI;
     public TextMeshProUGUI progressTextUI;

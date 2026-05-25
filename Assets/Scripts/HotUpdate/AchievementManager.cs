@@ -201,8 +201,8 @@ public class AchievementManager : MonoBehaviour
         AchievementToast.EnsureInstance();
         RegisterEvents();
         SubscribeToPlayerDamageSource();
-        TapTapSdk.AchievementSucceeded += OnTapTapAchievementSuccess;
-        TapTapSdk.AchievementFailed += OnTapTapAchievementFailure;
+        TapTapCore.AchievementSucceeded += OnTapTapAchievementSuccess;
+        TapTapCore.AchievementFailed += OnTapTapAchievementFailure;
         nextPlayerPrefsFlushTime = Time.unscaledTime + PlayerPrefsFlushIntervalSeconds;
         nextTapTapFlushTime = Time.unscaledTime + TapTapFlushIntervalSeconds;
     }
@@ -249,8 +249,8 @@ public class AchievementManager : MonoBehaviour
         onBattleStartedUnsub?.Invoke();
         onBattleEndedUnsub?.Invoke();
         UnsubscribeFromPlayerDamageSource();
-        TapTapSdk.AchievementSucceeded -= OnTapTapAchievementSuccess;
-        TapTapSdk.AchievementFailed -= OnTapTapAchievementFailure;
+        TapTapCore.AchievementSucceeded -= OnTapTapAchievementSuccess;
+        TapTapCore.AchievementFailed -= OnTapTapAchievementFailure;
     }
 
     private void OnApplicationPause(bool pauseStatus)
@@ -658,7 +658,7 @@ public class AchievementManager : MonoBehaviour
     private void SyncTapTapAchievement(AchievementDefinition def, bool force = false)
     {
         if (def == null) return;
-        if (!TapTapSdk.IsInitialized) return;
+        if (!TapTapCore.IsInitialized) return;
         if (!force && IsTapTapAchievementSynced(def.id)) return;
 
         try
@@ -669,12 +669,12 @@ public class AchievementManager : MonoBehaviour
                 if (completionSteps > 0)
                 {
                     pendingTapTapAchievementSync.Add(def.id);
-                    TapTapSdk.Instance.IncrementAchievement(def.id, completionSteps);
+                    TapTapCore.IncrementAchievement(def.id, completionSteps);
                     return;
                 }
 
                 pendingTapTapAchievementSync.Add(def.id);
-                TapTapSdk.Instance.UnlockAchievement(def.id);
+                TapTapCore.UnlockAchievement(def.id);
                 return;
             }
 
@@ -682,7 +682,7 @@ public class AchievementManager : MonoBehaviour
             if (def.threshold <= TapTapStepAchievementMaxThreshold) return;
 
             pendingTapTapAchievementSync.Add(def.id);
-            TapTapSdk.Instance.UnlockAchievement(def.id);
+            TapTapCore.UnlockAchievement(def.id);
         }
         catch (Exception ex)
         {
@@ -703,7 +703,7 @@ public class AchievementManager : MonoBehaviour
 
     private bool TryResyncCompletedAchievementsToTapTapOnTitle()
     {
-        if (!TapTapSdk.IsInitialized) return false;
+        if (!TapTapCore.IsInitialized) return false;
 
         foreach (var def in definitions)
         {
@@ -751,7 +751,7 @@ public class AchievementManager : MonoBehaviour
             return;
         }
 
-        if (TapTapSdk.IsInitialized && TrySetTapTapNumericProgress(def, targetProgress, true))
+        if (TapTapCore.IsInitialized && TrySetTapTapNumericProgress(def, targetProgress, true))
         {
             return;
         }
@@ -837,8 +837,7 @@ public class AchievementManager : MonoBehaviour
     private bool TrySetTapTapNumericProgress(AchievementDefinition def, ulong targetProgress, bool forceResync)
     {
         if (def == null) return false;
-        if (!TapTapSdk.IsInitialized) return false;
-        if (TapTapSdk.Instance == null) return false;
+        if (!TapTapCore.IsInitialized) return false;
 
         ulong syncedProgress = GetTapTapSyncedNumericProgress(def.id);
         if (!forceResync && targetProgress <= syncedProgress)
@@ -864,7 +863,7 @@ public class AchievementManager : MonoBehaviour
                 return false;
             }
 
-            TapTapSdk.Instance.IncrementAchievement(def.id, incrementStep);
+            TapTapCore.IncrementAchievement(def.id, incrementStep);
 
             ulong newProgress = BaseCharacter.SaturatingAdd(syncedProgress, (ulong)incrementStep);
             if (newProgress > def.threshold)
@@ -917,7 +916,7 @@ public class AchievementManager : MonoBehaviour
     private void FlushPendingTapTapIncrements(bool flushAll = false)
     {
         if (pendingTapTapIncrements.Count == 0) return;
-        if (!TapTapSdk.IsInitialized) return;
+        if (!TapTapCore.IsInitialized) return;
 
         int remainingChunks = flushAll ? int.MaxValue : TapTapIncrementChunkBudgetPerFlush;
         var keys = new List<string>(pendingTapTapIncrements.Keys);
@@ -1009,7 +1008,7 @@ public class AchievementManager : MonoBehaviour
 
     private static bool IsReadyToSyncTitleAchievements()
     {
-        if (!TapTapSdk.IsInitialized) return false;
+        if (!TapTapCore.IsInitialized) return false;
         if (GameManager.Instance == null) return false;
         return !GameManager.Instance.IsBattleActive;
     }

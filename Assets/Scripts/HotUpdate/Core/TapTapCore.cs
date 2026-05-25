@@ -1,3 +1,5 @@
+
+
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -7,41 +9,24 @@ using TapSDK.Core;
 using TapSDK.Login;
 using UnityEngine;
 
-public class TapTapSdk : MonoBehaviour
+public static class TapTapCore
 {
-    /// <summary>
-    /// 简单的单例实现，方便在游戏中任何地方通过 TapTapSdk.Instance 来访问 SDK 功能
-    /// </summary>
-    public static TapTapSdk Instance { get; private set; }
-    public static bool IsInitialized { get; private set; }
-    public static event Action<TapAchievementResult> AchievementSucceeded;
-    public static event Action<string, int, string> AchievementFailed;
-
     private const string ClientId = "irmjeyzoxpztwlne5z";
     private const string ClientToken = "kXbnn4wKsOA4Rcd5wPLnEWLIgecN8pW5Dpk6ov2E";
     private const string ClientPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7Pfrav0TTq4fHVkLrj/IJd/q/lpVJGeZ7jWVIgjeW9CeKi8zs46Uk+9Jyzd3Jmc8xG/sUb0gS2ZGMHSuZNHXV+IhC4MD2nqjW68yEuCGbgWuzkebFPGRsRwAFLk6MhsUoW+30f9TCHB5w/qnsmEwcXiko5H8+Gjp+vRCY4/ojTXBHpAegm7lqTh2cL15nYuzNdCZEZ6cqVNkJkLSgkkevq1rLZknznHZpymYlGCqHYcVsR1kJBcIL+kE/rqxHihOUILEZSstbHD8Ru8NZDieaP+Sz76t0f/3aqWOiJbWPEngofvOSEpdJaiGzoc2m6DTAsmErIZMZgiJ80uztVi/lQIDAQAB";
-    private AchievementCallback achievementCallback;
-    private MethodInfo setAchievementStepsMethod;
-    private bool hasResolvedSetAchievementStepsMethod;
-    
-    void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-            Initialize();
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
-    }
 
-    /// <summary>
-    /// 初始化 TapTap SDK，建议在游戏启动时调用一次
-    /// </summary>
-    public void Initialize()
+
+    public static bool IsInitialized { get; private set; }
+
+    private static AchievementCallback achievementCallback;
+    private static MethodInfo setAchievementStepsMethod;
+    private static bool hasResolvedSetAchievementStepsMethod;
+
+    public static event Action<TapAchievementResult> AchievementSucceeded;
+    public static event Action<string, int, string> AchievementFailed;
+
+
+    public static void Initialize()
     {
         if (IsInitialized)
         {
@@ -86,33 +71,10 @@ public class TapTapSdk : MonoBehaviour
         ConfigureAndroidLandscapeAutoRotation();
     }
 
-    private void OnApplicationFocus(bool hasFocus)
+
+    public static void OnDestroy()
     {
-        if (!hasFocus)
-        {
-            return;
-        }
-
-        ConfigureAndroidLandscapeAutoRotation();
-    }
-
-    private void OnApplicationPause(bool pauseStatus)
-    {
-        if (pauseStatus)
-        {
-            return;
-        }
-
-        ConfigureAndroidLandscapeAutoRotation();
-    }
-
-    private void OnDestroy()
-    {
-        if (Instance == this)
-        {
-            Instance = null;
-            IsInitialized = false;
-        }
+        IsInitialized = false;
 
         if (achievementCallback != null)
         {
@@ -132,7 +94,9 @@ public class TapTapSdk : MonoBehaviour
     }
 
 
-    public async Task LoginAsync(
+
+
+    public static async Task LoginAsync(
         Action<TapTapAccount> onLoginSuccess,
         Action onLoginCancel,
         Action<Exception> onLoginError
@@ -177,7 +141,7 @@ public class TapTapSdk : MonoBehaviour
     /// 解锁成就
     /// </summary>
     /// <param name="achievementId"></param>
-    public void UnlockAchievement(string achievementId)
+    public static void UnlockAchievement(string achievementId)
     {
         TapTapAchievement.Unlock(achievementId : achievementId);
     }
@@ -187,12 +151,12 @@ public class TapTapSdk : MonoBehaviour
     /// </summary>
     /// <param name="achievementId"></param>
     /// <param name="step"></param>
-    public void IncrementAchievement(string achievementId, int step)
+    public static void IncrementAchievement(string achievementId, int step)
     {
         TapTapAchievement.Increment(achievementId : achievementId, step : step);
     }
 
-    public bool TrySetAchievementSteps(string achievementId, int step)
+    public static bool TrySetAchievementSteps(string achievementId, int step)
     {
         if (string.IsNullOrEmpty(achievementId) || step < 0)
         {
@@ -216,7 +180,7 @@ public class TapTapSdk : MonoBehaviour
         }
     }
 
-    private MethodInfo ResolveSetAchievementStepsMethod()
+    private static MethodInfo ResolveSetAchievementStepsMethod()
     {
         if (hasResolvedSetAchievementStepsMethod)
         {
@@ -262,6 +226,7 @@ public class TapTapSdk : MonoBehaviour
 
 
 
+
 class AchievementCallback : ITapAchievementCallback
 {
 
@@ -269,12 +234,12 @@ class AchievementCallback : ITapAchievementCallback
   
     public void OnAchievementSuccess(int code, TapAchievementResult result)
     {
-        TapTapSdk.NotifyAchievementSuccess(result);
+        TapTapCore.NotifyAchievementSuccess(result);
     }
   
     public void OnAchievementFailure(string achievementId, int errorCode, string errorMsg)
     {
-        TapTapSdk.NotifyAchievementFailure(achievementId, errorCode, errorMsg);
+        TapTapCore.NotifyAchievementFailure(achievementId, errorCode, errorMsg);
 	}
 
 }

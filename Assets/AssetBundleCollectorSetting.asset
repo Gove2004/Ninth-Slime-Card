@@ -25,39 +25,13 @@ MonoBehaviour:
     AutoCollectShaders: 1
     IgnoreRuleName: NormalIgnoreRule
     Groups:
-    - GroupName: Arts
+    - GroupName: GameRes
       GroupDesc: 
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
-      - CollectPath: Assets/Arts
-        CollectorGUID: 0235d4b7ddf6832429cb08717ff52bef
-        CollectorType: 0
-        AddressRuleName: AddressByFileName
-        PackRuleName: PackDirectory
-        FilterRuleName: CollectAll
-        AssetTags: 
-        UserData: 
-    - GroupName: HybridCLRBytes
-      GroupDesc: 
-      AssetTags: 
-      ActiveRuleName: EnableGroup
-      Collectors:
-      - CollectPath: Assets/GameRes/HybridCLRBytes
-        CollectorGUID: c644bafa5be37d64f9a83b56d709b069
-        CollectorType: 0
-        AddressRuleName: AddressByFileName
-        PackRuleName: PackDirectory
-        FilterRuleName: CollectAll
-        AssetTags: 
-        UserData: 
-    - GroupName: Scenes
-      GroupDesc: 
-      AssetTags: 
-      ActiveRuleName: EnableGroup
-      Collectors:
-      - CollectPath: Assets/Scenes
-        CollectorGUID: 109e9bdd0fcc649c5bc59085c35bdc83
+      - CollectPath: Assets/GameRes
+        CollectorGUID: 9854eb2a190c28a43a1b776953afacc2
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackDirectory

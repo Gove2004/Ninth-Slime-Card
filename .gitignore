@@ -86,3 +86,6 @@ crashlytics-build.properties
 
 # HybridCLR generated files
 HybridCLRData
+
+# YooAsset Simulate
+[Bb]undles

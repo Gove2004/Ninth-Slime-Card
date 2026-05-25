@@ -1,0 +1,83 @@
+
+
+using System;
+using System.Threading.Tasks;
+using GoveKits.Runtime.Storage;
+using TapSDK.Login;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class LoginPage : MonoBehaviour
+{
+    private bool isLoggingIn = false;
+    public Button startButtonUI;
+    public TextMeshProUGUI loginTipTextUI;
+
+
+    public void Awake()
+    {
+        startButtonUI.onClick.AddListener(OnLoginButtonClicked);
+
+        _ = ChackLoginToken();
+    }
+
+
+    private async Task ChackLoginToken()
+    {
+        TapTapCore.Initialize();
+
+        TapTapAccount account = await TapTapLogin.Instance.GetCurrentTapAccount();
+        if (account == null) {
+            // 用户未登录
+            loginTipTextUI.text = "请先登录 TapTap 账号";
+        } else {
+            // 用户已登录
+            OnLoginSuccess(account);
+        }
+    }
+
+
+    public void OnLoginButtonClicked()
+    {
+        if (isLoggingIn)
+        {
+            // 如果已经在登录流程中，直接进入下一场景
+            ResCore.LoadSceneAsync("Home");
+        }
+
+#if UNITY_EDITOR
+        // 编辑器模式下直接跳过登录流程
+        OnLoginSuccess(new TapTapAccount());
+#else
+        startButtonUI.interactable = false; // 禁用登录按钮，防止重复点击
+        _ = TapTapCore.LoginAsync(OnLoginSuccess, OnLoginCancel, OnLoginFailure); // 确保 SDK 已经初始化
+        Debug.Log("登录按钮被点击，正在触发登录流程...");
+#endif
+    }
+
+    private void OnLoginSuccess(TapTapAccount result)
+    {
+        loginTipTextUI.text = $"登录成功，欢迎 {result.name}！";
+
+        isLoggingIn = true;
+        startButtonUI.interactable = true; // 重新启用登录按钮，允许用户进入下一场景
+    }
+
+    private void OnLoginFailure(Exception exception)
+    {
+        // 登录失败，errorCode 和 errorMsg 提供错误信息
+        loginTipTextUI.text = $"登录失败，出现异常：{exception.Message}";
+
+        startButtonUI.interactable = true; // 重新启用登录按钮，允许用户重试
+    }
+
+
+    private void OnLoginCancel()
+    {
+        // 登录被用户取消
+        loginTipTextUI.text = "登录被取消";
+
+        startButtonUI.interactable = true; // 重新启用登录按钮，允许用户重试
+    }
+}
