@@ -22,7 +22,7 @@ public class LevelSelect : MonoBehaviour, IPointerClickHandler
     {
         if (string.IsNullOrEmpty(levelName) || levelName == "...")
         {
-            MessageToastCanvas.Instance.ShowMessage("敬请期待！");
+            MessageToastManager.Instance.ShowMessage("敬请期待！");
             return;
         }
 

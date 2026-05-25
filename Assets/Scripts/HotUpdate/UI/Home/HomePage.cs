@@ -46,16 +46,16 @@ public class HomePage : MonoBehaviour
     }
 
     // 显示
-    private void OnStartGameClicked() => startGamePanel.ShowPanel();
-    private void OnSettingsClicked() => settingsPanel.ShowPanel();
-    private void OnCodexClicked() => codexPanel.ShowPanel();
-    private void OnAchievementsClicked() => achievementsPanel.ShowPanel();
-    private void OnAboutClicked() => aboutPanel.ShowPanel();
+    private void OnStartGameClicked() { startGamePanel.ShowPanel(); }
+    private void OnSettingsClicked() { settingsPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("设置 还没做！"); }
+    private void OnCodexClicked() { codexPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("图鉴 还没做！"); }
+    private void OnAchievementsClicked() { achievementsPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("成就 还没做！"); }
+    private void OnAboutClicked() { aboutPanel.ShowPanel(); }
 
     // 隐藏
-    private void OnBackFromAboutClicked() => aboutPanel.HidePanel();
-    private void OnBackFromSettingsClicked() => settingsPanel.HidePanel();
-    private void OnBackFromCodexClicked() => codexPanel.HidePanel();
-    private void OnBackFromAchievementsClicked() => achievementsPanel.HidePanel();
-    private void OnBackFromStartGameClicked() => startGamePanel.HidePanel();
+    private void OnBackFromAboutClicked() { aboutPanel.HidePanel(); }
+    private void OnBackFromSettingsClicked() { settingsPanel.HidePanel(); }
+    private void OnBackFromCodexClicked() { codexPanel.HidePanel(); }
+    private void OnBackFromAchievementsClicked() { achievementsPanel.HidePanel(); }
+    private void OnBackFromStartGameClicked() { startGamePanel.HidePanel(); }
 }

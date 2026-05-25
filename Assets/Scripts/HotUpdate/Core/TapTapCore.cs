@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
+using GoveKits.Runtime.Core;
 using TapSDK.Achievement;
 using TapSDK.Core;
 using TapSDK.Login;
@@ -16,7 +17,7 @@ public static class TapTapCore
     private const string ClientPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7Pfrav0TTq4fHVkLrj/IJd/q/lpVJGeZ7jWVIgjeW9CeKi8zs46Uk+9Jyzd3Jmc8xG/sUb0gS2ZGMHSuZNHXV+IhC4MD2nqjW68yEuCGbgWuzkebFPGRsRwAFLk6MhsUoW+30f9TCHB5w/qnsmEwcXiko5H8+Gjp+vRCY4/ojTXBHpAegm7lqTh2cL15nYuzNdCZEZ6cqVNkJkLSgkkevq1rLZknznHZpymYlGCqHYcVsR1kJBcIL+kE/rqxHihOUILEZSstbHD8Ru8NZDieaP+Sz76t0f/3aqWOiJbWPEngofvOSEpdJaiGzoc2m6DTAsmErIZMZgiJ80uztVi/lQIDAQAB";
 
 
-    public static bool IsInitialized { get; private set; }
+    public static bool IsInitialized { get; private set; } = false;
 
     private static AchievementCallback achievementCallback;
     private static MethodInfo setAchievementStepsMethod;
@@ -48,7 +49,7 @@ public static class TapTapCore
             // 屏幕方向：0-竖屏 1-横屏，仅移动端生效
             screenOrientation = 1,
             // 是否开启日志，Release 版本请设置为 false
-            enableLog = false
+            enableLog = true
         };
 
         // 成就配置
@@ -57,16 +58,21 @@ public static class TapTapCore
             // 成就达成时 SDK 是否需要展示一个气泡弹窗提示
             enableToast = true
         };
-        achievementCallback ??= new AchievementCallback();
-        TapTapAchievement.RegisterCallBack(achievementCallback);
 
         // 其他模块配置项
         TapTapSdkBaseOptions[] otherOptions = new TapTapSdkBaseOptions[]
         {
             achievementOptions
         };
+
+        LogCore.Info("TapTapCore", "开始初始化 TapTap SDK");
+
         // TapSDK 初始化
         TapTapSDK.Init(coreOptions, otherOptions);
+
+        achievementCallback ??= new AchievementCallback();
+        TapTapAchievement.RegisterCallBack(achievementCallback);
+
         IsInitialized = true;
         ConfigureAndroidLandscapeAutoRotation();
     }
@@ -104,8 +110,6 @@ public static class TapTapCore
     {
         try
         {
-            Initialize();
-
             // 定义授权范围
             List<string> scopes = new List<string>
             {
