@@ -62,6 +62,9 @@ public class LoginPage : MonoBehaviour
 
         isLoggingIn = true;
         startButtonUI.interactable = true; // 重新启用登录按钮，允许用户进入下一场景
+
+        // 将账户信息保存到 GameCore 中，供后续使用
+        GameCore.SetAccount(result);
     }
 
     private void OnLoginFailure(Exception exception)
