@@ -54,8 +54,8 @@ public class LoginPage : MonoBehaviour
 
 #if UNITY_EDITOR
         // 编辑器模式下直接跳过登录流程
-        // OnLoginSuccess(new TapTapAccount());
-        _ = TapTapCore.LoginAsync(OnLoginSuccess, OnLoginCancel, OnLoginFailure); // 确保 SDK 已经初始化
+        OnLoginSuccess(new TapTapAccount());
+        // _ = TapTapCore.LoginAsync(OnLoginSuccess, OnLoginCancel, OnLoginFailure); // 确保 SDK 已经初始化
 #else
         startButtonUI.interactable = false; // 禁用登录按钮，防止重复点击
         _ = TapTapCore.LoginAsync(OnLoginSuccess, OnLoginCancel, OnLoginFailure); // 确保 SDK 已经初始化
