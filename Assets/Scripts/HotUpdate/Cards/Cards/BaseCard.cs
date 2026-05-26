@@ -52,4 +52,8 @@ public abstract class BaseCard
         return result;
     }
 
+
+
+    public abstract void Use(BaseCharacter user, BaseCharacter target);
+
 }

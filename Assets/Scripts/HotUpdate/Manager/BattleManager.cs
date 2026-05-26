@@ -11,21 +11,34 @@ public class BattleManager : MonoSingleton<BattleManager>
     public int turnCount { get; private set; } = 0;
 
 
+    public void Start()
+    {
+        this.player = Object.FindFirstObjectByType<Player>();
+        this.enemy = Object.FindFirstObjectByType<Enemy>();
+
+        // 这里可以放一些初始化逻辑，比如加载资源，设置初始状态等
+        // ......
+
+        StartBattle();
+    }
+
+
     // 战斗起点
     public void StartBattle()
     {
+        string levelName = GameCore.currentLevelName;
+        Debug.Log($"Starting battle at level: {levelName}");
+
         isBattleActive = true;
 
         turnCount = 0;
-        this.player = Object.FindFirstObjectByType<Player>();
-        this.enemy = Object.FindFirstObjectByType<Enemy>();
+        
+        player.Setup();
+        enemy.Setup();
 
         // 设置目标
         player.Target = enemy;
         enemy.Target = player;
-
-        player.Health.Value = 100;
-        player.Mana.Value = 100;
 
         // 开始玩家回合
         player.StartTurn();

@@ -69,7 +69,7 @@ public class CardContainer : MonoBehaviour
     public void OnCardFocused(CardItem cardItem)
     {
         EnsureFocusSequence();
-        focusSequence.Append(cardInfoPanelRect.DOAnchorPos(new Vector3(150, 0, 0), 0.3f).SetEase(Ease.OutQuad));
+        focusSequence.Append(cardInfoPanelRect.DOAnchorPos(new Vector3(100, 0, 0), 0.3f).SetEase(Ease.OutQuad));
         focusSequence.Join(cardInfoPanel.DOFade(1f, 0.3f).SetEase(Ease.OutQuad));
 
         cardInfoNameText.text = cardItem.cardData.Name;
@@ -120,6 +120,7 @@ public class CardContainer : MonoBehaviour
 
         CardUsedEvent cardUsedEvent = EventCore.GetEvent<CardUsedEvent>();
         cardUsedEvent.Card = cardItem.cardData;
+        EventCore.Publish(cardUsedEvent);
 
         MessageToastManager.Instance.ShowMessage($"使用了卡牌：{cardItem.cardData.Name}");
 

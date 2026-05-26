@@ -4,9 +4,6 @@
 
 public class Enemy : BaseCharacter
 {
-
-
-
     public override void StartTurn()
     {
         base.StartTurn();
