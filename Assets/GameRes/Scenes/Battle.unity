@@ -835,9 +835,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   fanAngle: 30
-  radius: 0
+  radius: 500
   invertDirection: 0
-  cardSpacingOffset: 50
+  cardSpacingOffset: 100
 --- !u!114 &653674365
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -853,7 +853,7 @@ MonoBehaviour:
   cardInfoPanel: {fileID: 269216068}
   cardInfoNameText: {fileID: 1387528587}
   cardInfoDescText: {fileID: 1429609843}
-  cardContainer: {fileID: 653674361}
+  cardContainer: {fileID: 653674364}
   cardItemPrefab: {fileID: 6930719261071758807, guid: 8abc129c5c732a7438eb4e8e45c30d51, type: 3}
 --- !u!1 &662574590
 GameObject:

@@ -22,7 +22,7 @@
         "com.unity.textmeshpro": "3.0.6",
         "com.unity.scriptablebuildpipeline": "1.21.25"
       },
-      "hash": "ff92c9815f80f1dd2291d476766a3de8fb80c1c7"
+      "hash": "fbe7ce77f3d8173d509b15bfce5847ce8c5bbe54"
     },
     "com.taptap.sdk.achievement": {
       "version": "https://github.com/taptap/tapsdk-unity-dist.git?path=/Achievement#4.10.0",

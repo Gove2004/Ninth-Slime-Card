@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using DG.Tweening;
+using GoveKits.Runtime.Core;
 using TMPro;
 using UnityEngine;
 
@@ -13,7 +14,7 @@ public class CardContainer : MonoBehaviour
     [SerializeField] private TextMeshProUGUI cardInfoDescText;
 
     // 卡牌预制体，用于动态生成卡牌
-    [SerializeField] private GameObject cardContainer;
+    [SerializeField] private HandCardFanLayout cardContainer;
     [SerializeField] private GameObject cardItemPrefab;
     private List<CardItem> cardItems = new List<CardItem>();
     
@@ -29,22 +30,28 @@ public class CardContainer : MonoBehaviour
         cardInfoPanel.alpha = 0f;
         cardInfoPanel.interactable = false;
         cardInfoPanel.blocksRaycasts = false;
+    }
 
-        for (int i = 0; i < 2; i++)
+
+    public void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Space))
         {
-            // 创建示例卡牌数据
-            BaseCard cardData = new 普通攻击示例();
-            // 添加卡牌到容器
-            OnAddCard(cardData);
+            // 测试添加卡牌
+            AddTestCards();
         }
-        for (int i = 0; i < 2; i++)
+        
+    }
+
+    public void AddTestCards()
+    {
+        for (int i = 0; i < 1; i++)
         {
-            // 创建示例卡牌数据
-            BaseCard cardData = new 不普通攻击();
-            // 添加卡牌到容器
-            OnAddCard(cardData);
+            BaseCard testCard = (Random.value > 0.5f) ? new 普通攻击() : new 治疗术();
+            OnAddCard(testCard);
         }
     }
+
 
     private Sequence focusSequence;
     private void EnsureFocusSequence()
@@ -66,7 +73,7 @@ public class CardContainer : MonoBehaviour
         focusSequence.Join(cardInfoPanel.DOFade(1f, 0.3f).SetEase(Ease.OutQuad));
 
         cardInfoNameText.text = cardItem.cardData.Name;
-        cardInfoDescText.text = cardItem.cardData.GetDynamicDescription();
+        cardInfoDescText.text = cardItem.cardData.Description();
 
         focusedCard = cardItem;
     }
@@ -88,7 +95,7 @@ public class CardContainer : MonoBehaviour
     public void OnAddCard(BaseCard cardData)
     {
         // 实例化卡牌预制体并设置数据
-        GameObject cardObj = Instantiate(cardItemPrefab, transform);
+        GameObject cardObj = Instantiate(cardItemPrefab, cardContainer.transform);
         CardItem cardItem = cardObj.GetComponent<CardItem>();
         cardItems.Add(cardItem);
         // 设置卡牌数据
@@ -96,8 +103,27 @@ public class CardContainer : MonoBehaviour
         // 订阅卡牌事件
         cardItem.OnCardFocused += OnCardFocused;
         cardItem.OnCardUnfocused += OnCardUnfocused;
-        // cardItem.OnCardUsed += OnRemoveCard;
-        // cardItem.OnCardEndDrag += OnRemoveCard;
+        cardItem.OnCardEndDrag += (card) => cardContainer.RebuildLayout();
+        cardItem.OnCardUsed += OnCardUsed;
+
+        cardContainer.RebuildLayout();
+    }
+
+
+    public void OnCardUsed(CardItem cardItem)
+    {
+        if (cardItem != focusedCard)
+        {
+            LogCore.Error("CardContainer", "为毛会不一样啊？");
+        }
+        focusedCard = null;
+
+        CardUsedEvent cardUsedEvent = EventCore.GetEvent<CardUsedEvent>();
+        cardUsedEvent.Card = cardItem.cardData;
+
+        MessageToastManager.Instance.ShowMessage($"使用了卡牌：{cardItem.cardData.Name}");
+
+        cardContainer.RebuildLayout();
     }
 
 
@@ -109,5 +135,7 @@ public class CardContainer : MonoBehaviour
             cardItems.Remove(cardItem);
             Destroy(cardItem.gameObject);
         }
+
+        cardContainer.RebuildLayout();
     }
 }

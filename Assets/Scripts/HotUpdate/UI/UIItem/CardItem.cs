@@ -42,33 +42,68 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 
     
 
-    private Vector2 offsetToMouse;  // 鼠标与卡牌中心的偏移，用于拖动时保持相对位置
-
+    private RectTransform rect;
+    private Vector2 startAnchoredPos;
+    private Quaternion startRotation;
+    private Vector3 startScale;
+    private Vector2 dragOffset;
+    private bool isDragging;
 
     public void OnBeginDrag(PointerEventData eventData)
     {
         if (!interactable) return;
 
-        // 计算鼠标与卡牌中心的偏移
+        rect = (RectTransform)transform;
+        isDragging = true;
+
+        startAnchoredPos = rect.anchoredPosition;
+        startRotation = rect.localRotation;
+        startScale = rect.localScale;
+
+        transform.SetAsLastSibling();
+
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            (RectTransform)transform, eventData.position, eventData.pressEventCamera, 
-            out offsetToMouse);
+            (RectTransform)rect.parent,
+            eventData.position,
+            eventData.pressEventCamera,
+            out var localPoint);
+
+        dragOffset = rect.anchoredPosition - localPoint;
     }
 
     public void OnDrag(PointerEventData eventData)
     {
         if (!interactable) return;
 
-        // 跟随鼠标移动
-        transform.position = eventData.position - offsetToMouse;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            (RectTransform)rect.parent,
+            eventData.position,
+            eventData.pressEventCamera,
+            out var localPoint);
+
+        rect.anchoredPosition = localPoint + dragOffset;
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
         if (!interactable) return;
 
-        // 触发卡牌使用事件
-        OnCardUsed?.Invoke(this);
+        isDragging = false;
+
+        bool shouldPlay = eventData.position.y > Screen.height * 0.5f;
+        // 更推荐用出牌区域 RectangleContainsScreenPoint 来判断
+
+        if (shouldPlay)
+        {
+            OnCardUsed?.Invoke(this);
+        }
+        else
+        {
+            OnCardEndDrag?.Invoke(this);
+            rect.DOAnchorPos(startAnchoredPos, 0.2f);
+            rect.DOLocalRotateQuaternion(startRotation, 0.2f);
+            rect.DOScale(startScale, 0.2f);
+        }
     }
 
 

@@ -9,11 +9,10 @@ public class CardConfigData : IConfigData
     public string 名称;
     public string 系列;
     public int 费用;
-    public int 数值;
-    public int 持续时间;
-    public string 效果;
+    public int 数值1;
+    public int 数值2;
+    public int 数值3;
+    public string 描述;
     public string 趣闻;
     public string 备注;
-
-    // public string ImagePath;  // 就是 "Card_" + 卡牌名称 + ".png"
 }
