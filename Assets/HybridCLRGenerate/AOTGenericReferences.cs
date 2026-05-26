@@ -122,6 +122,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// System.Func<object>
 	// System.Linq.Buffer<int>
 	// System.Linq.Buffer<object>
+	// System.Linq.Enumerable.<CastIterator>d__99<object>
 	// System.Linq.Enumerable.<DistinctIterator>d__68<int>
 	// System.Linq.Enumerable.Iterator<int>
 	// System.Linq.Enumerable.Iterator<object>
@@ -192,6 +193,8 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 		// object DG.Tweening.TweenSettingsExtensions.SetUpdate<object>(object,bool)
 		// YooAsset.AssetHandle GoveKits.Runtime.Storage.ResCore.LoadAssetSync<object>(string)
 		// object[] System.Array.Empty<object>()
+		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.Cast<object>(System.Collections.IEnumerable)
+		// System.Collections.Generic.IEnumerable<object> System.Linq.Enumerable.CastIterator<object>(System.Collections.IEnumerable)
 		// System.Collections.Generic.IEnumerable<int> System.Linq.Enumerable.Distinct<int>(System.Collections.Generic.IEnumerable<int>)
 		// System.Collections.Generic.IEnumerable<int> System.Linq.Enumerable.DistinctIterator<int>(System.Collections.Generic.IEnumerable<int>,System.Collections.Generic.IEqualityComparer<int>)
 		// System.Linq.IOrderedEnumerable<int> System.Linq.Enumerable.OrderBy<int,int>(System.Collections.Generic.IEnumerable<int>,System.Func<int,int>)

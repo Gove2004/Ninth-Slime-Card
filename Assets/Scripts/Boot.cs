@@ -32,6 +32,9 @@ public class Boot : MonoSingleton<Boot>
 
     private async Task InitializeAsync()
     {
+        // string cdnUrl = "http://106.13.26.185:10413/NinthSlimeCard";
+        string cdnUrl = "http://10.0.2.2:10413/NinthSlimeCard";
+
         try
         {
             SetState(BootState.Initializing);
@@ -44,7 +47,7 @@ public class Boot : MonoSingleton<Boot>
                 new AutoHostPackageConfig
                 (
                     "DefaultPackage",
-                    "http://106.13.26.185:10413/NinthSlimeCard"
+                    cdnUrl
                 ),
                 new UpdateCallbacks
                 {
