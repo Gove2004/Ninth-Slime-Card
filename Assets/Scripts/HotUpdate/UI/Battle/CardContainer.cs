@@ -1,8 +1,5 @@
-
-
 using System.Collections.Generic;
 using DG.Tweening;
-using GoveKits.Runtime.Core;
 using TMPro;
 using UnityEngine;
 
@@ -12,48 +9,21 @@ public class CardContainer : MonoBehaviour
     private RectTransform cardInfoPanelRect;
     [SerializeField] private TextMeshProUGUI cardInfoNameText;
     [SerializeField] private TextMeshProUGUI cardInfoDescText;
-
-    // 卡牌预制体，用于动态生成卡牌
     [SerializeField] private HandCardFanLayout cardContainer;
     [SerializeField] private GameObject cardItemPrefab;
-    private List<CardItem> cardItems = new List<CardItem>();
-    
 
-    // 当前选中的卡牌
+    private readonly List<CardItem> cardItems = new List<CardItem>();
     private CardItem focusedCard;
-
+    private Sequence focusSequence;
 
     private void Start()
     {
         cardInfoPanelRect = cardInfoPanel.GetComponent<RectTransform>();
-        // 初始状态隐藏卡牌信息面板
         cardInfoPanel.alpha = 0f;
         cardInfoPanel.interactable = false;
         cardInfoPanel.blocksRaycasts = false;
     }
 
-
-    public void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            // 测试添加卡牌
-            AddTestCards();
-        }
-        
-    }
-
-    public void AddTestCards()
-    {
-        for (int i = 0; i < 1; i++)
-        {
-            BaseCard testCard = (Random.value > 0.5f) ? new 普通攻击() : new 治疗术();
-            OnAddCard(testCard);
-        }
-    }
-
-
-    private Sequence focusSequence;
     private void EnsureFocusSequence()
     {
         if (focusSequence == null)
@@ -66,6 +36,24 @@ public class CardContainer : MonoBehaviour
         }
     }
 
+    public void RefreshHand(IReadOnlyList<BaseCard> cards, bool interactable)
+    {
+        ClearAllCards();
+
+        if (cards == null)
+        {
+            cardContainer.RebuildLayout();
+            return;
+        }
+
+        for (int i = 0; i < cards.Count; i++)
+        {
+            AddCard(cards[i], interactable);
+        }
+
+        cardContainer.RebuildLayout();
+    }
+
     public void OnCardFocused(CardItem cardItem)
     {
         EnsureFocusSequence();
@@ -74,15 +62,13 @@ public class CardContainer : MonoBehaviour
 
         cardInfoNameText.text = cardItem.cardData.Name;
         cardInfoDescText.text = cardItem.cardData.Description();
-
         focusedCard = cardItem;
     }
 
     public void OnCardUnfocused(CardItem cardItem)
     {
         EnsureFocusSequence();
-
-        focusSequence.Append(cardInfoPanelRect.DOAnchorPos(new Vector3(0, 0, 0), 0.3f).SetEase(Ease.OutQuad));
+        focusSequence.Append(cardInfoPanelRect.DOAnchorPos(Vector3.zero, 0.3f).SetEase(Ease.OutQuad));
         focusSequence.Join(cardInfoPanel.DOFade(0f, 0.3f).SetEase(Ease.OutQuad));
 
         if (focusedCard == cardItem)
@@ -91,52 +77,75 @@ public class CardContainer : MonoBehaviour
         }
     }
 
-
-    public void OnAddCard(BaseCard cardData)
+    private void AddCard(BaseCard cardData, bool interactable)
     {
-        // 实例化卡牌预制体并设置数据
         GameObject cardObj = Instantiate(cardItemPrefab, cardContainer.transform);
         CardItem cardItem = cardObj.GetComponent<CardItem>();
         cardItems.Add(cardItem);
-        // 设置卡牌数据
         cardItem.SetCardData(cardData);
-        // 订阅卡牌事件
+        cardItem.SetInteractable(interactable);
         cardItem.OnCardFocused += OnCardFocused;
         cardItem.OnCardUnfocused += OnCardUnfocused;
-        cardItem.OnCardEndDrag += (card) => cardContainer.RebuildLayout();
+        cardItem.OnCardBeginDrag += OnCardBeginDrag;
+        cardItem.OnCardEndDrag += OnCardEndDrag;
         cardItem.OnCardUsed += OnCardUsed;
+    }
 
+    private void OnCardBeginDrag(CardItem cardItem)
+    {
+        cardContainer.SetDragging(true);
+        if (focusedCard == cardItem)
+        {
+            focusedCard = null;
+        }
+    }
+
+    private void OnCardUsed(CardItem cardItem)
+    {
+        bool success = BattleManager.Instance != null && BattleManager.Instance.RequestPlayCard(cardItem.cardData);
+        if (!success)
+        {
+            cardItem.ReturnToStartPosition();
+            cardContainer.RebuildLayout();
+        }
+
+        cardContainer.SetDragging(false);
+    }
+
+    private void OnCardEndDrag(CardItem cardItem)
+    {
+        cardContainer.SetDragging(false);
         cardContainer.RebuildLayout();
     }
 
-
-    public void OnCardUsed(CardItem cardItem)
+    private void ClearAllCards()
     {
-        if (cardItem != focusedCard)
-        {
-            LogCore.Error("CardContainer", "为毛会不一样啊？");
-        }
         focusedCard = null;
 
-        CardUsedEvent cardUsedEvent = EventCore.GetEvent<CardUsedEvent>();
-        cardUsedEvent.Card = cardItem.cardData;
-        EventCore.Publish(cardUsedEvent);
-
-        MessageToastManager.Instance.ShowMessage($"使用了卡牌：{cardItem.cardData.Name}");
-
-        cardContainer.RebuildLayout();
-    }
-
-
-    public void OnRemoveCard(CardItem cardItem)
-    {
-        // 从列表中移除并销毁卡牌对象
-        if (cardItems.Contains(cardItem))
+        for (int i = 0; i < cardItems.Count; i++)
         {
-            cardItems.Remove(cardItem);
+            CardItem cardItem = cardItems[i];
+            if (cardItem == null)
+            {
+                continue;
+            }
+
+            cardItem.OnCardFocused -= OnCardFocused;
+            cardItem.OnCardUnfocused -= OnCardUnfocused;
+            cardItem.OnCardBeginDrag -= OnCardBeginDrag;
+            cardItem.OnCardEndDrag -= OnCardEndDrag;
+            cardItem.OnCardUsed -= OnCardUsed;
             Destroy(cardItem.gameObject);
         }
 
-        cardContainer.RebuildLayout();
+        cardItems.Clear();
+    }
+
+    private void OnDestroy()
+    {
+        if (focusSequence != null && focusSequence.IsActive())
+        {
+            focusSequence.Kill();
+        }
     }
 }

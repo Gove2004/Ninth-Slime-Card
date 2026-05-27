@@ -1,26 +1,48 @@
-
-
-
+using System;
 using System.Collections.Generic;
 using GoveKits.Runtime.Core;
 
 public static class CardFactoryCore
 {
-    private static Dictionary<string, BaseCard> _cardDict = new Dictionary<string, BaseCard>();
+    private static readonly Dictionary<int, Type> cardTypesById = new Dictionary<int, Type>();
+    private static readonly Dictionary<string, int> cardIdsByName = new Dictionary<string, int>();
 
-    // 扫描所有继承自BaseCard的类，并创建实例
     static CardFactoryCore()
     {
-        var cardTypes = typeof(BaseCard).Assembly.GetTypes();
-        foreach (var type in cardTypes)
+        var allTypes = typeof(BaseCard).Assembly.GetTypes();
+        foreach (var type in allTypes)
         {
-            if (type.IsSubclassOf(typeof(BaseCard)) && !type.IsAbstract)
+            if (!type.IsSubclassOf(typeof(BaseCard)) || type.IsAbstract)
             {
-                var cardInstance = (BaseCard)System.Activator.CreateInstance(type);
-                _cardDict[cardInstance.Name] = cardInstance;
+                continue;
             }
+
+            var card = (BaseCard)Activator.CreateInstance(type);
+            cardTypesById[card.Id] = type;
+            cardIdsByName[card.Name] = card.Id;
         }
 
-        LogCore.Success("CardFactory", $"已加载 {_cardDict.Count} 张卡牌");
+        LogCore.Success("CardFactory", $"已加载 {cardTypesById.Count} 张卡牌");
+    }
+
+    public static BaseCard CreateCard(int id)
+    {
+        if (!cardTypesById.TryGetValue(id, out var type))
+        {
+            LogCore.Error("CardFactory", $"未找到id为{id}的卡牌类型");
+            return null;
+        }
+
+        return (BaseCard)Activator.CreateInstance(type);
+    }
+
+    public static BaseCard CreateCard(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+
+        return cardIdsByName.TryGetValue(name, out var id) ? CreateCard(id) : null;
     }
 }

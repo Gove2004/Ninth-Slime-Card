@@ -3,55 +3,37 @@ using UnityEngine.UI;
 
 public class HUD : MonoBehaviour
 {
-    // Player HUD
     private Player player;
     [SerializeField] private RollTMP hpText;
     [SerializeField] private RollTMP manaText;
 
-    // Enemy HUD
     private Enemy enemy;
     [SerializeField] private RollTMP enemyHpText;
     [SerializeField] private Image enemyHpBar;
 
-
-
     private void Update()
     {
-        // 更新玩家HUD
-        if (BattleManager.Instance == null) return; // 确保BattleManager存在
+        if (BattleManager.Instance == null) return;
 
         if (player == null)
         {
-            player = BattleManager.Instance.player;
+            player = BattleManager.Instance.Player;
         }
-        else
-        {
-            UpdatePlayerHUD();
-        }
-        
-
-        // 更新敌人HUD
         if (enemy == null)
         {
-            enemy = BattleManager.Instance.enemy;
+            enemy = BattleManager.Instance.Enemy;
         }
-        else
+
+        if (player != null)
         {
-            UpdateEnemyHUD();
+            hpText.StopAndSetFinalValue("{0}", (int)player.Attributes.GetValue(StaticString.属性.生命));
+            manaText.StopAndSetFinalValue("{0}", (int)player.Attributes.GetValue(StaticString.属性.法力));
+        }
+
+        if (enemy != null)
+        {
+            enemyHpText.StopAndSetFinalValue("{0}", (int)enemy.Attributes.GetValue(StaticString.属性.生命));
+            enemyHpBar.fillAmount = enemy.HealthPercent;
         }
     }
-
-
-    private void UpdatePlayerHUD()
-    {
-        hpText.StopAndSetFinalValue("{0}", player.Health.Value);
-        manaText.StopAndSetFinalValue("{0}", player.Mana.Value);
-    }
-
-    private void UpdateEnemyHUD()
-    {
-        enemyHpText.StopAndSetFinalValue("{0}", enemy.Health.Value);
-        enemyHpBar.fillAmount = enemy.HealthPercent;
-    }
-
 }

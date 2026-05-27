@@ -11,7 +11,7 @@ public class MessageToast : MonoBehaviour
     {
         messageText.text = message;
 
-        transform.DOMoveY(transform.position.y + 50f, duration).SetEase(Ease.OutCubic).OnComplete(() =>
+        transform.DOMoveY(transform.position.y + 150f, duration).SetEase(Ease.OutCubic).OnComplete(() =>
         {
             Object.Destroy(gameObject);
         });

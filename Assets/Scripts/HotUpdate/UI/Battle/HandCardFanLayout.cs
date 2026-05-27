@@ -13,10 +13,11 @@ public class HandCardFanLayout : MonoBehaviour
     [SerializeField] private float tweenStagger = 0.03f;
 
     private Sequence layoutSequence;
+    private bool isDragging;
 
     private void OnTransformChildrenChanged()
     {
-        if (!Application.isPlaying) return;
+        if (!Application.isPlaying || isDragging) return;
         RebuildLayout();
     }
 
@@ -26,8 +27,22 @@ public class HandCardFanLayout : MonoBehaviour
         RebuildLayout();
     }
 
+    public void SetDragging(bool value)
+    {
+        isDragging = value;
+        if (!isDragging)
+        {
+            RebuildLayout();
+        }
+    }
+
     public void RebuildLayout()
     {
+        if (isDragging)
+        {
+            return;
+        }
+
         if (layoutSequence != null && layoutSequence.IsActive())
         {
             layoutSequence.Kill();

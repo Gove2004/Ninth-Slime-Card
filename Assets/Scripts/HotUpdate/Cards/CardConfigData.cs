@@ -1,7 +1,7 @@
 using GoveKits.Runtime.Storage;
 
 
-[ConfigPath("CardConfigData", "csv")]
+[ConfigPath("第九张史莱姆牌-工作表1", "csv")]
 public class CardConfigData : IConfigData
 {
     // id,名称,系列,费用,数值,持续时间,效果,趣闻,备注

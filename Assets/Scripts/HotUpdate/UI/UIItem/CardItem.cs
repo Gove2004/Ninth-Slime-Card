@@ -4,7 +4,6 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-
 public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     [SerializeField] private Image cardImage;
@@ -13,21 +12,38 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 
     public event System.Action<CardItem> OnCardFocused;
     public event System.Action<CardItem> OnCardUnfocused;
+    public event System.Action<CardItem> OnCardBeginDrag;
     public event System.Action<CardItem> OnCardUsed;
     public event System.Action<CardItem> OnCardEndDrag;
 
-
-    #region 交互动画
-    
-    /// <summary>
-    /// 是否可交互的卡牌，部分场景下部可交互，比如敌人出牌，图鉴，选牌界面
-    /// </summary>
     [SerializeField] private bool interactable = true;
+    [SerializeField] private float playThreshold = 0.58f;
+
+    private RectTransform rect;
+    private Vector2 startAnchoredPos;
+    private Quaternion startRotation;
+    private Vector3 startScale;
+    private Vector2 dragOffset;
+    private Sequence focusSequence;
+
+    public BaseCard cardData { get; private set; }
+
+    public void SetCardData(BaseCard cardData)
+    {
+        this.cardData = cardData;
+        cardImage.sprite = cardData.Image;
+        cardNameText.text = cardData.Name;
+        costText.text = cardData.Cost.ToString();
+    }
+
+    public void SetInteractable(bool value)
+    {
+        interactable = value;
+    }
 
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (!interactable) return;
-
         OnCardFocused?.Invoke(this);
         PlayFocusAnimationShow();
     }
@@ -35,80 +51,68 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     public void OnPointerExit(PointerEventData eventData)
     {
         if (!interactable) return;
-
         OnCardUnfocused?.Invoke(this);
         PlayFocusAnimationHide();
     }
-
-    
-
-    private RectTransform rect;
-    private Vector2 startAnchoredPos;
-    private Quaternion startRotation;
-    private Vector3 startScale;
-    private Vector2 dragOffset;
-    private bool isDragging;
 
     public void OnBeginDrag(PointerEventData eventData)
     {
         if (!interactable) return;
 
         rect = (RectTransform)transform;
-        isDragging = true;
-
         startAnchoredPos = rect.anchoredPosition;
         startRotation = rect.localRotation;
         startScale = rect.localScale;
 
+        if (focusSequence != null && focusSequence.IsActive())
+        {
+            focusSequence.Kill(true);
+        }
+
         transform.SetAsLastSibling();
+        rect.DOKill();
+        transform.DOKill();
+        rect.localRotation = Quaternion.identity;
+        rect.localScale = Vector3.one * 1.1f;
 
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            (RectTransform)rect.parent,
-            eventData.position,
-            eventData.pressEventCamera,
-            out var localPoint);
-
-        dragOffset = rect.anchoredPosition - localPoint;
+        Vector2 screenPoint = RectTransformUtility.WorldToScreenPoint(eventData.pressEventCamera, rect.position);
+        dragOffset = screenPoint - eventData.position;
+        OnCardBeginDrag?.Invoke(this);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        if (!interactable) return;
-
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            (RectTransform)rect.parent,
-            eventData.position,
-            eventData.pressEventCamera,
-            out var localPoint);
-
-        rect.anchoredPosition = localPoint + dragOffset;
+        if (!interactable || rect == null) return;
+        rect.position = eventData.position + dragOffset;
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
         if (!interactable) return;
 
-        isDragging = false;
-
-        bool shouldPlay = eventData.position.y > Screen.height * 0.5f;
-        // 更推荐用出牌区域 RectangleContainsScreenPoint 来判断
-
+        bool shouldPlay = eventData.position.y > Screen.height * playThreshold;
         if (shouldPlay)
         {
             OnCardUsed?.Invoke(this);
+            return;
         }
-        else
-        {
-            OnCardEndDrag?.Invoke(this);
-            rect.DOAnchorPos(startAnchoredPos, 0.2f);
-            rect.DOLocalRotateQuaternion(startRotation, 0.2f);
-            rect.DOScale(startScale, 0.2f);
-        }
+
+        ReturnToStartPosition();
+        OnCardEndDrag?.Invoke(this);
     }
 
+    public void ReturnToStartPosition()
+    {
+        if (rect == null)
+        {
+            rect = (RectTransform)transform;
+        }
 
+        rect.DOAnchorPos(startAnchoredPos, 0.18f).SetEase(Ease.OutQuad);
+        rect.DOLocalRotateQuaternion(startRotation, 0.18f).SetEase(Ease.OutQuad);
+        rect.DOScale(startScale, 0.18f).SetEase(Ease.OutQuad);
+    }
 
-    private Sequence focusSequence;
     private void EnsureFocusSequence()
     {
         if (focusSequence == null)
@@ -124,26 +128,13 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     public void PlayFocusAnimationShow()
     {
         EnsureFocusSequence();
-        focusSequence.Append(transform.DOScale(1.2f, 0.3f).SetEase(Ease.OutQuad));
+        focusSequence.Append(transform.DOScale(1.2f, 0.2f).SetEase(Ease.OutQuad));
     }
 
     public void PlayFocusAnimationHide()
     {
         EnsureFocusSequence();
-        focusSequence.Append(transform.DOScale(1f, 0.3f).SetEase(Ease.OutQuad));
-    }
-
-    #endregion
-
-    public BaseCard cardData { get; private set; }
-
-    public void SetCardData(BaseCard cardData)
-    {
-        this.cardData = cardData;
-        // 设置卡牌显示
-        cardImage.sprite = cardData.Image;
-        cardNameText.text = cardData.Name;
-        costText.text = cardData.Cost.ToString();
+        focusSequence.Append(transform.DOScale(1f, 0.2f).SetEase(Ease.OutQuad));
     }
 
     public void OnDestroy()
@@ -152,8 +143,10 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         {
             focusSequence.Kill();
         }
+
         OnCardFocused = null;
         OnCardUnfocused = null;
+        OnCardBeginDrag = null;
         OnCardUsed = null;
         OnCardEndDrag = null;
     }
