@@ -9,6 +9,14 @@ public abstract class BaseCharacter : UnitBehaviour
 
     public BaseCharacter Target;
 
+    public BaseCard CurrentResolvingCard { get; private set; }
+    public BaseCharacter CurrentSourceCharacter { get; private set; }
+    public BaseCharacter CurrentTargetCharacter { get; private set; }
+    public int CurrentEffectAmount { get; private set; }
+    public int PendingExtraCardTriggers { get; private set; }
+    public int TargetedImmunityCharges { get; private set; }
+    private bool isResolvingHookEffect;
+
     public List<BaseCard> HandCards { get; } = new List<BaseCard>();
     public List<BaseCard> DeckCards { get; } = new List<BaseCard>();
     public List<BaseCard> DiscardCards { get; } = new List<BaseCard>();
@@ -27,6 +35,7 @@ public abstract class BaseCharacter : UnitBehaviour
         Attributes.Add(StaticString.属性.最大生命, 10);
         Attributes.Add(StaticString.属性.法力, 0);
         Attributes.Add(StaticString.属性.每回合自动恢复, 2);
+        Attributes.Add(StaticString.属性.护盾, 0);
         Attributes.Add(StaticString.属性.伤害百分比提升, 0);
         Attributes.Add(StaticString.属性.伤害固定提升, 0);
         Attributes.Add(StaticString.属性.伤害百分比减免, 0);
@@ -84,6 +93,20 @@ public abstract class BaseCharacter : UnitBehaviour
     {
         amount = Mathf.Max(0, amount);
         if (amount <= 0) return;
+
+        int shield = GetShield();
+        if (shield > 0)
+        {
+            int absorbed = Mathf.Min(shield, amount);
+            Attributes.ChangeBase(StaticString.属性.护盾, -absorbed);
+            amount -= absorbed;
+        }
+
+        if (amount <= 0)
+        {
+            return;
+        }
+
         Attributes.ChangeBase(StaticString.属性.生命, -amount);
         TriggerHookEffect(HookTiming.WhenHurt);
     }
@@ -105,10 +128,30 @@ public abstract class BaseCharacter : UnitBehaviour
         }
 
         resolvedTarget = card.ResolveTarget(this, resolvedTarget);
+        int extraTriggers = PendingExtraCardTriggers;
+        PendingExtraCardTriggers = 0;
+        CurrentResolvingCard = card;
+        CurrentSourceCharacter = this;
+        CurrentTargetCharacter = resolvedTarget;
+        CurrentEffectAmount = 0;
         card.PreUse(this, resolvedTarget);
+
+        if (card.IsTargetedEffect(this, resolvedTarget) && resolvedTarget != null && resolvedTarget.TryConsumeTargetedImmunity())
+        {
+            card.PostUse(this, resolvedTarget);
+            ClearEffectContext();
+            NotifyHandChanged();
+            return true;
+        }
+
         card.OnUse(this, resolvedTarget);
+        for (int i = 0; i < extraTriggers; i++)
+        {
+            card.OnUse(this, resolvedTarget);
+        }
         TriggerHookEffect(HookTiming.WhenUseCard);
         card.PostUse(this, resolvedTarget);
+        ClearEffectContext();
         NotifyHandChanged();
         return true;
     }
@@ -143,6 +186,133 @@ public abstract class BaseCharacter : UnitBehaviour
         }
 
         NotifyHandChanged();
+    }
+
+    public void AddCardToHand(BaseCard card)
+    {
+        if (card == null)
+        {
+            return;
+        }
+
+        HandCards.Add(card);
+        NotifyHandChanged();
+    }
+
+    public void AddCardToDeck(BaseCard card, bool shuffle = false)
+    {
+        if (card == null)
+        {
+            return;
+        }
+
+        DeckCards.Add(card);
+        if (shuffle)
+        {
+            ShuffleDeck();
+        }
+    }
+
+    public void SetMana(int amount)
+    {
+        SetBaseAttribute(StaticString.属性.法力, Mathf.Max(0, amount));
+    }
+
+    public void LoseAllMana()
+    {
+        SetMana(0);
+    }
+
+    public int GetMana()
+    {
+        return Mathf.RoundToInt(Attributes.GetBaseValue(StaticString.属性.法力));
+    }
+
+    public int GetHealth()
+    {
+        return Mathf.RoundToInt(Attributes.GetBaseValue(StaticString.属性.生命));
+    }
+
+    public int GetMaxHealth()
+    {
+        return Mathf.RoundToInt(Attributes.GetBaseValue(StaticString.属性.最大生命));
+    }
+
+    public int GetShield()
+    {
+        return Mathf.RoundToInt(Attributes.GetBaseValue(StaticString.属性.护盾));
+    }
+
+    public void GainShield(int amount)
+    {
+        amount = Mathf.Max(0, amount);
+        if (amount <= 0) return;
+        Attributes.ChangeBase(StaticString.属性.护盾, amount);
+    }
+
+    public void SetNextCardExtraTriggers(int extraTimes)
+    {
+        PendingExtraCardTriggers = Mathf.Max(0, extraTimes);
+    }
+
+    public void AddTargetedImmunity(int charges)
+    {
+        TargetedImmunityCharges += Mathf.Max(0, charges);
+    }
+
+    public bool TryConsumeTargetedImmunity()
+    {
+        if (TargetedImmunityCharges <= 0)
+        {
+            return false;
+        }
+
+        TargetedImmunityCharges--;
+        return true;
+    }
+
+    public void ConsumeAllHandCardsToDiscard(bool includeCurrentCard)
+    {
+        List<BaseCard> cards = new List<BaseCard>(HandCards);
+        foreach (BaseCard card in cards)
+        {
+            if (!includeCurrentCard && card == CurrentResolvingCard)
+            {
+                continue;
+            }
+
+            DiscardCard(card);
+        }
+    }
+
+    public string PeekRandomCardNameFromDeckOrDiscard()
+    {
+        List<BaseCard> pool = new List<BaseCard>();
+        pool.AddRange(DeckCards);
+        pool.AddRange(DiscardCards);
+        if (pool.Count == 0)
+        {
+            return null;
+        }
+
+        int index = UnityEngine.Random.Range(0, pool.Count);
+        return pool[index].Name;
+    }
+
+    public void SetEffectContext(BaseCard card, BaseCharacter source, BaseCharacter target, int amount)
+    {
+        CurrentResolvingCard = card;
+        CurrentSourceCharacter = source;
+        CurrentTargetCharacter = target;
+        CurrentEffectAmount = amount;
+    }
+
+    public void ClearEffectContext()
+    {
+        CurrentResolvingCard = null;
+        CurrentSourceCharacter = null;
+        CurrentTargetCharacter = null;
+        CurrentEffectAmount = 0;
     }
 
     public void ShuffleDiscardIntoDeck()
@@ -265,6 +435,7 @@ public abstract class BaseCharacter : UnitBehaviour
         WhenUseCard,
         WhenHeal,
         WhenHurt,
+        WhenDealDamage,
     }
 
     public class WhenTimingFunction
@@ -301,15 +472,17 @@ public abstract class BaseCharacter : UnitBehaviour
 
     public void TriggerHookEffect(HookTiming timing)
     {
-        if (!HookEffects.ContainsKey(timing))
+        if (isResolvingHookEffect || !HookEffects.ContainsKey(timing))
         {
             return;
         }
 
+        isResolvingHookEffect = true;
         foreach (var effect in HookEffects[timing])
         {
             effect.Invoke(this);
         }
+        isResolvingHookEffect = false;
 
         for (int i = HookEffects[timing].Count - 1; i >= 0; i--)
         {

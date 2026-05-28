@@ -89,3 +89,6 @@ HybridCLRData
 
 # YooAsset Simulate
 [Bb]undles
+
+# Claude AI generated files
+*.claude

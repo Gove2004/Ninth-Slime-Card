@@ -10,6 +10,7 @@ public static class StaticString
 
         public const string 法力 = "Attributes.Mana";
         public const string 每回合自动恢复 = "Attributes.ManaRecovery";
+        public const string 护盾 = "Attributes.Shield";
 
         // 伤害计算见 <cref="AttackEffect"/>
         public const string 伤害百分比提升 = "Attributes.DamagePercentIncrease";

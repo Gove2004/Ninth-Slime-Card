@@ -20,11 +20,23 @@ public class BattleResultOverlay : MonoBehaviour
 
     private void OnRestartButtonClicked()
     {
+        if (BattleManager.Instance != null)
+        {
+            BattleManager.Instance.RestartBattleScene();
+            return;
+        }
+
         ResCore.LoadSceneAsync("Battle");
     }
 
     private void OnHomeButtonClicked()
     {
+        if (BattleManager.Instance != null)
+        {
+            BattleManager.Instance.ReturnHome();
+            return;
+        }
+
         ResCore.LoadSceneAsync("Home");
     }
 

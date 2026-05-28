@@ -60,6 +60,28 @@ This means:
 - Code under `Assets/Scripts/Boot.cs` is the non-hot-update bootstrap layer.
 - Most gameplay/UI code lives under `Assets/Scripts/HotUpdate/**` and is intended to run from the hot-update assembly (`Assets/Scripts/HotUpdate/HotUpdate.asmdef`).
 - If changing gameplay behavior, first check whether the code belongs in the hot-update assembly rather than the bootstrap layer.
+- Do not move gameplay initialization earlier than `Boot.LoadAsset()` unless you have verified that `ConfigCore`, `AudioCore`, `SaveCore`, and hot-update code are already available.
+- Be careful with reflection-heavy or generic-heavy gameplay changes in hot-update code: HybridCLR/AOT/link preservation can become relevant (`Assets/HybridCLRGenerate/AOTGenericReferences.cs`, `Assets/HybridCLRGenerate/link.xml`).
+
+### Scene loading model
+Scene loading is package-driven, not Build Settings-driven.
+
+Important facts:
+- Only `Boot.unity` is in `ProjectSettings/EditorBuildSettings.asset`.
+- `Login`, `Home`, and `Battle` are loaded by string through `ResCore.LoadSceneAsync(...)`.
+- Those scenes are expected to be available through YooAsset packaging, not through raw `SceneManager` build-index loading.
+
+Relevant files:
+- `Assets/Scripts/Boot.cs`
+- `Assets/Scripts/HotUpdate/UI/Login/LoginPage.cs`
+- `Assets/Scripts/HotUpdate/UI/Home/LevelSelect.cs`
+- `Assets/Scripts/HotUpdate/UI/Battle/BattleResultOverlay.cs`
+
+Implications:
+- Prefer `ResCore.LoadSceneAsync(...)` for scene transitions in gameplay/UI code.
+- Do not casually switch scene loading to raw `SceneManager.LoadScene(...)`; that can bypass the project’s package-loading assumptions.
+- Scene names like `"Login"`, `"Home"`, and `"Battle"` are runtime contracts. Renaming scenes requires updating string load sites and verifying the packaged address still matches.
+- Code immediately after `ResCore.LoadSceneAsync(...)` must not assume the next scene is already fully initialized.
 
 ### Scene flow
 The current scene progression is:
@@ -71,56 +93,150 @@ Relevant files:
 - `Assets/Scripts/HotUpdate/UI/Home/LevelSelect.cs`
 - `Assets/Scripts/HotUpdate/Manager/BattleManager.cs`
 
-`GameCore` (`Assets/Scripts/HotUpdate/Core/GameCore.cs`) is a small static cross-scene state holder. Right now it stores the TapTap account and the selected level name.
+`GameCore` (`Assets/Scripts/HotUpdate/Core/GameCore.cs`) is the small static cross-scene state holder. Right now it stores the TapTap account and the selected level name.
+
+Important caveat:
+- `GameCore.currentLevelName` is set before entering `Battle`, but `BattleManager` currently only logs it. Do not assume multi-level battle behavior is already implemented just because `levelName` exists.
+
+### Scene structure observed in Unity Editor
+Unity MCP inspection confirms the current scene shapes matter to runtime behavior.
+
+`Battle.unity` root objects currently include:
+- `Main Camera`
+- `Global Light 2D`
+- `BG`
+- `Canvas`
+- `EventSystem`
+- `玩家`
+- `敌人`
+- `BattleManager`
+
+Under `Canvas`, the current top-level UI roots are:
+- `HandCards`
+- `HUD`
+- `PauseMenu`
+- `BattleResultOverlay`
+
+Important observed constraints:
+- `BattleResultOverlay` already exists in the scene and is treated as required by `BattleManager`.
+- `PauseMenu` is scene-authored and defaults inactive.
+- The end-turn button object is currently under `Canvas/HandCards/OverTurn`; `BattleManager` binds it by the object name `"OverTurn"` rather than by serialized reference.
+- `HUD` and `CardContainer` depend on scene-authored player/enemy/UI objects already existing when battle startup runs.
+
+`Home.unity` currently has a simpler scene shape:
+- `Main Camera`
+- `Canvas`
+- `Global Light 2D`
+- `EventSystem`
+
+`Login.unity` currently contains:
+- `Main Camera`
+- `Canvas`
+- `Global Light 2D`
+- `EventSystem`
+- `MessageToastCanvas`
+
+A key scene-lifecycle implication from Unity inspection:
+- `MessageToastManager` is present in `Login.unity` (`MessageToastCanvas`) but was not found in `Home.unity`. Future edits must not assume every scene contains its own toast manager; toast behavior depends on the startup path and/or singleton persistence.
 
 ### Resource and config loading conventions
 Card data is data-driven:
 - `CardConfigData` is bound to the CSV config named `第九张史莱姆牌-工作表1` via `[ConfigPath(...)]`.
+- The actual file is `Assets/GameRes/Configs/第九张史莱姆牌-工作表1.csv`.
 - `BaseCard` loads its row by `id` from `ConfigCore` during construction.
 - Card art is loaded synchronously by the convention `Card_{名称}`.
 
 Implications:
+- Renaming the CSV file/exported sheet name without updating `[ConfigPath(...)]` breaks card loading.
 - Renaming card config rows or card sprites can break runtime lookup even if code still compiles.
 - Card classes depend on data existing in config, not just on C# definitions.
+- `BaseCard.Description()` only supports the placeholders `[费用]`, `[数值]`, `[数值1]`, `[数值2]`, `[数值3]`. Config authors must use only those tokens.
+
+### Asset address conventions
+This repo relies heavily on string-based runtime loads.
+
+Examples:
+- card sprites: `Card_{名称}` in `Assets/Scripts/HotUpdate/Cards/Cards/BaseCard.cs`
+- toast prefab: `"MessageToast"` in `Assets/Scripts/HotUpdate/Manager/MessageToastManager.cs`
+- scenes: `"Login"`, `"Home"`, `"Battle"`
+- audio currently assumes `"Audio/{name}"` in `Assets/Scripts/HotUpdate/Manager/AudioManager.cs`
+
+Implications:
+- Filename changes matter more than folder layout in many places.
+- Before renaming scenes, assets, prefabs, CSV labels, or UI objects, search for string-based runtime lookups.
+- Verify audio address assumptions before wiring new gameplay to `AudioManager`; the current address pattern is not obviously aligned with actual audio asset layout.
 
 ### Card system
 The card model is centered on `BaseCard` in `Assets/Scripts/HotUpdate/Cards/Cards/BaseCard.cs`.
 
 Important behaviors:
 - Each concrete card class overrides `id` and `OnUse(...)`.
-- `PreUse()` spends mana through an effect.
-- `PostUse()` removes the card from the user hand via `user.SpendCard(this)`.
+- `PreUse()` spends mana.
+- `PostUse()` currently moves the card out of hand/discards it.
 - `Description()` performs placeholder substitution from config values.
+- `ResolveTarget(...)` is part of the runtime target contract.
 
 `CardFactoryCore` scans the hot-update assembly for concrete `BaseCard` subclasses and instantiates them eagerly. Constructor side effects therefore matter: creating card instances immediately triggers config and sprite loading.
+
+Important constraints:
+- Card factory bootstrap depends on `ConfigCore` and `ResCore` already being initialized.
+- One broken card row or renamed sprite can poison card registration early.
+- The CSV currently contains many rows, but only a small subset of card subclasses are actually implemented in code. Adding a CSV row alone does not make a card playable.
 
 ### Character / battle loop
 The battle runtime centers on `BattleManager` plus `BaseCharacter`.
 
 `BattleManager` responsibilities:
 - find `Player` and `Enemy` in scene
+- bind battle-scene UI objects
 - call `Setup()` on both
 - connect targets both ways
-- start the turn loop
-- alternate turns with `StepTurn()`
+- start and advance the turn loop
+- handle play-card requests, enemy turns, and battle end
 
 `BaseCharacter` responsibilities:
-- own attributes, hand cards, and deck cards
+- own attributes, hand cards, deck cards, and discard cards
 - gate card usage through mana/hand checks
 - execute the card lifecycle (`PreUse` → `OnUse` → `PostUse`)
 - manage turn hooks via `HookEffects`
 
-The battle/effect model is built on GoveKits `UnitEffect`. For example, `UseCardEffect` is just a wrapper that calls `User.UseCard(Card)`.
+The battle/effect model is built on GoveKits `UnitEffect`.
+
+Important hidden constraints:
+- `BattleManager` currently relies on scene discovery (`FindFirstObjectByType`) and some name-based UI binding.
+- The end-turn button is currently found by the GameObject name `"OverTurn"`. Renaming that object will break battle input without a compile error.
+- `BattleResultOverlay` is treated as a required scene object in `Battle.unity`.
+- `BaseCharacter.Setup()` resets deck/hand/discard and core stats, but future reusable reset flows should also consider hook cleanup carefully.
+- The current target flow is simple and fragile: future multi-target/ally-target gameplay should make explicit target flow consistent before adding content.
 
 ### UI architecture
 UI code in the hot-update assembly is scene-local and directly references gameplay singletons/state.
 
 Examples:
-- `HUD` polls `BattleManager.Instance` every frame and mirrors current player/enemy attributes.
-- `CardContainer` instantiates `CardItem` prefabs, wires hover/drag/use callbacks, and triggers card use through `UseCardEffect`.
+- `HUD` reads `BattleManager.Instance` and reflects current player/enemy attributes.
+- `CardContainer` renders the player hand and forwards play intent into `BattleManager`.
+- `CardItem` owns drag input and a screen-threshold-based “play” gesture.
 - `MessageToastManager` is used broadly for transient feedback.
 
-This project currently favors direct coupling over an event bus for core battle/UI interactions. When changing UI behavior, trace the concrete singleton and callback path before introducing abstractions.
+Important constraints:
+- `CardItem` currently decides play intent by dragging above a screen-height threshold. This is not a true drop-zone/targeting system.
+- `CardContainer.RefreshHand(...)` rebuilds the visible hand aggressively. This is workable now, but if richer per-card UI state is added later, stable card instances will be safer than full teardown/recreate.
+- Visual effects currently assume simple scene-authored character visuals. If combatants become runtime-spawned or their rendering hierarchy changes, effect/UI rebinding will likely need revisiting.
+
+### Singleton and manager lifecycle assumptions
+Do not assume `MonoSingleton<T>` means “global persistent service” in this repo.
+
+Observed pattern:
+- Several managers are attached directly to scene objects (`Boot`, `BattleManager`, `MessageToastManager`, etc.).
+- Future edits must verify whether a manager is scene-local, scene-required, or truly persistent across scene loads.
+
+Practical guidance:
+- Before using `XManager.Instance` from a new scene, verify that the scene contains that manager or that the singleton base truly persists it.
+- If a manager must work across scenes, explicitly design:
+  - initialization timing
+  - scene rebinding
+  - teardown/unsubscribe behavior
+- `BattleManager` in particular is tightly coupled to `Battle.unity` scene shape and should be treated as battle-scene-specific unless intentionally redesigned.
 
 ## Practical guidance for edits
 
@@ -128,3 +244,8 @@ This project currently favors direct coupling over an event bus for core battle/
 - Be careful when editing boot/startup code in `Assets/Scripts/Boot.cs`: failures there block the whole game before the hot-update layer can start.
 - For card-related changes, verify all three layers stay aligned: concrete card class, CSV config row, and sprite naming.
 - For scene navigation, use the existing `ResCore.LoadSceneAsync(...)` flow instead of raw `SceneManager` calls unless there is a strong reason not to.
+- Before renaming scene objects, asset files, or config files, search for string-based lookups first.
+- Treat `BattleManager`, `BattleResultOverlay`, `CardContainer`, `HUD`, and the `OverTurn` button as tightly coupled scene contracts for the current Battle implementation.
+- Do not assume a new level/scene state variable is already wired into gameplay just because it exists in `GameCore`.
+- When changing battle restart/rematch behavior, pay close attention to event subscription cleanup and scene-object rebinding timing.
+- When editing UI behavior in `Battle`, prefer checking the actual scene hierarchy with Unity MCP before making assumptions from code alone.

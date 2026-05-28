@@ -20,6 +20,8 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     [SerializeField] private float playThreshold = 0.58f;
 
     private RectTransform rect;
+    private Transform originalParent;
+    private int originalSiblingIndex;
     private Vector2 startAnchoredPos;
     private Quaternion startRotation;
     private Vector3 startScale;
@@ -60,6 +62,8 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         if (!interactable) return;
 
         rect = (RectTransform)transform;
+        originalParent = transform.parent;
+        originalSiblingIndex = transform.GetSiblingIndex();
         startAnchoredPos = rect.anchoredPosition;
         startRotation = rect.localRotation;
         startScale = rect.localScale;
@@ -69,7 +73,13 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
             focusSequence.Kill(true);
         }
 
-        transform.SetAsLastSibling();
+        RectTransform parentRect = originalParent as RectTransform;
+        if (parentRect != null)
+        {
+            rect.SetParent(parentRect.parent, true);
+            rect.SetAsLastSibling();
+        }
+
         rect.DOKill();
         transform.DOKill();
         rect.localRotation = Quaternion.identity;
@@ -106,6 +116,13 @@ public class CardItem : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
         if (rect == null)
         {
             rect = (RectTransform)transform;
+        }
+
+        RectTransform parentRect = originalParent as RectTransform;
+        if (parentRect != null && rect.parent != parentRect)
+        {
+            rect.SetParent(parentRect, true);
+            rect.SetSiblingIndex(Mathf.Min(originalSiblingIndex, parentRect.childCount - 1));
         }
 
         rect.DOAnchorPos(startAnchoredPos, 0.18f).SetEase(Ease.OutQuad);

@@ -1,6 +1,8 @@
 using System.Collections;
 using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Storage;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class BattleManager : MonoSingleton<BattleManager>
@@ -28,20 +30,35 @@ public class BattleManager : MonoSingleton<BattleManager>
     private CardContainer cardContainer;
     private Button endTurnButton;
     private Coroutine enemyTurnCoroutine;
+    private Coroutine startBattleCoroutine;
     private BattleResultOverlay resultOverlay;
 
     public void Start()
     {
-        Player = Object.FindFirstObjectByType<Player>();
-        Enemy = Object.FindFirstObjectByType<Enemy>();
-        cardContainer = Object.FindFirstObjectByType<CardContainer>();
+        SceneManager.sceneLoaded += OnSceneLoaded;
+        BindSceneReferences();
         FindEndTurnButton();
         EnsureResultOverlay();
-        StartBattle();
+        QueueStartBattle();
+    }
+
+    public void RestartBattleScene()
+    {
+        PrepareForSceneTransition();
+        ResCore.LoadSceneAsync("Battle");
+    }
+
+    public void ReturnHome()
+    {
+        PrepareForSceneTransition();
+        ResCore.LoadSceneAsync("Home");
     }
 
     public void StartBattle()
     {
+        UnsubscribeCharacterEvents();
+        BindSceneReferences();
+
         string levelName = GameCore.currentLevelName;
         Debug.Log($"Starting battle at level: {levelName}");
 
@@ -211,6 +228,21 @@ public class BattleManager : MonoSingleton<BattleManager>
         RefreshHand();
     }
 
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.name != "Battle")
+        {
+            cardContainer = null;
+            endTurnButton = null;
+            resultOverlay = null;
+            return;
+        }
+
+        FindEndTurnButton();
+        EnsureResultOverlay();
+        QueueStartBattle();
+    }
+
     private void OnCharacterStatsChanged(BaseCharacter character)
     {
         CheckBattleEnd();
@@ -257,6 +289,66 @@ public class BattleManager : MonoSingleton<BattleManager>
         }
     }
 
+    private void QueueStartBattle()
+    {
+        if (startBattleCoroutine != null)
+        {
+            StopCoroutine(startBattleCoroutine);
+        }
+
+        startBattleCoroutine = StartCoroutine(StartBattleNextFrame());
+    }
+
+    private IEnumerator StartBattleNextFrame()
+    {
+        yield return null;
+        startBattleCoroutine = null;
+        StartBattle();
+    }
+
+    private void PrepareForSceneTransition()
+    {
+        isBattleActive = false;
+        Phase = BattlePhase.None;
+
+        if (enemyTurnCoroutine != null)
+        {
+            StopCoroutine(enemyTurnCoroutine);
+            enemyTurnCoroutine = null;
+        }
+
+        if (startBattleCoroutine != null)
+        {
+            StopCoroutine(startBattleCoroutine);
+            startBattleCoroutine = null;
+        }
+
+        UpdateEndTurnButton();
+        UnsubscribeCharacterEvents();
+    }
+
+    private void BindSceneReferences()
+    {
+        Player = Object.FindFirstObjectByType<Player>();
+        Enemy = Object.FindFirstObjectByType<Enemy>();
+        cardContainer = Object.FindFirstObjectByType<CardContainer>();
+        resultOverlay = Object.FindFirstObjectByType<BattleResultOverlay>(FindObjectsInactive.Include);
+    }
+
+    private void UnsubscribeCharacterEvents()
+    {
+        if (Player != null)
+        {
+            Player.OnHandChanged -= OnPlayerHandChanged;
+            Player.OnStatsChanged -= OnCharacterStatsChanged;
+        }
+
+        if (Enemy != null)
+        {
+            Enemy.OnStatsChanged -= OnCharacterStatsChanged;
+        }
+    }
+
     private void EnsureResultOverlay()
     {
         if (resultOverlay != null)
@@ -264,7 +356,7 @@ public class BattleManager : MonoSingleton<BattleManager>
             return;
         }
 
-        resultOverlay = Object.FindFirstObjectByType<BattleResultOverlay>();
+        resultOverlay = Object.FindFirstObjectByType<BattleResultOverlay>(FindObjectsInactive.Include);
         if (resultOverlay != null)
         {
             return;
@@ -282,16 +374,13 @@ public class BattleManager : MonoSingleton<BattleManager>
             StopCoroutine(enemyTurnCoroutine);
         }
 
-        if (Player != null)
+        if (startBattleCoroutine != null)
         {
-            Player.OnHandChanged -= OnPlayerHandChanged;
-            Player.OnStatsChanged -= OnCharacterStatsChanged;
+            StopCoroutine(startBattleCoroutine);
         }
 
-        if (Enemy != null)
-        {
-            Enemy.OnStatsChanged -= OnCharacterStatsChanged;
-        }
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        UnsubscribeCharacterEvents();
 
         if (endTurnButton != null)
         {
