@@ -175,13 +175,15 @@ Important behaviors:
 - `PostUse()` currently moves the card out of hand/discards it.
 - `Description()` performs placeholder substitution from config values.
 - `ResolveTarget(...)` is part of the runtime target contract.
+- `RuntimeCost` allows one-shot cost overrides for effects like temporary discounting.
 
 `CardFactoryCore` scans the hot-update assembly for concrete `BaseCard` subclasses and instantiates them eagerly. Constructor side effects therefore matter: creating card instances immediately triggers config and sprite loading.
 
 Important constraints:
 - Card factory bootstrap depends on `ConfigCore` and `ResCore` already being initialized.
 - One broken card row or renamed sprite can poison card registration early.
-- The CSV currently contains many rows, but only a small subset of card subclasses are actually implemented in code. Adding a CSV row alone does not make a card playable.
+- `CardFactoryCore` maps both by `id` and by `Name`, so duplicate ids or duplicate localized names will silently overwrite earlier registrations.
+- The expanded CSV is now backed by many more `Cards_*.cs` shard files; when adding a card, keep the shard grouping aligned with its series/id range instead of creating arbitrary new files.
 
 ### Character / battle loop
 The battle runtime centers on `BattleManager` plus `BaseCharacter`.
@@ -199,6 +201,7 @@ The battle runtime centers on `BattleManager` plus `BaseCharacter`.
 - gate card usage through mana/hand checks
 - execute the card lifecycle (`PreUse` → `OnUse` → `PostUse`)
 - manage turn hooks via `HookEffects`
+- carry transient per-turn state for combo/tech cards (`CardsPlayedThisTurn`, `TechCardsPlayedThisTurn`, damage taken, next-card modifiers)
 
 The battle/effect model is built on GoveKits `UnitEffect`.
 
@@ -207,6 +210,7 @@ Important hidden constraints:
 - The end-turn button is currently found by the GameObject name `"OverTurn"`. Renaming that object will break battle input without a compile error.
 - `BattleResultOverlay` is treated as a required scene object in `Battle.unity`.
 - `BaseCharacter.Setup()` resets deck/hand/discard and core stats, but future reusable reset flows should also consider hook cleanup carefully.
+- `BaseCharacter.UseCard(...)` now consumes several one-shot runtime modifiers (extra triggers, next-card damage bonus, next-card cost reduction, next-tech extra trigger, tech damage bonus). If a new card is meant to affect only the very next play, prefer using these fields instead of mutating every card in hand.
 - The current target flow is simple and fragile: future multi-target/ally-target gameplay should make explicit target flow consistent before adding content.
 
 ### UI architecture
@@ -249,3 +253,5 @@ Practical guidance:
 - Do not assume a new level/scene state variable is already wired into gameplay just because it exists in `GameCore`.
 - When changing battle restart/rematch behavior, pay close attention to event subscription cleanup and scene-object rebinding timing.
 - When editing UI behavior in `Battle`, prefer checking the actual scene hierarchy with Unity MCP before making assumptions from code alone.
+- Prefer expressing new card mechanics with existing primitives in `BaseCharacter` and `UnitAttributeEffect` before adding another bespoke `UnitEffect` subclass. Recent additions such as `ReplaceHand(...)`, `ExtendHookEffects(...)`, and next-card modifier fields were added specifically to keep card logic local.
+- For temporary hand-replacement or delayed-copy cards, be careful with `PostUse()` discard semantics: replacing the whole hand inside `OnUse()` can orphan the currently resolving card unless you explicitly discard it first or override `PostUse()`.

@@ -15,6 +15,15 @@ public abstract class BaseCharacter : UnitBehaviour
     public int CurrentEffectAmount { get; private set; }
     public int PendingExtraCardTriggers { get; private set; }
     public int TargetedImmunityCharges { get; private set; }
+    public int CardsPlayedThisTurn { get; private set; }
+    public int TechCardsPlayedThisTurn { get; private set; }
+    public int DamageTakenThisTurn { get; private set; }
+    public BaseCharacter LastDamageSourceThisTurn { get; private set; }
+    public int PendingNextCardDamageBonus { get; private set; }
+    public int PendingNextCardCostReduction { get; private set; }
+    public int PendingNextTechCardExtraTriggers { get; private set; }
+    public int PendingTechCardDamageBonus { get; private set; }
+    public int PendingTechCardDamageBonusUses { get; private set; }
     private bool isResolvingHookEffect;
 
     public List<BaseCard> HandCards { get; } = new List<BaseCard>();
@@ -108,6 +117,8 @@ public abstract class BaseCharacter : UnitBehaviour
         }
 
         Attributes.ChangeBase(StaticString.属性.生命, -amount);
+        DamageTakenThisTurn += amount;
+        LastDamageSourceThisTurn = CurrentSourceCharacter;
         TriggerHookEffect(HookTiming.WhenHurt);
     }
 
@@ -119,7 +130,7 @@ public abstract class BaseCharacter : UnitBehaviour
         TriggerHookEffect(HookTiming.WhenHeal);
     }
 
-    public virtual bool UseCard(BaseCard card, BaseCharacter target = null)
+    public bool UseCard(BaseCard card, BaseCharacter target = null)
     {
         BaseCharacter resolvedTarget = target ?? Target;
         if (!CanUseCard(card, resolvedTarget))
@@ -130,14 +141,44 @@ public abstract class BaseCharacter : UnitBehaviour
         resolvedTarget = card.ResolveTarget(this, resolvedTarget);
         int extraTriggers = PendingExtraCardTriggers;
         PendingExtraCardTriggers = 0;
+
+        int bonusDamage = PendingNextCardDamageBonus;
+        PendingNextCardDamageBonus = 0;
+
+        int costReduction = PendingNextCardCostReduction;
+        PendingNextCardCostReduction = 0;
+
+        if (card.Series == "科技")
+        {
+            extraTriggers += PendingNextTechCardExtraTriggers;
+            PendingNextTechCardExtraTriggers = 0;
+
+            if (PendingTechCardDamageBonusUses > 0)
+            {
+                bonusDamage += PendingTechCardDamageBonus;
+                PendingTechCardDamageBonusUses--;
+                if (PendingTechCardDamageBonusUses <= 0)
+                {
+                    PendingTechCardDamageBonus = 0;
+                }
+            }
+        }
+
+        int originalRuntimeCost = card.RuntimeCost;
+        if (costReduction > 0)
+        {
+            card.RuntimeCost = Mathf.Max(0, card.GetCurrentCost() - costReduction);
+        }
+
         CurrentResolvingCard = card;
         CurrentSourceCharacter = this;
         CurrentTargetCharacter = resolvedTarget;
-        CurrentEffectAmount = 0;
+        CurrentEffectAmount = bonusDamage;
         card.PreUse(this, resolvedTarget);
 
         if (card.IsTargetedEffect(this, resolvedTarget) && resolvedTarget != null && resolvedTarget.TryConsumeTargetedImmunity())
         {
+            card.RuntimeCost = originalRuntimeCost;
             card.PostUse(this, resolvedTarget);
             ClearEffectContext();
             NotifyHandChanged();
@@ -149,8 +190,14 @@ public abstract class BaseCharacter : UnitBehaviour
         {
             card.OnUse(this, resolvedTarget);
         }
+        CardsPlayedThisTurn++;
+        if (card.Series == "科技")
+        {
+            TechCardsPlayedThisTurn++;
+        }
         TriggerHookEffect(HookTiming.WhenUseCard);
         card.PostUse(this, resolvedTarget);
+        card.RuntimeCost = originalRuntimeCost;
         ClearEffectContext();
         NotifyHandChanged();
         return true;
@@ -255,6 +302,27 @@ public abstract class BaseCharacter : UnitBehaviour
         PendingExtraCardTriggers = Mathf.Max(0, extraTimes);
     }
 
+    public void SetNextCardDamageBonus(int amount)
+    {
+        PendingNextCardDamageBonus = Mathf.Max(0, amount);
+    }
+
+    public void SetNextCardCostReduction(int amount)
+    {
+        PendingNextCardCostReduction = Mathf.Max(0, amount);
+    }
+
+    public void SetNextTechCardExtraTriggers(int extraTimes)
+    {
+        PendingNextTechCardExtraTriggers = Mathf.Max(0, extraTimes);
+    }
+
+    public void SetTechCardDamageBonus(int amount, int uses)
+    {
+        PendingTechCardDamageBonus = Mathf.Max(0, amount);
+        PendingTechCardDamageBonusUses = Mathf.Max(0, uses);
+    }
+
     public void AddTargetedImmunity(int charges)
     {
         TargetedImmunityCharges += Mathf.Max(0, charges);
@@ -285,6 +353,46 @@ public abstract class BaseCharacter : UnitBehaviour
         }
     }
 
+    public bool HasPlayedAnotherCardThisTurn(BaseCard currentCard)
+    {
+        return CardsPlayedThisTurn > 0 || (currentCard != null && HandCards.Contains(currentCard) && DiscardCards.Contains(currentCard));
+    }
+
+    public bool HasPlayedAnotherTechCardThisTurn(BaseCard currentCard)
+    {
+        bool currentIsTech = currentCard != null && currentCard.Series == "科技";
+        return TechCardsPlayedThisTurn > 0 || (currentIsTech && currentCard != null && DiscardCards.Contains(currentCard));
+    }
+
+    public void ReplaceHand(System.Collections.Generic.IEnumerable<BaseCard> cards)
+    {
+        HandCards.Clear();
+        if (cards != null)
+        {
+            HandCards.AddRange(cards);
+        }
+        NotifyHandChanged();
+    }
+
+    public void ExtendHookEffects(int extraTimes)
+    {
+        if (extraTimes <= 0)
+        {
+            return;
+        }
+
+        foreach (var pair in HookEffects)
+        {
+            foreach (var effect in pair.Value)
+            {
+                if (effect.Times > 0)
+                {
+                    effect.Times += extraTimes;
+                }
+            }
+        }
+    }
+
     public string PeekRandomCardNameFromDeckOrDiscard()
     {
         List<BaseCard> pool = new List<BaseCard>();
@@ -297,6 +405,17 @@ public abstract class BaseCharacter : UnitBehaviour
 
         int index = UnityEngine.Random.Range(0, pool.Count);
         return pool[index].Name;
+    }
+
+    public string PeekRandomCardNameFromDeck()
+    {
+        if (DeckCards.Count == 0)
+        {
+            return null;
+        }
+
+        int index = UnityEngine.Random.Range(0, DeckCards.Count);
+        return DeckCards[index].Name;
     }
 
     public void SetEffectContext(BaseCard card, BaseCharacter source, BaseCharacter target, int amount)
@@ -330,6 +449,10 @@ public abstract class BaseCharacter : UnitBehaviour
 
     public virtual void StartTurn()
     {
+        CardsPlayedThisTurn = 0;
+        TechCardsPlayedThisTurn = 0;
+        DamageTakenThisTurn = 0;
+        LastDamageSourceThisTurn = null;
         BeforeActionTurn?.Invoke(this);
         TriggerHookEffect(HookTiming.WhenStartTurn);
         GainMana(Mathf.RoundToInt(Attributes.GetBaseValue(StaticString.属性.每回合自动恢复)));

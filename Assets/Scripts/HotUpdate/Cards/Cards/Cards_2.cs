@@ -11,7 +11,7 @@ public class 入魔 : BaseCard
 
     public override void OnUse(BaseCharacter user, BaseCharacter target)
     {
-        user.AddHookEffect(BaseCharacter.HookTiming.WhenEndTurn, () => GainManaEffect.Create().Setup(Value1, user), 999);
+        user.AddHookEffect(BaseCharacter.HookTiming.WhenEndTurn, () => GainManaEffect.Create().Setup(Value1, user), Mathf.Max(1, Value3));
     }
 }
 
@@ -133,7 +133,7 @@ public class 电光 : BaseCard
     {
         for (int i = 0; i < Value1; i++)
         {
-            BaseCard card = CardFactoryCore.CreateCard(506);
+            BaseCard card = CardFactoryCore.CreateCard(502);
             user.AddCardToHand(card);
         }
     }
