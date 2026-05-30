@@ -1,256 +1,279 @@
 using UnityEngine;
 
-public class 狂喜 : BaseCard
+public class 流血 : BaseCard
 {
-    protected override int id => 209;
+    protected override int id => 1801;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        target.AddHookEffect(BaseCharacter.HookTiming.WhenStartTurn, () => HurtEffect.Create().Setup(Value1, user, target), Value2);
+    }
+}
+
+public class 恢复 : BaseCard
+{
+    protected override int id => 1802;
 
     public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
 
     public override void OnUse(BaseCharacter user, BaseCharacter target)
     {
-        HurtEffect.Create().Setup(Value2, user, user).Apply(user);
-        GainManaEffect.Create().Setup(Value1, user).Apply(user);
+        user.AddHookEffect(BaseCharacter.HookTiming.WhenStartTurn, () => HealEffect.Create().Setup(Value1, user, user), Value2);
     }
 }
 
-public class 亵渎 : BaseCard
+public class 入魔时序 : BaseCard
 {
-    protected override int id => 210;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        user.LoseAllMana();
-        target.LoseAllMana();
-        DrawCardsEffect.Create().Setup(Value1, user).Apply(user);
-    }
-}
-
-public class 压榨 : BaseCard
-{
-    protected override int id => 211;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        int before = target.GetMana();
-        target.SetMana(Mathf.Max(0, before - Value1));
-        GainManaEffect.Create().Setup(Value2, user).Apply(user);
-    }
-}
-
-public class 赌命 : BaseCard
-{
-    protected override int id => 212;
+    protected override int id => 1803;
 
     public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
 
     public override void OnUse(BaseCharacter user, BaseCharacter target)
     {
-        HurtEffect.Create().Setup(Value2, user, user).Apply(user);
-        DrawCardsEffect.Create().Setup(Value1, user).Apply(user);
+        user.AddHookEffect(BaseCharacter.HookTiming.WhenStartTurn, () => GainManaEffect.Create().Setup(Value1, user), Value2);
     }
 }
 
-public class 放纵 : BaseCard
+public class 抽牌机 : BaseCard
 {
-    protected override int id => 213;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        AttackEffect.Create().Setup(Value1, user, target).Apply(target);
-        GainManaEffect.Create().Setup(Value2, user).Apply(user);
-    }
-}
-
-public class 枷锁 : BaseCard
-{
-    protected override int id => 214;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        DrawCardsEffect.Create().Setup(Value1, user).Apply(user);
-        DrawCardsEffect.Create().Setup(Value1, target).Apply(target);
-        AttackEffect.Create().Setup(Value2, user, target).Apply(target);
-    }
-}
-
-public class 奢靡 : BaseCard
-{
-    protected override int id => 215;
+    protected override int id => 1804;
 
     public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
 
     public override void OnUse(BaseCharacter user, BaseCharacter target)
     {
-        int[] ids = { 201, 202, 203, 204, 205, 206, 207, 208 };
+        user.AddHookEffect(BaseCharacter.HookTiming.WhenStartTurn, () => DrawCardsEffect.Create().Setup(Value1, user), Value2);
+    }
+}
+
+public class 驱散 : BaseCard
+{
+    protected override int id => 1805;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        DispelRandomEffect.Create().Setup(Value1, user, target).Apply(target);
+    }
+}
+
+public class 加速 : BaseCard
+{
+    protected override int id => 1806;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        int currentDamage = Value1;
+        target.AddHookEffect(BaseCharacter.HookTiming.WhenStartTurn, () => CallbackEffect.Create().Setup(() =>
+        {
+            AttackEffect.Create().Setup(currentDamage, user, target).Apply(target);
+            currentDamage += 2;
+        }), Value2);
+    }
+}
+
+public class 延续 : BaseCard
+{
+    protected override int id => 1807;
+
+    public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        user.ExtendHookEffects(Mathf.Max(1, Value1));
+    }
+}
+
+public class 结算 : BaseCard
+{
+    protected override int id => 1808;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
         for (int i = 0; i < Value1; i++)
         {
-            BaseCard card = CardFactoryCore.CreateCard(ids[Random.Range(0, ids.Length)]);
-            if (card != null)
-            {
-                user.AddCardToHand(card);
-            }
+            user.TriggerHookEffect(BaseCharacter.HookTiming.WhenStartTurn);
+            user.TriggerHookEffect(BaseCharacter.HookTiming.WhenEndTurn);
+            target.TriggerHookEffect(BaseCharacter.HookTiming.WhenStartTurn);
+            target.TriggerHookEffect(BaseCharacter.HookTiming.WhenEndTurn);
         }
     }
 }
 
-public class 妄念 : BaseCard
+public class 倒计时 : BaseCard
 {
-    protected override int id => 216;
+    protected override int id => 1809;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        target.AddHookEffect(BaseCharacter.HookTiming.WhenEndTurn, () => HurtEffect.Create().Setup(Value1, user, target), Value2);
+    }
+}
+
+public class 余温 : BaseCard
+{
+    protected override int id => 1810;
 
     public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
 
     public override void OnUse(BaseCharacter user, BaseCharacter target)
     {
-        user.SetNextCardExtraTriggers(Value1);
-        HurtEffect.Create().Setup(Value2, user, user).Apply(user);
+        TemporaryAttributeEffect.Create().Setup(StaticString.属性.治疗追加, Value1, Value2, user).Apply(user);
     }
 }
 
-public class 虚荣 : BaseCard
+public class 余震 : BaseCard
 {
-    protected override int id => 217;
+    protected override int id => 1811;
 
     public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
 
     public override void OnUse(BaseCharacter user, BaseCharacter target)
     {
-        user.AddTargetedImmunity(Value1);
-        user.GainShield(Value2);
+        TemporaryAttributeEffect.Create().Setup(StaticString.属性.伤害固定提升, Value1, Value2, user).Apply(user);
     }
 }
 
-public class 掠夺 : BaseCard
+public class 早熟 : BaseCard
 {
-    protected override int id => 218;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        int stolen = Mathf.Min(Value1, target.GetMana());
-        target.SetMana(target.GetMana() - stolen);
-        GainManaEffect.Create().Setup(Value2, user).Apply(user);
-    }
-}
-
-public class 狂噬 : BaseCard
-{
-    protected override int id => 219;
+    protected override int id => 1812;
 
     public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
 
     public override void OnUse(BaseCharacter user, BaseCharacter target)
     {
-        BaseCard discarded = null;
-        System.Collections.Generic.List<BaseCard> candidates = new System.Collections.Generic.List<BaseCard>();
+        user.TriggerHookEffect(BaseCharacter.HookTiming.WhenStartTurn);
+    }
+}
+
+public class 奇点 : BaseCard
+{
+    protected override int id => 1813;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        user.SetMana(Value1);
+        target.SetMana(Value1);
+    }
+}
+
+public class 传送 : BaseCard
+{
+    protected override int id => 1814;
+
+    public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        System.Collections.Generic.List<string> storedCardNames = new System.Collections.Generic.List<string>();
         foreach (BaseCard card in user.HandCards)
         {
             if (card != this)
             {
-                candidates.Add(card);
+                storedCardNames.Add(card.Name);
             }
         }
 
-        if (candidates.Count > 0)
+        if (storedCardNames.Count == 0)
         {
-            discarded = candidates[Random.Range(0, candidates.Count)];
-            user.DiscardCard(discarded);
-        }
-
-        HealEffect.Create().Setup(Value1, user, user).Apply(user);
-        if (discarded != null && discarded.Series == "七罪")
-        {
-            GainManaEffect.Create().Setup(Value2, user).Apply(user);
-        }
-    }
-}
-
-public class 怒火中烧 : BaseCard
-{
-    protected override int id => 220;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        int damage = Value1;
-        if (user.DamageTakenThisTurn > 0)
-        {
-            damage += Value2;
-        }
-
-        AttackEffect.Create().Setup(damage, user, target).Apply(target);
-    }
-}
-
-public class 诱导 : BaseCard
-{
-    protected override int id => 221;
-
-    public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        System.Collections.Generic.List<BaseCard> candidates = new System.Collections.Generic.List<BaseCard>();
-        foreach (BaseCard card in user.HandCards)
-        {
-            if (card != this)
-            {
-                candidates.Add(card);
-            }
-        }
-
-        if (candidates.Count == 0)
-        {
-            DrawCardsEffect.Create().Setup(1, user).Apply(user);
             return;
         }
 
-        BaseCard randomCard = candidates[Random.Range(0, candidates.Count)];
-        user.SetNextCardExtraTriggers(Value1);
-        user.UseCard(randomCard, user.Target);
-    }
-}
-
-public class 妒火 : BaseCard
-{
-    protected override int id => 222;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        int damage = Value1;
-        if (target.GetMana() > user.GetMana())
-        {
-            damage += Value2;
-        }
-
-        AttackEffect.Create().Setup(damage, user, target).Apply(target);
-    }
-}
-
-public class 贪杯 : BaseCard
-{
-    protected override int id => 223;
-
-    public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
-        HealEffect.Create().Setup(Value1, user, user).Apply(user);
-        DrawCardsEffect.Create().Setup(1, user).Apply(user);
-        DrawCardsEffect.Create().Setup(1, target).Apply(target);
-    }
-}
-
-public class 怠惰 : BaseCard
-{
-    protected override int id => 224;
-
-    public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
-
-    public override void OnUse(BaseCharacter user, BaseCharacter target)
-    {
+        int remainingDelay = 3;
+        int remainingDuration = Mathf.Max(1, Value2);
         user.AddHookEffect(BaseCharacter.HookTiming.WhenStartTurn, () => CallbackEffect.Create().Setup(() =>
         {
-            DrawCardsEffect.Create().Setup(Value1, user).Apply(user);
-            GainManaEffect.Create().Setup(Value2, user).Apply(user);
-        }), 1);
-        BattleManager.Instance?.RequestEndTurn();
+            if (remainingDelay > 0)
+            {
+                remainingDelay--;
+                return;
+            }
+
+            if (remainingDuration <= 0)
+            {
+                return;
+            }
+
+            foreach (string cardName in storedCardNames)
+            {
+                for (int i = 0; i < Value1; i++)
+                {
+                    BaseCard copy = CardFactoryCore.CreateCard(cardName);
+                    user.AddCardToHand(copy);
+                }
+            }
+
+            remainingDuration--;
+        }), 3 + Mathf.Max(1, Value2));
+    }
+}
+
+public class 视界 : BaseCard
+{
+    protected override int id => 1815;
+
+    public override BaseCharacter ResolveTarget(BaseCharacter user, BaseCharacter target) => user;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        System.Collections.Generic.List<BaseCard> originalHand = new System.Collections.Generic.List<BaseCard>(user.HandCards);
+        originalHand.Remove(this);
+
+        int replacementCount = Mathf.Min(originalHand.Count, target.DeckCards.Count);
+        System.Collections.Generic.List<BaseCard> replacementHand = new System.Collections.Generic.List<BaseCard>();
+        for (int i = 0; i < replacementCount; i++)
+        {
+            BaseCard card = CardFactoryCore.CreateCard(target.DeckCards[i].Id);
+            if (card != null)
+            {
+                replacementHand.Add(card);
+            }
+        }
+
+        user.DiscardCard(this);
+        user.ReplaceHand(replacementHand);
+
+        int remainingUses = Mathf.Max(1, Value1);
+        bool restored = false;
+
+        void RestoreHand()
+        {
+            if (restored)
+            {
+                return;
+            }
+
+            restored = true;
+            user.ReplaceHand(originalHand);
+        }
+
+        user.AddHookEffect(BaseCharacter.HookTiming.WhenUseCard, () => CallbackEffect.Create().Setup(() =>
+        {
+            if (restored)
+            {
+                return;
+            }
+
+            remainingUses--;
+            if (remainingUses <= 0)
+            {
+                RestoreHand();
+            }
+        }), remainingUses);
+
+        user.AddHookEffect(BaseCharacter.HookTiming.WhenEndTurn, () => CallbackEffect.Create().Setup(RestoreHand), 1);
+    }
+
+    public override void PostUse(BaseCharacter user, BaseCharacter target)
+    {
+    }
+}
+
+public class 宿命 : BaseCard
+{
+    protected override int id => 1816;
+
+    public override void OnUse(BaseCharacter user, BaseCharacter target)
+    {
+        target.AddHookEffect(BaseCharacter.HookTiming.WhenStartTurn, () => FateEffect.Create().Setup(Value1, user, target), Value2);
     }
 }
