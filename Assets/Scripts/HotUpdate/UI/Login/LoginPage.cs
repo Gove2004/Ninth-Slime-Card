@@ -68,10 +68,14 @@ public class LoginPage : MonoBehaviour
         MessageToastManager.Instance.ShowMessage($"登录成功，欢迎 {result.name}！");
 
         isLoggingIn = true;
-        startButtonUI.interactable = true; // 重新启用登录按钮，允许用户进入下一场景
+        startButtonUI.interactable = true;
 
-        // 将账户信息保存到 GameCore 中，供后续使用
         GameCore.SetAccount(result);
+
+        if (SaveManager.Instance != null)
+        {
+            SaveManager.Instance.Load();
+        }
     }
 
     private void OnLoginFailure(Exception exception)

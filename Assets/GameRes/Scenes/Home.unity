@@ -3067,6 +3067,7 @@ MonoBehaviour:
   backFromCodexButton: {fileID: 1617551851}
   backFromAchievementsButton: {fileID: 1826909003}
   backFromStartGameButton: {fileID: 244756088}
+  trophyText: {fileID: 1282923094}
 --- !u!1 &1016730352
 GameObject:
   m_ObjectHideFlags: 0

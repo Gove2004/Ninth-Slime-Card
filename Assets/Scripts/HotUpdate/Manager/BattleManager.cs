@@ -165,12 +165,47 @@ public class BattleManager : MonoSingleton<BattleManager>
 
         UpdateEndTurnButton();
         RefreshHand();
-        MessageToastManager.Instance.ShowMessage(playerWon ? "战斗胜利！" : "战斗失败！");
+
+        if (playerWon)
+        {
+            int trophyReward = CalculateTrophyReward();
+            if (trophyReward > 0)
+            {
+                GameCore.AddTrophy(trophyReward);
+                MessageToastManager.Instance.ShowMessage($"战斗胜利！获得 {trophyReward} 奖杯");
+            }
+            else
+            {
+                MessageToastManager.Instance.ShowMessage("战斗胜利！");
+            }
+        }
+        else
+        {
+            MessageToastManager.Instance.ShowMessage("战斗失败！");
+        }
+
         EnsureResultOverlay();
         if (resultOverlay != null)
         {
             resultOverlay.Show(playerWon);
         }
+    }
+
+    private int CalculateTrophyReward()
+    {
+        string levelName = GameCore.currentLevelName;
+        if (string.IsNullOrEmpty(levelName))
+        {
+            return 1;
+        }
+
+        string digits = System.Text.RegularExpressions.Regex.Match(levelName, @"\d+").Value;
+        if (int.TryParse(digits, out int level))
+        {
+            return level;
+        }
+
+        return 1;
     }
 
     private void StartPlayerTurn()

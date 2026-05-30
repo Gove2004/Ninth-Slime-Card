@@ -1,9 +1,22 @@
-
-
 using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Storage;
 
 public class SaveManager : MonoSingleton<SaveManager>
 {
-    // 这里可以放一些全局的存档管理逻辑，比如保存当前游戏状态，加载存档，删除存档等功能。
-    // ......
+    private const string SavePath = "player";
+
+    public void Save()
+    {
+        if (GameCore.playerData != null)
+        {
+            SaveCore.Save(SavePath, GameCore.playerData);
+        }
+    }
+
+    public PlayerData Load()
+    {
+        PlayerData data = SaveCore.LoadOrDefault<PlayerData>(SavePath);
+        GameCore.SetPlayerData(data);
+        return data;
+    }
 }

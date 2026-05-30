@@ -1,5 +1,4 @@
-
-
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -23,6 +22,8 @@ public class HomePage : MonoBehaviour
     public Button backFromAchievementsButton;
     public Button backFromStartGameButton;
 
+    public TextMeshProUGUI trophyText;
+
     private void Start()
     {
         startGameButton.onClick.AddListener(OnStartGameClicked);
@@ -33,29 +34,36 @@ public class HomePage : MonoBehaviour
 
         backFromAboutButton.onClick.AddListener(OnBackFromAboutClicked);
         backFromSettingsButton.onClick.AddListener(OnBackFromSettingsClicked);
-        backFromCodexButton.onClick.AddListener(OnBackFromCodexClicked);
+        backFromCodexButton.onClick.AddListener(OnBackFromCodexButton);
         backFromAchievementsButton.onClick.AddListener(OnBackFromAchievementsClicked);
         backFromStartGameButton.onClick.AddListener(OnBackFromStartGameClicked);
 
-        // 初始状态
         startGamePanel.HidePanel();
         settingsPanel.HidePanel();
         codexPanel.HidePanel();
         achievementsPanel.HidePanel();
         aboutPanel.HidePanel();
+
+        RefreshTrophy();
     }
 
-    // 显示
+    public void RefreshTrophy()
+    {
+        if (trophyText != null)
+        {
+            trophyText.text = GameCore.GetTrophy().ToString();
+        }
+    }
+
     private void OnStartGameClicked() { startGamePanel.ShowPanel(); }
     private void OnSettingsClicked() { settingsPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("设置 还没做！"); }
     private void OnCodexClicked() { codexPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("图鉴 还没做！"); }
     private void OnAchievementsClicked() { achievementsPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("成就 还没做！"); }
     private void OnAboutClicked() { aboutPanel.ShowPanel(); }
 
-    // 隐藏
     private void OnBackFromAboutClicked() { aboutPanel.HidePanel(); }
     private void OnBackFromSettingsClicked() { settingsPanel.HidePanel(); }
-    private void OnBackFromCodexClicked() { codexPanel.HidePanel(); }
+    private void OnBackFromCodexButton() { codexPanel.HidePanel(); }
     private void OnBackFromAchievementsClicked() { achievementsPanel.HidePanel(); }
     private void OnBackFromStartGameClicked() { startGamePanel.HidePanel(); }
 }
