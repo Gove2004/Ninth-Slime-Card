@@ -5,7 +5,7 @@ using UnityEngine;
 
 public abstract class BaseCharacter : UnitBehaviour
 {
-    private const int StartingHandCount = 5;
+    private const int StartingHandCount = 1;
 
     public BaseCharacter Target;
 
@@ -456,7 +456,7 @@ public abstract class BaseCharacter : UnitBehaviour
         BeforeActionTurn?.Invoke(this);
         TriggerHookEffect(HookTiming.WhenStartTurn);
         GainMana(Mathf.RoundToInt(Attributes.GetBaseValue(StaticString.属性.每回合自动恢复)));
-        DrawCards(1);
+        DrawCards(2);
     }
 
     public virtual void EndTurn()

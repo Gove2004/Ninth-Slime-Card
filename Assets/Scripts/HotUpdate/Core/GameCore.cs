@@ -72,6 +72,49 @@ public static class GameCore
 
 #endregion
 
+#region 局内 Run
+
+    public static RunState runState { get; private set; }
+
+    public static void SetRunState(RunState state)
+    {
+        runState = state ?? new RunState();
+        runState.EnsureStarterDeck();
+    }
+
+    public static void StartNewRun()
+    {
+        runState = new RunState();
+        runState.Reset();
+        SaveRunState();
+    }
+
+    public static void SaveRunState()
+    {
+        if (playerData != null)
+        {
+            playerData.runState = runState;
+            SaveManager.Instance?.Save();
+        }
+    }
+
+    public static void LoadRunState()
+    {
+        runState = playerData?.runState;
+        if (runState == null)
+        {
+            runState = new RunState();
+        }
+        runState.EnsureStarterDeck();
+    }
+
+    public static bool HasActiveRun()
+    {
+        return runState != null && runState.currentLv > 1;
+    }
+
+#endregion
+
 #region 战斗 Battle
 
     public static string currentLevelName { get; private set; }

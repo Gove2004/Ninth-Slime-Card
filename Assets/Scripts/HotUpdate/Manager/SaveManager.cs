@@ -17,6 +17,7 @@ public class SaveManager : MonoSingleton<SaveManager>
     {
         PlayerData data = SaveCore.LoadOrDefault<PlayerData>(SavePath);
         GameCore.SetPlayerData(data);
+        GameCore.LoadRunState();
         return data;
     }
 }

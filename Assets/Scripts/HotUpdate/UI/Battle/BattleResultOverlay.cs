@@ -20,6 +20,7 @@ public class BattleResultOverlay : MonoBehaviour
 
     private void OnRestartButtonClicked()
     {
+        GameCore.StartNewRun();
         if (BattleManager.Instance != null)
         {
             BattleManager.Instance.RestartBattleScene();
@@ -43,7 +44,8 @@ public class BattleResultOverlay : MonoBehaviour
     public void Show(bool playerWon)
     {
         titleText.text = playerWon ? "战斗胜利" : "战斗失败";
-        descText.text = playerWon ? "要继续推进的话，下一步可以接奖励和结算。" : "这次史莱姆没撑住，再试一次。";
+        int lv = GameCore.runState?.currentLv ?? 1;
+        descText.text = playerWon ? $"已推进到 Lv.{lv}" : $"倒在了 Lv.{lv}，进度已重置。";
         gameObject.SetActive(true);
         scalePanel.ShowPanel();
     }

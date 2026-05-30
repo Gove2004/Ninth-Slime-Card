@@ -93,10 +93,15 @@ Relevant files:
 - `Assets/Scripts/HotUpdate/UI/Home/LevelSelect.cs`
 - `Assets/Scripts/HotUpdate/Manager/BattleManager.cs`
 
-`GameCore` (`Assets/Scripts/HotUpdate/Core/GameCore.cs`) is the small static cross-scene state holder. Right now it stores the TapTap account and the selected level name.
+`GameCore` (`Assets/Scripts/HotUpdate/Core/GameCore.cs`) is the static cross-scene state holder. It stores:
+- TapTap account
+- `playerData` (persistent save data: trophy count, achievement unlock state, run state)
+- `runState` (current roguelike run: Lv number, player deck card IDs)
+- Trophy management (`AddTrophy`, `SpendTrophy`, `GetTrophy`)
+- Achievement management (`IsAchievementUnlocked`, `UnlockAchievement`)
+- Run management (`StartNewRun`, `SaveRunState`, `LoadRunState`, `HasActiveRun`)
 
-Important caveat:
-- `GameCore.currentLevelName` is set before entering `Battle`, but `BattleManager` currently only logs it. Do not assume multi-level battle behavior is already implemented just because `levelName` exists.
+`SaveManager` (`Assets/Scripts/HotUpdate/Manager/SaveManager.cs`) persists `PlayerData` via `SaveCore`. Loaded on login.
 
 ### Scene structure observed in Unity Editor
 Unity MCP inspection confirms the current scene shapes matter to runtime behavior.
@@ -116,9 +121,11 @@ Under `Canvas`, the current top-level UI roots are:
 - `HUD`
 - `PauseMenu`
 - `BattleResultOverlay`
+- `RoguelikeChoicePanel`
 
 Important observed constraints:
 - `BattleResultOverlay` already exists in the scene and is treated as required by `BattleManager`.
+- `RoguelikeChoicePanel` exists in the scene (default active but hidden by its script's `Start()`). Contains `Btns` (Add/Remove/Skip buttons), two `ScrollView` areas (card choice / deck removal), and a `Header`. Uses `SetAsLastSibling()` to manage z-order between overlapping areas.
 - `PauseMenu` is scene-authored and defaults inactive.
 - The end-turn button object is currently under `Canvas/HandCards/OverTurn`; `BattleManager` binds it by the object name `"OverTurn"` rather than by serialized reference.
 - `HUD` and `CardContainer` depend on scene-authored player/enemy/UI objects already existing when battle startup runs.
@@ -143,6 +150,8 @@ A key scene-lifecycle implication from Unity inspection:
 Card data is data-driven:
 - `CardConfigData` is bound to the CSV config named `第九张史莱姆牌-工作表1` via `[ConfigPath(...)]`.
 - The actual file is `Assets/GameRes/Configs/第九张史莱姆牌-工作表1.csv`.
+- `AchievementConfigData` is bound to `第九张史莱姆牌-工作表2` via `[ConfigPath(...)]`.
+- The actual file is `Assets/GameRes/Configs/第九张史莱姆牌-工作表2.csv`.
 - `BaseCard` loads its row by `id` from `ConfigCore` during construction.
 - Card art is loaded synchronously by the convention `Card_{名称}`.
 
@@ -186,15 +195,25 @@ Important constraints:
 - The expanded CSV is now backed by many more `Cards_*.cs` shard files; when adding a card, keep the shard grouping aligned with its series/id range instead of creating arbitrary new files.
 
 ### Character / battle loop
-The battle runtime centers on `BattleManager` plus `BaseCharacter`.
+The battle runtime centers on `BattleManager` plus `BaseCharacter`. The game uses a roguelike progression loop.
+
+**Roguelike flow**: Home → Lv.1 battle → victory → 5 rounds of card choices (add/remove/skip) → Lv.2 battle → ... → defeat → run reset to Lv.1.
 
 `BattleManager` responsibilities:
 - find `Player` and `Enemy` in scene
 - bind battle-scene UI objects
-- call `Setup()` on both
+- call `Setup()` on both (Player loads deck from `GameCore.runState`, Enemy generates deck by Lv)
 - connect targets both ways
 - start and advance the turn loop
 - handle play-card requests, enemy turns, and battle end
+- on victory: save player deck to runState, show `RoguelikeChoicePanel`, then advance Lv and restart
+- on defeat: reset runState, show `BattleResultOverlay`
+
+`RunState` (`Assets/Scripts/HotUpdate/Core/RunState.cs`) tracks the current run:
+- `currentLv`: current level number
+- `playerDeckIds`: list of card IDs in the player's deck
+- Persisted in `PlayerData.runState` via `SaveCore`
+- Saved when entering each battle, loaded on login
 
 `BaseCharacter` responsibilities:
 - own attributes, hand cards, deck cards, and discard cards
@@ -202,6 +221,16 @@ The battle runtime centers on `BattleManager` plus `BaseCharacter`.
 - execute the card lifecycle (`PreUse` → `OnUse` → `PostUse`)
 - manage turn hooks via `HookEffects`
 - carry transient per-turn state for combo/tech cards (`CardsPlayedThisTurn`, `TechCardsPlayedThisTurn`, damage taken, next-card modifiers)
+- `BuildStarterDeck()` is virtual: Player overrides to load from `runState.playerDeckIds`, Enemy overrides to generate by Lv
+
+**Enemy scaling** (by Lv):
+- MaxHP: `10 + (Lv-1) * 5`
+- Mana regen: `1 + Lv / 3` (integer division, so Lv1-3=1, Lv4-6=2, etc.)
+- Deck size: `5 + (Lv-1)`
+- Deck composition: at least 1/3 attack cards, rest random from allowed series
+- Series unlock: Lv1=初始, Lv2+=七罪, Lv3+=血族, Lv4+=坚固, Lv5+=all
+
+**Player scaling**: MaxHP `10 + (Lv-1)`, draws 2 cards per turn, starts with 1 card in hand.
 
 The battle/effect model is built on GoveKits `UnitEffect`.
 
@@ -209,9 +238,9 @@ Important hidden constraints:
 - `BattleManager` currently relies on scene discovery (`FindFirstObjectByType`) and some name-based UI binding.
 - The end-turn button is currently found by the GameObject name `"OverTurn"`. Renaming that object will break battle input without a compile error.
 - `BattleResultOverlay` is treated as a required scene object in `Battle.unity`.
-- `BaseCharacter.Setup()` resets deck/hand/discard and core stats, but future reusable reset flows should also consider hook cleanup carefully.
+- `RoguelikeChoicePanel` is found via `FindFirstObjectByType(..., FindObjectsInactive.Include)`.
 - `BaseCharacter.UseCard(...)` now consumes several one-shot runtime modifiers (extra triggers, next-card damage bonus, next-card cost reduction, next-tech extra trigger, tech damage bonus). If a new card is meant to affect only the very next play, prefer using these fields instead of mutating every card in hand.
-- The current target flow is simple and fragile: future multi-target/ally-target gameplay should make explicit target flow consistent before adding content.
+- The enemy turn plays cards one by one with 0.5s delay between each (`TryActOnce()`), showing each card name as a toast.
 
 ### UI architecture
 UI code in the hot-update assembly is scene-local and directly references gameplay singletons/state.
@@ -220,12 +249,15 @@ Examples:
 - `HUD` reads `BattleManager.Instance` and reflects current player/enemy attributes.
 - `CardContainer` renders the player hand and forwards play intent into `BattleManager`.
 - `CardItem` owns drag input and a screen-threshold-based “play” gesture.
-- `MessageToastManager` is used broadly for transient feedback.
+- `MessageToastManager` uses a message queue (0.5s interval) to prevent overlapping toasts.
+- `RoguelikeChoicePanel` handles 5 rounds of post-victory card choices (add/remove/skip).
+- `BattleResultOverlay` shows defeat screen with restart/home buttons.
+- `HomePage` includes trophy display (top-right), achievements panel (AechiPanel), and start/continue game.
 
 Important constraints:
 - `CardItem` currently decides play intent by dragging above a screen-height threshold. This is not a true drop-zone/targeting system.
-- `CardContainer.RefreshHand(...)` rebuilds the visible hand aggressively. This is workable now, but if richer per-card UI state is added later, stable card instances will be safer than full teardown/recreate.
-- Visual effects currently assume simple scene-authored character visuals. If combatants become runtime-spawned or their rendering hierarchy changes, effect/UI rebinding will likely need revisiting.
+- `RoguelikeChoicePanel` uses `SetAsLastSibling()` to manage z-order between its overlapping child areas (ScrollView vs Btns). The two ScrollViews are full-screen and will block buttons if not reordered.
+- `MessageToastManager.ShowMessage()` queues messages and displays them one at a time with 0.5s delay.
 
 ### Singleton and manager lifecycle assumptions
 Do not assume `MonoSingleton<T>` means “global persistent service” in this repo.

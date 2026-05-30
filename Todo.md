@@ -16,21 +16,33 @@
 - [x] AchievementManager 实现购买逻辑
 - [x] 购买成功后同步 TapTap（Unlock）
 - [x] AechiPanel 展示所有成就
-- [x] AechiItem 显示名称、进度条、步数、购买按钮
+- [x] AechiItem 显示名称、描述、进度条、步数、购买按钮
 - [x] 奖杯不足时提示
 - [x] 已解锁成就显示 Toggle 勾选，隐藏购买按钮
 - [x] Home 场景接线（AechiPanel 绑定 + HomePage 按钮）
 
-## 局内循环
-- 移除当前无限打等级的战斗循环
-- 改为单场击败一个敌人后进入下一阶段
-- 胜利后进入肉鸽选择阶段
-- 每次胜利提供 5 次肉鸽选择
-- 肉鸽选择支持加牌或删牌
-- 玩家牌组允许重复加牌且无上限
-- 胜利后从 Lv.1 敌人推进到更高 Lv 敌人
-- 用 Lv 表示敌人强度成长
-- 敌人 Lv 除生命上限外还提升魔力强度
-- 敌人 Lv 扩展敌方可用卡牌范围（敌人牌组）
-- 敌方牌组按等级从全部牌池中随机抽取若干次生成
-- 在局内流程中保存当前推进进度与当前牌组状态
+## 局内循环（Roguelike 战斗循环）
+- [x] 创建 RunState 数据结构（Lv + 牌组 ID 列表）
+- [x] RunState 接入 GameCore 和 SaveManager（持久化存档）
+- [x] Player.BuildStarterDeck 从 runState 加载牌组
+- [x] Enemy.BuildStarterDeck 按 Lv 从全牌池随机生成（保证攻击牌占比）
+- [x] Enemy.Setup 按 Lv 缩放 HP（+5/级）和法力恢复（基础 1，每 3 级 +1）
+- [x] Player.Setup 按 Lv 缩放 MaxHP（+1/级）
+- [x] BattleManager 胜利后保存牌组 → 显示肉鸽选牌面板
+- [x] BattleManager 失败后重置 runState → 显示失败面板
+- [x] BattleResultOverlay 失败时重开按钮开始新游戏
+- [x] 创建 RoguelikeChoicePanel（5 轮选择：加牌 3 选 1 / 删牌 / 跳过）
+- [x] LevelSelect 改为开始/继续游戏
+- [x] RoguelikeChoicePanel 选牌显示卡图 + 正确描述
+- [x] 敌人逐张出牌（每张间隔 0.5 秒 + 显示牌名）
+- [x] 每回合抽 2 张牌（原 1 张）
+- [x] 初始手牌 1 张（原 5 张）
+- [x] MessageToast 消息队列（0.5 秒间隔显示，防重叠）
+- [x] RoguelikeChoicePanel UI 层级阻挡修复
+- [ ] 在 Battle 场景中搭建 RoguelikeChoicePanel UI + ChoiceCardPrefab
+- [ ] Home 场景中绑定 LevelSelect 的显示（开始/继续 Lv.X）
+
+## 下一步计划
+- Home 图鉴面板（CodexPanel，展示卡牌收集）
+- Home 设置面板（音量、语言等基础设置）
+- 音效/特效/动效（战斗和 UI 的音效、视觉特效、动效打磨）

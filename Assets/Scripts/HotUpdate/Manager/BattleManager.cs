@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using GoveKits.Runtime.Core;
 using GoveKits.Runtime.Storage;
 using UnityEngine;
@@ -59,8 +60,8 @@ public class BattleManager : MonoSingleton<BattleManager>
         UnsubscribeCharacterEvents();
         BindSceneReferences();
 
-        string levelName = GameCore.currentLevelName;
-        Debug.Log($"Starting battle at level: {levelName}");
+        int lv = GameCore.runState?.currentLv ?? 1;
+        Debug.Log($"Starting battle at Lv.{lv}");
 
         Phase = BattlePhase.Initializing;
         isBattleActive = true;
@@ -78,6 +79,7 @@ public class BattleManager : MonoSingleton<BattleManager>
 
         RefreshHand();
         StartPlayerTurn();
+        MessageToastManager.Instance.ShowMessage($"Lv.{lv} 战斗开始！");
     }
 
     public bool RequestPlayCard(BaseCard card)
@@ -178,34 +180,49 @@ public class BattleManager : MonoSingleton<BattleManager>
             {
                 MessageToastManager.Instance.ShowMessage("战斗胜利！");
             }
+
+            Player.SaveCurrentDeck();
+            ShowRoguelikeChoice();
         }
         else
         {
             MessageToastManager.Instance.ShowMessage("战斗失败！");
+            GameCore.StartNewRun();
+            EnsureResultOverlay();
+            if (resultOverlay != null)
+            {
+                resultOverlay.Show(false);
+            }
+        }
+    }
+
+    private void ShowRoguelikeChoice()
+    {
+        RoguelikeChoicePanel panel = FindFirstObjectByType<RoguelikeChoicePanel>(FindObjectsInactive.Include);
+        if (panel == null)
+        {
+            Debug.LogWarning("[BattleManager] RoguelikeChoicePanel not found, advancing to next Lv directly");
+            AdvanceToNextLv();
+            return;
         }
 
-        EnsureResultOverlay();
-        if (resultOverlay != null)
+        panel.Show(AdvanceToNextLv);
+    }
+
+    public void AdvanceToNextLv()
+    {
+        if (GameCore.runState != null)
         {
-            resultOverlay.Show(playerWon);
+            GameCore.runState.currentLv++;
+            GameCore.SaveRunState();
         }
+
+        RestartBattleScene();
     }
 
     private int CalculateTrophyReward()
     {
-        string levelName = GameCore.currentLevelName;
-        if (string.IsNullOrEmpty(levelName))
-        {
-            return 1;
-        }
-
-        string digits = System.Text.RegularExpressions.Regex.Match(levelName, @"\d+").Value;
-        if (int.TryParse(digits, out int level))
-        {
-            return level;
-        }
-
-        return 1;
+        return GameCore.runState?.currentLv ?? 1;
     }
 
     private void StartPlayerTurn()
@@ -239,11 +256,30 @@ public class BattleManager : MonoSingleton<BattleManager>
         if (!isBattleActive) yield break;
 
         Enemy.StartTurn();
-        yield return new WaitForSeconds(enemyActionDelay);
-        if (!isBattleActive) yield break;
 
-        bool acted = Enemy.TryAct();
-        MessageToastManager.Instance.ShowMessage(acted ? "敌人行动了" : "敌人没有可执行动作");
+        int cardsPlayed = 0;
+        while (isBattleActive)
+        {
+            string cardName = Enemy.TryActOnce();
+            if (cardName == null)
+            {
+                break;
+            }
+
+            cardsPlayed++;
+            MessageToastManager.Instance.ShowMessage($"敌人使用了：{cardName}");
+            RefreshHand();
+            CheckBattleEnd();
+            if (!isBattleActive) yield break;
+
+            yield return new WaitForSeconds(0.5f);
+            if (!isBattleActive) yield break;
+        }
+
+        if (cardsPlayed == 0)
+        {
+            MessageToastManager.Instance.ShowMessage("敌人没有可执行动作");
+        }
 
         yield return new WaitForSeconds(enemyTurnEndDelay);
         if (!isBattleActive) yield break;
