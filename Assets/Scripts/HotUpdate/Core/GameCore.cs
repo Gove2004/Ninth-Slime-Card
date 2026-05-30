@@ -49,6 +49,29 @@ public static class GameCore
 
 #endregion
 
+#region 成就 Achievement
+
+    public static bool IsAchievementUnlocked(string achievementId)
+    {
+        return playerData != null && playerData.achievementUnlocked.Contains(achievementId);
+    }
+
+    public static void UnlockAchievement(string achievementId)
+    {
+        if (playerData == null)
+        {
+            playerData = new PlayerData();
+        }
+
+        if (!playerData.achievementUnlocked.Contains(achievementId))
+        {
+            playerData.achievementUnlocked.Add(achievementId);
+            SaveManager.Instance?.Save();
+        }
+    }
+
+#endregion
+
 #region 战斗 Battle
 
     public static string currentLevelName { get; private set; }

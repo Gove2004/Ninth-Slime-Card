@@ -1,14 +1,25 @@
 # Todo
 
 ## 奖杯方案
-- 新增局外货币“奖杯”
-- 奖杯数据接入存档
-- 在 Login 后加载奖杯数据
-- 在 Home 界面右上角显示当前奖杯数量
-- 战斗胜利后按玩家完成的 Level 等级发放奖杯
-- 增加奖杯结算与显示反馈
-- 预留奖杯消耗入口
-- 支持后续使用奖杯购买旧版成就
+- [x] 新增局外货币"奖杯"
+- [x] 奖杯数据接入存档
+- [x] 在 Login 后加载奖杯数据
+- [x] 在 Home 界面右上角显示当前奖杯数量
+- [x] 战斗胜利后按玩家完成的 Level 等级发放奖杯
+- [x] 增加奖杯结算与显示反馈
+- [x] 预留奖杯消耗入口
+- [x] 支持后续使用奖杯购买旧版成就
+
+## 成就系统
+- [x] 成就配置表接入 ConfigCore（AchievementConfigData）
+- [x] 成就已购买状态接入存档（PlayerData.achievementUnlocked）
+- [x] AchievementManager 实现购买逻辑
+- [x] 购买成功后同步 TapTap（Unlock）
+- [x] AechiPanel 展示所有成就
+- [x] AechiItem 显示名称、进度条、步数、购买按钮
+- [x] 奖杯不足时提示
+- [x] 已解锁成就显示 Toggle 勾选，隐藏购买按钮
+- [x] Home 场景接线（AechiPanel 绑定 + HomePage 按钮）
 
 ## 局内循环
 - 移除当前无限打等级的战斗循环

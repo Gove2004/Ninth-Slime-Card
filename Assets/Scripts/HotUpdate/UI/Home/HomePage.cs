@@ -58,7 +58,7 @@ public class HomePage : MonoBehaviour
     private void OnStartGameClicked() { startGamePanel.ShowPanel(); }
     private void OnSettingsClicked() { settingsPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("设置 还没做！"); }
     private void OnCodexClicked() { codexPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("图鉴 还没做！"); }
-    private void OnAchievementsClicked() { achievementsPanel.ShowPanel(); MessageToastManager.Instance.ShowMessage("成就 还没做！"); }
+    private void OnAchievementsClicked() { achievementsPanel.ShowPanel(); }
     private void OnAboutClicked() { aboutPanel.ShowPanel(); }
 
     private void OnBackFromAboutClicked() { aboutPanel.HidePanel(); }
