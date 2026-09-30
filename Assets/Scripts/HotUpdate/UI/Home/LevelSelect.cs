@@ -12,8 +12,9 @@ public class LevelSelect : MonoBehaviour, IPointerClickHandler
     [SerializeField] private TextMeshProUGUI levelNameText;
     [SerializeField] private Image levelSpriteRenderer;
 
-    public void Start()
+    public void OnEnable()
     {
+        // 每次面板显示时刷新，保证战斗回 Home 后「继续 Lv.X / 开始游戏」文本正确
         RefreshDisplay();
     }
 

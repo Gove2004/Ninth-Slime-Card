@@ -19,6 +19,7 @@ public class CodexPanel : MonoBehaviour
 
     private static readonly Color SelectedColor = new(0.9f, 0.78f, 0.35f);
     private static readonly Color NormalColor = new(1f, 1f, 1f, 0.92f);
+    private static readonly Color LockedColor = new(0.4f, 0.4f, 0.4f, 0.6f); // Grayed out for locked cards
 
     private readonly List<GameObject> spawnedCards = new();
     private readonly List<CardConfigData> allCards = new();
@@ -219,6 +220,16 @@ public class CodexPanel : MonoBehaviour
             le.preferredHeight = grid.cellSize.y;
         }
 
+        // Check unlock status BEFORE setting up the card
+        bool isUnlocked = GameCore.IsCardUnlocked(config.id.ToString());
+        if (!isUnlocked)
+        {
+            // Locked card - show grayed out state
+            SetLockedCardState(go);
+            return;
+        }
+
+        // Unlocked card - normal setup
         SetCardImage(go, config.名称);
         SetCardName(go, config);
 
@@ -231,6 +242,63 @@ public class CodexPanel : MonoBehaviour
         }
 
         BindHover(go, config);
+    }
+
+    // NEW: Handle locked card visual state
+    private void SetLockedCardState(GameObject go)
+    {
+        // Find Image component and set to gray/locked
+        var imgT = go.transform.Find("Image");
+        if (imgT != null)
+        {
+            var img = imgT.GetComponent<Image>();
+            if (img != null)
+            {
+                img.sprite = null; // No sprite
+                img.color = LockedColor; // Grayed out
+            }
+        }
+
+        // Find name text and show "??"
+        var nameTmp = go.transform.Find("Text (TMP)")?.GetComponent<TMP_Text>();
+        if (nameTmp != null)
+        {
+            nameTmp.text = "??";
+            nameTmp.color = LockedColor;
+        }
+
+        // Make button non-interactable
+        var btn = go.GetComponent<Button>();
+        if (btn != null)
+        {
+            btn.interactable = false;
+        }
+
+        // Add lock icon overlay if available
+        var lockIconGo = go.transform.Find("LockIcon");
+        if (lockIconGo != null)
+        {
+            lockIconGo.gameObject.SetActive(true);
+        }
+        else
+        {
+            // Create lock icon as fallback if not exists in prefab
+            var lockGo = new GameObject("LockIcon", typeof(RectTransform), typeof(Image));
+            lockGo.transform.SetParent(go.transform, false);
+            var rect = lockGo.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(1, 1);
+            rect.anchorMax = new Vector2(1, 1);
+            rect.anchoredPosition = new Vector2(-5, -5);
+            rect.sizeDelta = new Vector2(30, 30);
+            var lockImg = lockGo.GetComponent<Image>();
+            lockImg.sprite = Resources.Load<Sprite>("Icons/lock_icon"); // Try to load from Resources
+            if (lockImg.sprite == null)
+            {
+                // Fallback: use a solid color if no sprite found
+                lockImg.color = new Color(1, 0, 0, 0.7f); // Red tint as fallback
+            }
+            lockImg.enabled = true;
+        }
     }
 
     private void SetCardName(GameObject go, CardConfigData config)
@@ -271,7 +339,25 @@ public class CodexPanel : MonoBehaviour
                 rt.offsetMax = Vector2.zero;
                 rt.localScale = Vector3.one;
             }
-            SetCardImage(go, config.名称);
+            // Only show detail for unlocked cards
+            if (GameCore.IsCardUnlocked(config.id.ToString()))
+            {
+                SetCardImage(go, config.名称);
+            }
+            else
+            {
+                // Locked detail - show gray placeholder
+                var imgT = go.transform.Find("Image");
+                if (imgT != null)
+                {
+                    var img = imgT.GetComponent<Image>();
+                    if (img != null)
+                    {
+                        img.sprite = null;
+                        img.color = LockedColor;
+                    }
+                }
+            }
 
             var card = CardFactoryCore.CreateCard(config.id);
             var nameTmp = go.transform.Find("Text (TMP)")?.GetComponent<TMP_Text>();
@@ -281,8 +367,16 @@ public class CodexPanel : MonoBehaviour
             {
                 nameTmp.fontSize = 24;
                 nameTmp.color = Color.white;
-                nameTmp.enableWordWrapping = true;
-                nameTmp.text = card != null ? $"{card.Name} - {card.Cost}" : $"{config.名称} - {config.费用}";
+                nameTmp.textWrappingMode = TMPro.TextWrappingModes.Normal;
+                if (GameCore.IsCardUnlocked(config.id.ToString()))
+                {
+                    nameTmp.text = card != null ? $"{card.Name} - {card.Cost}" : $"{config.名称} - {config.费用}";
+                }
+                else
+                {
+                    nameTmp.text = "??";
+                    nameTmp.color = LockedColor;
+                }
             }
 
             if (descTmp != null)
@@ -290,8 +384,15 @@ public class CodexPanel : MonoBehaviour
                 descTmp.gameObject.SetActive(true);
                 descTmp.fontSize = 18;
                 descTmp.color = Color.white;
-                descTmp.enableWordWrapping = true;
-                descTmp.text = card != null ? card.Description() : config.描述;
+                descTmp.textWrappingMode = TMPro.TextWrappingModes.Normal;
+                if (GameCore.IsCardUnlocked(config.id.ToString()))
+                {
+                    descTmp.text = card != null ? card.Description() : config.描述;
+                }
+                else
+                {
+                    descTmp.text = "尚未解锁";
+                }
             }
 
             var btn = go.GetComponent<Button>();
@@ -338,15 +439,27 @@ public class CodexPanel : MonoBehaviour
         HideDetail();
     }
 
+    // Updated: Handle locked card image gracefully
     private static void SetCardImage(GameObject go, string name)
     {
         if (string.IsNullOrEmpty(name)) return;
+
         var imgT = go.transform.Find("Image");
         if (imgT == null) return;
         var img = imgT.GetComponent<Image>();
         if (img == null) return;
+
         var sprite = ResCore.LoadAssetSync<Sprite>($"Card_{name}")?.GetAssetObject<Sprite>();
-        if (sprite != null) { img.sprite = sprite; img.color = Color.white; }
+        if (sprite != null)
+        {
+            img.sprite = sprite;
+            img.color = Color.white;
+        }
+        else if (!GameCore.IsCardUnlocked(name))
+        {
+            // If not found and card is locked, leave grayed out (LockedColor is already set elsewhere)
+            img.color = LockedColor;
+        }
     }
 
     private static int CompareCard(CardConfigData a, CardConfigData b)

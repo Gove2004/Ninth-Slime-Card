@@ -72,7 +72,15 @@ public class HomePage : MonoBehaviour
         }
     }
 
-    private void OnStartGameClicked() { startGamePanel.ShowPanel(); }
+    private void OnStartGameClicked()
+    {
+        // 打开前强刷关卡入口文本（PanelScaleSHowHide 若不触发 OnEnable 也能拿到最新 runState）
+        foreach (LevelSelect ls in startGamePanel.GetComponentsInChildren<LevelSelect>(true))
+        {
+            ls.RefreshDisplay();
+        }
+        startGamePanel.ShowPanel();
+    }
     private void OnSettingsClicked() { settingsPanel.ShowPanel(); }
     private void OnCodexClicked() { codexPanel.ShowPanel(); codexPanelRef?.Show(); }
     private void OnAchievementsClicked() { achievementsPanel.ShowPanel(); }

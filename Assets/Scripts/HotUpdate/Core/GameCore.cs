@@ -1,4 +1,3 @@
-
 using TapSDK.Login;
 
 public static class GameCore
@@ -71,6 +70,30 @@ public static class GameCore
         if (!playerData.achievementUnlocked.Contains(achievementId))
         {
             playerData.achievementUnlocked.Add(achievementId);
+            SaveManager.Instance?.Save();
+        }
+    }
+
+#endregion
+
+#region 图鉴 Codex
+
+    public static bool IsCardUnlocked(string cardId)
+    {
+        if (playerData == null) return false;
+        return playerData.collection.Contains(cardId);
+    }
+
+    public static void UnlockCard(string cardId)
+    {
+        if (playerData == null)
+        {
+            playerData = new PlayerData();
+        }
+
+        if (!playerData.collection.Contains(cardId))
+        {
+            playerData.collection.Add(cardId);
             SaveManager.Instance?.Save();
         }
     }

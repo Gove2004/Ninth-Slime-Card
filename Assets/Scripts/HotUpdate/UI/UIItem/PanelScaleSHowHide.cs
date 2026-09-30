@@ -1,4 +1,3 @@
-using DG.Tweening;
 using UnityEngine;
 
 public class PanelScaleSHowHide : MonoBehaviour
@@ -6,16 +5,14 @@ public class PanelScaleSHowHide : MonoBehaviour
     public void ShowPanel()
     {
         gameObject.SetActive(true);
-        transform.localScale = Vector3.zero;
-        transform.DOScale(Vector3.one, 0.3f).SetEase(Ease.OutBack);
+        // 移除 transform.DOScale 动画，直接使用正常尺寸
+        transform.localScale = Vector3.one;
     }
 
     public void HidePanel()
     {
+        // 直接隐藏，不再做缩放动画
+        gameObject.SetActive(false);
         transform.localScale = Vector3.one;
-        transform.DOScale(Vector3.zero, 0.3f).SetEase(Ease.InBack).OnComplete(() =>
-        {
-            gameObject.SetActive(false);
-        });
     }
 }

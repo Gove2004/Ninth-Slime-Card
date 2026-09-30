@@ -5,4 +5,5 @@ public class PlayerData
     public int trophy;
     public List<string> achievementUnlocked = new();
     public RunState runState;
+    public List<string> collection = new();
 }

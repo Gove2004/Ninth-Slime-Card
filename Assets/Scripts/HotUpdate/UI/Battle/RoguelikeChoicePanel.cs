@@ -19,17 +19,24 @@ public class RoguelikeChoicePanel : MonoBehaviour
     private const int TotalRounds = 5;
     private int currentRound;
     private Action onComplete;
+    private bool hasShown;
     private readonly List<GameObject> spawnedItems = new();
 
     public void Start()
     {
-        gameObject.SetActive(false);
+        // 仅在尚未通过 Show() 打开时自隐藏，避免场景中保存为非激活时
+        // Show() 激活后首次 Start() 反把面板关掉
+        if (!hasShown)
+        {
+            gameObject.SetActive(false);
+        }
     }
 
     public void Show(Action onComplete)
     {
         this.onComplete = onComplete;
         currentRound = 0;
+        hasShown = true;
         gameObject.SetActive(true);
 
         if (scalePanel != null)
@@ -39,16 +46,19 @@ public class RoguelikeChoicePanel : MonoBehaviour
 
         if (addCardButton != null)
         {
+            addCardButton.onClick.RemoveAllListeners();
             addCardButton.onClick.AddListener(AudioManager.Instance.PlayOnClick(OnAddCardClicked));
         }
 
         if (removeCardButton != null)
         {
+            removeCardButton.onClick.RemoveAllListeners();
             removeCardButton.onClick.AddListener(AudioManager.Instance.PlayOnClick(OnRemoveCardClicked));
         }
 
         if (skipButton != null)
         {
+            skipButton.onClick.RemoveAllListeners();
             skipButton.onClick.AddListener(AudioManager.Instance.PlayOnClick(OnSkipClicked));
         }
 
@@ -128,7 +138,7 @@ public class RoguelikeChoicePanel : MonoBehaviour
             return;
         }
 
-        GameObject go = Instantiate(choiceCardPrefab, cardChoiceArea);
+        GameObject go = Instantiate(choiceCardPrefab, GetSpawnRoot(cardChoiceArea));
         spawnedItems.Add(go);
 
         BaseCard cardInstance = CardFactoryCore.CreateCard(config.id);
@@ -164,6 +174,13 @@ public class RoguelikeChoicePanel : MonoBehaviour
 
     private void OnRemoveCardClicked()
     {
+        // 牌组为空时无卡可删，保持主菜单可点，避免玩家卡死在面板里
+        if (GameCore.runState == null || GameCore.runState.playerDeckIds.Count == 0)
+        {
+            MessageToastManager.Instance.ShowMessage("牌组为空，无卡可删");
+            return;
+        }
+
         if (addCardButton != null) addCardButton.gameObject.SetActive(false);
         if (removeCardButton != null) removeCardButton.gameObject.SetActive(false);
         if (skipButton != null) skipButton.gameObject.SetActive(false);
@@ -212,7 +229,7 @@ public class RoguelikeChoicePanel : MonoBehaviour
             return;
         }
 
-        GameObject go = Instantiate(choiceCardPrefab, deckChoiceArea);
+        GameObject go = Instantiate(choiceCardPrefab, GetSpawnRoot(deckChoiceArea));
         spawnedItems.Add(go);
 
         SetCardImage(go, card.Name);
@@ -326,6 +343,15 @@ public class RoguelikeChoicePanel : MonoBehaviour
 
         cg.blocksRaycasts = active;
         cg.interactable = active;
+    }
+
+    // 字段可直接接 ScrollView 根节点：生成卡时自动落到 Viewport/Content，
+    // 使显隐/层级作用于整个 ScrollView，同时保证卡牌可滚动
+    private static Transform GetSpawnRoot(Transform area)
+    {
+        if (area == null) return null;
+        Transform content = area.Find("Viewport/Content");
+        return content != null ? content : area;
     }
 
     private static Sprite LoadCardSprite(string cardName)

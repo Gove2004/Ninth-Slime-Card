@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using DG.Tweening;
 using GoveKits.Runtime.Unit;
 using UnityEngine;
 
@@ -123,9 +122,7 @@ public abstract class BaseCharacter : UnitBehaviour
         DamageTakenThisTurn += amount;
         LastDamageSourceThisTurn = CurrentSourceCharacter;
         AudioManager.Instance?.PlaySound(isDotDamage ? "毒液" : "斩击");
-        isDotDamage = false;
-        RedSlashEffect.Create().Apply(this);
-        ShakeCamera();
+        // isDotDamage = false; // 不需要重置，原逻辑已保持
         TriggerHookEffect(HookTiming.WhenHurt);
     }
 
@@ -135,7 +132,6 @@ public abstract class BaseCharacter : UnitBehaviour
         if (amount <= 0) return;
         Attributes.ChangeBase(StaticString.属性.生命, amount);
         AudioManager.Instance?.PlaySound("回血");
-        GreenSlashEffect.Create().Apply(this);
         TriggerHookEffect(HookTiming.WhenHeal);
     }
 
@@ -562,11 +558,9 @@ public abstract class BaseCharacter : UnitBehaviour
 
     private static void ShakeCamera()
     {
-        Camera cam = Camera.main;
-        if (cam != null)
-        {
-            cam.transform.DOShakePosition(0.15f, 0.2f, 10, 90);
-        }
+        // 已移除 DOTween 动画
+        // Camera cam = Camera.main;
+        // if (cam != null) { cam.transform.DOShakePosition(0.15f, 0.2f, 10, 90); }
     }
 
     #region Hook Timing Effect

@@ -4,9 +4,6 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public static class GameEvents
 {
@@ -251,78 +248,3 @@ public class EventCenter : MonoBehaviour
     #endregion
 }
 
-#if UNITY_EDITOR
-[CustomEditor(typeof(EventCenter))]
-public class EventCenterEditor : Editor
-{
-    private string searchText = "";
-    private Vector2 scrollPos;
-    
-    public override void OnInspectorGUI()
-    {
-        base.OnInspectorGUI();
-        
-        EventCenter center = (EventCenter)target;
-        
-        if (!center.showDebugInfo) return;
-        
-        EditorGUILayout.Space(10);
-        EditorGUILayout.LabelField("事件订阅列表", EditorStyles.boldLabel);
-        
-        // 搜索框
-        EditorGUILayout.BeginHorizontal();
-        searchText = EditorGUILayout.TextField("搜索:", searchText);
-        if (GUILayout.Button("清空", GUILayout.Width(50))) searchText = "";
-        EditorGUILayout.EndHorizontal();
-        
-        center.SetSearchFilter(searchText);
-        
-        // 显示事件列表
-        var events = center.GetEventInfos();
-        if (events.Length == 0)
-        {
-            EditorGUILayout.HelpBox("没有找到事件", MessageType.Info);
-        }
-        else
-        {
-            scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Height(300));
-            
-            foreach (var eventInfo in events)
-            {
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                
-                // 事件名和监听器数量
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(eventInfo.name, EditorStyles.boldLabel, GUILayout.Width(200));
-                EditorGUILayout.LabelField($"{eventInfo.listenerCount} 个监听器", GUILayout.Width(100));
-                EditorGUILayout.EndHorizontal();
-                
-                // 监听器列表
-                if (eventInfo.listenerNames.Length > 0)
-                {
-                    EditorGUI.indentLevel++;
-                    foreach (string listenerName in eventInfo.listenerNames)
-                    {
-                        EditorGUILayout.LabelField($"• {listenerName}", EditorStyles.miniLabel);
-                    }
-                    EditorGUI.indentLevel--;
-                }
-                
-                EditorGUILayout.EndVertical();
-            }
-            
-            EditorGUILayout.EndScrollView();
-        }
-        
-        // 操作按钮
-        EditorGUILayout.Space(5);
-        if (GUILayout.Button("清空所有事件"))
-        {
-            if (EditorUtility.DisplayDialog("确认", "确定要清空所有事件吗？", "确定", "取消"))
-            {
-                center.ClearAll();
-            }
-        }
-    }
-}
-#endif

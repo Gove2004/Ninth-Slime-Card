@@ -31,7 +31,6 @@ public class BattleManager : MonoSingleton<BattleManager>
     private CardContainer cardContainer;
     private Button endTurnButton;
     private Coroutine enemyTurnCoroutine;
-    private Coroutine startBattleCoroutine;
     private BattleResultOverlay resultOverlay;
 
     public void Start()
@@ -40,7 +39,8 @@ public class BattleManager : MonoSingleton<BattleManager>
         BindSceneReferences();
         FindEndTurnButton();
         EnsureResultOverlay();
-        QueueStartBattle();
+        // 直接在 Start 后开始战斗，避免队列竞态
+        StartBattleImmediately();
     }
 
     public void RestartBattleScene()
@@ -55,10 +55,16 @@ public class BattleManager : MonoSingleton<BattleManager>
         ResCore.LoadSceneAsync("Home");
     }
 
-    public void StartBattle()
+    // === 关键修复：直接开始，无单帧延迟，且事件订阅在 Setup 之后 ===
+    private void StartBattleImmediately()
     {
-        UnsubscribeCharacterEvents();
         BindSceneReferences();
+
+        if (Player == null || Enemy == null)
+        {
+            Debug.LogError("[BattleManager] Player or Enemy not found in scene!");
+            return;
+        }
 
         int lv = GameCore.runState?.currentLv ?? 1;
         Debug.Log($"Starting battle at Lv.{lv}");
@@ -73,8 +79,12 @@ public class BattleManager : MonoSingleton<BattleManager>
         Player.Target = Enemy;
         Enemy.Target = Player;
 
+        // ✅ 先 Setup 对象，再订阅事件，避免错过 Setup 触发的事件
+        Player.OnHandChanged -= OnPlayerHandChanged;
         Player.OnHandChanged += OnPlayerHandChanged;
+        Player.OnStatsChanged -= OnCharacterStatsChanged;
         Player.OnStatsChanged += OnCharacterStatsChanged;
+        Enemy.OnStatsChanged -= OnCharacterStatsChanged;
         Enemy.OnStatsChanged += OnCharacterStatsChanged;
 
         RefreshHand();
@@ -315,7 +325,8 @@ public class BattleManager : MonoSingleton<BattleManager>
 
         FindEndTurnButton();
         EnsureResultOverlay();
-        QueueStartBattle();
+        // 场景加载后直接开始，无额外等待
+        StartBattleImmediately();
     }
 
     private void OnCharacterStatsChanged(BaseCharacter character)
@@ -364,23 +375,6 @@ public class BattleManager : MonoSingleton<BattleManager>
         }
     }
 
-    private void QueueStartBattle()
-    {
-        if (startBattleCoroutine != null)
-        {
-            StopCoroutine(startBattleCoroutine);
-        }
-
-        startBattleCoroutine = StartCoroutine(StartBattleNextFrame());
-    }
-
-    private IEnumerator StartBattleNextFrame()
-    {
-        yield return null;
-        startBattleCoroutine = null;
-        StartBattle();
-    }
-
     private void PrepareForSceneTransition()
     {
         isBattleActive = false;
@@ -390,12 +384,6 @@ public class BattleManager : MonoSingleton<BattleManager>
         {
             StopCoroutine(enemyTurnCoroutine);
             enemyTurnCoroutine = null;
-        }
-
-        if (startBattleCoroutine != null)
-        {
-            StopCoroutine(startBattleCoroutine);
-            startBattleCoroutine = null;
         }
 
         UpdateEndTurnButton();
@@ -447,11 +435,6 @@ public class BattleManager : MonoSingleton<BattleManager>
         if (enemyTurnCoroutine != null)
         {
             StopCoroutine(enemyTurnCoroutine);
-        }
-
-        if (startBattleCoroutine != null)
-        {
-            StopCoroutine(startBattleCoroutine);
         }
 
         SceneManager.sceneLoaded -= OnSceneLoaded;
