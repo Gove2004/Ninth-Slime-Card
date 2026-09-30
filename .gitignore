@@ -93,3 +93,6 @@ HybridCLRData
 
 # Claude AI generated files
 *.claude
+
+# WorkBuddy agent working memory
+.workbuddy/
