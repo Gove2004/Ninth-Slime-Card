@@ -96,3 +96,6 @@ HybridCLRData
 
 # WorkBuddy agent working memory
 .workbuddy/
+
+# 开发过程验收截图（由 .workbuddy/tools/shots.py 生成，不入库）
+/[Aa]ssets/Screenshots/
