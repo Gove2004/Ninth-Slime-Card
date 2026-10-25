@@ -176,173 +176,161 @@ namespace Slime.Game
 
             switch (series)
             {
-                case CardSeries.Starter:
-                    // 初始：交叉双刃 + 中心菱形
-                    DrawBlade(canvas, c, c, maxW * 1.35f, deep, color, -1);
-                    DrawBlade(canvas, c, c, maxW * 1.35f, deep, color, 1);
+                case CardSeries.Strike:
+                {
+                    // 战技：竖直长剑 + 十字护手
                     DrawPoly(canvas,
-                        new[] { c, c + maxW * 0.30f, c, c - maxW * 0.30f },
-                        new[] { c + maxW * 0.46f, c, c - maxW * 0.46f, c }, bright);
+                        new[] { c - maxW * 0.16f, c + maxW * 0.16f, c + maxW * 0.16f, c - maxW * 0.16f },
+                        new[] { c - maxW * 1.30f, c - maxW * 1.30f, c + maxW * 0.78f, c + maxW * 0.78f }, deep);
+                    DrawPoly(canvas,
+                        new[] { c - maxW * 0.10f, c + maxW * 0.10f, c + maxW * 0.10f, c - maxW * 0.10f },
+                        new[] { c - maxW * 0.96f, c - maxW * 0.96f, c + maxW * 0.66f, c + maxW * 0.66f }, color);
+                    DrawPoly(canvas,
+                        new[] { c - maxW * 0.10f, c + maxW * 0.10f, c },
+                        new[] { c + maxW * 0.66f, c + maxW * 0.66f, c + maxW * 1.10f }, bright);
+                    DrawPoly(canvas,
+                        new[] { c - maxW * 0.62f, c + maxW * 0.62f, c + maxW * 0.62f, c - maxW * 0.62f },
+                        new[] { c + maxW * 0.52f, c + maxW * 0.52f, c + maxW * 0.74f, c + maxW * 0.74f }, bright);
+                    DrawLine(canvas, c, c - maxW * 0.78f, c, c - maxW * 1.06f, maxW * 0.14f, deep);
+                    DrawDisc(canvas, c, c - maxW * 1.16f, maxW * 0.20f, bright, 0f);
                     break;
+                }
 
-                case CardSeries.Sin:
-                    // 七罪：断裂的锁环 + 四枚尖角
-                    DrawRing(canvas, c, c, maxW * 1.10f, maxW * 0.74f, deep);
-                    DrawRing(canvas, c, c, maxW * 1.02f, maxW * 0.82f, color);
-                    EraseDisc(canvas, c + maxW * 1.34f, c - maxW * 0.10f, maxW * 0.52f);
-                    EraseDisc(canvas, c - maxW * 1.34f, c + maxW * 0.10f, maxW * 0.40f);
-                    for (int i = 0; i < 4; i++)
+                case CardSeries.Blade:
+                {
+                    // 剑技：交叉双刃（X 形）+ 中心火花
+                    DrawBlade(canvas, c, c, maxW * 1.42f, deep, color, -1);
+                    DrawBlade(canvas, c, c, maxW * 1.42f, deep, color, 1);
+                    DrawDisc(canvas, c, c, maxW * 0.30f, bright, 1.5f);
+                    for (int i = 0; i < 8; i++)
                     {
-                        float a = Mathf.PI * 0.25f + Mathf.PI * 0.5f * i;
-                        DrawHorn(canvas, c + Mathf.Cos(a) * maxW * 1.16f, c + Mathf.Sin(a) * maxW * 1.16f,
-                            maxW * 0.34f, a, bright);
+                        float a = Mathf.PI * 0.25f * i;
+                        float len = i % 2 == 0 ? maxW * 0.86f : maxW * 0.58f;
+                        DrawLine(canvas, c + Mathf.Cos(a) * maxW * 0.34f, c + Mathf.Sin(a) * maxW * 0.34f,
+                            c + Mathf.Cos(a) * len, c + Mathf.Sin(a) * len, maxW * 0.07f, bright);
                     }
 
-                    DrawDisc(canvas, c, c, maxW * 0.20f, bright, 0f);
-                    break;
-
-                case CardSeries.Blood:
-                {
-                    // 血族：倒置血滴 + 双牙
-                    float apex = c - size * 0.50f;
-                    float cy = c + size * 0.06f;
-                    float r = maxW * 0.86f;
-                    FillShape(canvas, c, cy + r, apex, t =>
-                    {
-                        float y = Mathf.Lerp(cy + r, apex, t);
-                        float hw = 0f;
-                        float dy = y - cy;
-                        if (Mathf.Abs(dy) < r)
-                        {
-                            hw = Mathf.Sqrt(r * r - dy * dy);
-                        }
-
-                        if (y < cy + r - r * 0.25f)
-                        {
-                            float k = Mathf.Clamp01((y - apex) / Mathf.Max(1f, (cy + r - r * 0.25f) - apex));
-                            hw = Mathf.Max(hw, maxW * 0.60f * Mathf.Pow(k, 0.72f));
-                        }
-
-                        return hw;
-                    }, deep, color, 0.72f);
-                    DrawDisc(canvas, c - r * 0.32f, cy + r * 0.18f, r * 0.22f, bright, 0f);
-
-                    // 双牙
-                    DrawPoly(canvas, new[] { c - maxW * 0.52f, c - maxW * 0.24f, c - maxW * 0.38f },
-                        new[] { c - maxW * 1.02f, c - maxW * 1.02f, c - maxW * 1.38f }, bright);
-                    DrawPoly(canvas, new[] { c + maxW * 0.24f, c + maxW * 0.52f, c + maxW * 0.38f },
-                        new[] { c - maxW * 1.02f, c - maxW * 1.02f, c - maxW * 1.38f }, bright);
                     break;
                 }
 
-                case CardSeries.Fortify:
+                case CardSeries.Fire:
                 {
-                    // 坚固：盾牌 + 十字铆钉
-                    float[] px = { c - maxW, c + maxW, c + maxW, c, c - maxW };
-                    float[] py = { c + maxW * 0.85f, c + maxW * 0.85f, c - maxW * 0.10f, c - maxW * 1.30f, c - maxW * 0.10f };
-                    DrawPoly(canvas, px, py, deep);
-                    float[] px2 = { c - maxW * 0.78f, c + maxW * 0.78f, c + maxW * 0.78f, c, c - maxW * 0.78f };
-                    float[] py2 = { c + maxW * 0.62f, c + maxW * 0.62f, c - maxW * 0.06f, c - maxW * 1.02f, c - maxW * 0.06f };
-                    DrawPoly(canvas, px2, py2, color);
-                    DrawPoly(canvas, new[] { c - maxW * 0.13f, c + maxW * 0.13f, c + maxW * 0.13f, c - maxW * 0.13f },
-                        new[] { c + maxW * 0.42f, c + maxW * 0.42f, c - maxW * 0.40f, c - maxW * 0.40f }, bright);
-                    DrawPoly(canvas, new[] { c - maxW * 0.46f, c + maxW * 0.46f, c + maxW * 0.46f, c - maxW * 0.46f },
-                        new[] { c + maxW * 0.16f, c + maxW * 0.16f, c - maxW * 0.10f, c - maxW * 0.10f }, bright);
+                    // 炎咒：火舌 —— 外焰、内焰、焰心
+                    FillShape(canvas, c, c - maxW * 1.30f, c + maxW * 0.98f,
+                        t => maxW * 1.02f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Clamp01(t)), 1.35f) * (1f - t * 0.42f) + 0.6f,
+                        deep, color, 0.8f);
+                    FillShape(canvas, c, c - maxW * 0.92f, c + maxW * 0.62f,
+                        t => maxW * 0.62f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Clamp01(t)), 1.5f) * (1f - t * 0.36f) + 0.4f,
+                        color, bright, 0.85f);
+                    DrawDisc(canvas, c, c - maxW * 0.30f, maxW * 0.24f, bright, 0f);
                     break;
                 }
 
-                case CardSeries.Tech:
+                case CardSeries.Ice:
                 {
-                    // 科技：外环电路 + 中心节点 + 四条引线
-                    DrawRing(canvas, c, c, maxW * 1.16f, maxW * 0.94f, deep);
-                    DrawRing(canvas, c, c, maxW * 0.46f, maxW * 0.30f, color);
-                    for (int i = 0; i < 4; i++)
+                    // 冰咒：六角冰晶
+                    for (int i = 0; i < 6; i++)
                     {
-                        float a = Mathf.PI * 0.5f * i + Mathf.PI * 0.25f;
-                        float x0 = c + Mathf.Cos(a) * maxW * 0.50f;
-                        float y0 = c + Mathf.Sin(a) * maxW * 0.50f;
-                        float x1 = c + Mathf.Cos(a) * maxW * 1.04f;
-                        float y1 = c + Mathf.Sin(a) * maxW * 1.04f;
-                        DrawLine(canvas, x0, y0, x1, y1, maxW * 0.10f, color);
-                        DrawDisc(canvas, x1, y1, maxW * 0.17f, bright, 0f);
+                        float a = Mathf.PI / 3f * i + Mathf.PI / 6f;
+                        float ex = c + Mathf.Cos(a) * maxW * 1.22f;
+                        float ey = c + Mathf.Sin(a) * maxW * 1.22f;
+                        DrawLine(canvas, c, c, ex, ey, maxW * 0.16f, deep);
+                        DrawLine(canvas, c, c, ex, ey, maxW * 0.07f, color);
+                        for (int k = 1; k <= 2; k++)
+                        {
+                            float f = 0.44f + k * 0.24f;
+                            float bx = Mathf.Lerp(c, ex, f);
+                            float by = Mathf.Lerp(c, ey, f);
+                            float bl = maxW * (0.30f - k * 0.06f);
+                            for (int s2 = -1; s2 <= 1; s2 += 2)
+                            {
+                                float ba = a + s2 * Mathf.PI * 0.34f;
+                                DrawLine(canvas, bx, by, bx + Mathf.Cos(ba) * bl, by + Mathf.Sin(ba) * bl,
+                                    maxW * 0.045f, bright);
+                            }
+                        }
                     }
 
-                    DrawPoly(canvas,
-                        new[] { c, c + maxW * 0.36f, c, c - maxW * 0.36f },
-                        new[] { c + maxW * 0.36f, c, c - maxW * 0.36f, c }, bright);
+                    DrawDisc(canvas, c, c, maxW * 0.22f, bright, 0f);
                     break;
                 }
 
-                case CardSeries.Seed:
+                case CardSeries.Thunder:
                 {
-                    // 种子：骰面（方体 + 点数）+ 一片嫩芽
-                    float s = maxW * 0.92f;
-                    DrawPoly(canvas,
-                        new[] { c - s, c + s, c + s, c - s },
-                        new[] { c - s, c - s, c + s, c + s }, deep);
-                    float[][] pips =
+                    // 雷咒：锯齿闪电
+                    float[][] bolt =
                     {
-                        new[] { -0.52f, 0.52f }, new[] { 0f, 0f }, new[] { 0.52f, -0.52f }
+                        new[] { 0.44f, 1.16f }, new[] { -0.16f, 0.12f }, new[] { 0.20f, 0.12f },
+                        new[] { -0.42f, -1.16f }, new[] { 0.30f, -0.06f }, new[] { -0.04f, -0.06f }
                     };
-                    for (int i = 0; i < pips.Length; i++)
+                    for (int i = 0; i < bolt.Length; i++)
                     {
-                        DrawDisc(canvas, c + pips[i][0] * s, c + pips[i][1] * s, s * 0.17f, bright, 0f);
+                        int j = (i + 1) % bolt.Length;
+                        DrawLine(canvas, c + bolt[i][0] * maxW, c + bolt[i][1] * maxW,
+                            c + bolt[j][0] * maxW, c + bolt[j][1] * maxW, maxW * 0.20f, deep);
                     }
 
-                    // 嫩芽从骰顶钻出
-                    DrawLine(canvas, c, c + s, c + maxW * 0.10f, c + maxW * 1.40f, maxW * 0.08f, color);
-                    FillShape(canvas, c + maxW * 0.34f, c + maxW * 1.34f, c + maxW * 0.78f,
-                        t => maxW * 0.30f * Mathf.Pow(Mathf.Sin(Mathf.PI * t), 0.7f) + 0.4f,
-                        color, bright, 0.6f);
+                    for (int i = 0; i < bolt.Length; i++)
+                    {
+                        int j = (i + 1) % bolt.Length;
+                        DrawLine(canvas, c + bolt[i][0] * maxW, c + bolt[i][1] * maxW,
+                            c + bolt[j][0] * maxW, c + bolt[j][1] * maxW, maxW * 0.09f, bright);
+                    }
+
                     break;
                 }
 
-                case CardSeries.Shadow:
+                case CardSeries.Light:
                 {
-                    // 暗影：新月 + 一只眼
-                    DrawDisc(canvas, c, c, maxW * 1.10f, deep, 0f);
-                    EraseDisc(canvas, c + maxW * 0.62f, c + maxW * 0.28f, maxW * 0.94f);
-                    DrawDisc(canvas, c - maxW * 0.16f, c + maxW * 0.18f, maxW * 0.74f, color, 0f);
-                    EraseDisc(canvas, c + maxW * 0.10f, c + maxW * 0.26f, maxW * 0.52f);
+                    // 光咒：八芒星 + 光晕
+                    for (int i = 0; i < 8; i++)
+                    {
+                        float a = Mathf.PI * 0.25f * i;
+                        float len = i % 2 == 0 ? maxW * 1.34f : maxW * 0.72f;
+                        DrawLine(canvas, c, c, c + Mathf.Cos(a) * len, c + Mathf.Sin(a) * len, maxW * 0.13f, color);
+                    }
+
+                    DrawDisc(canvas, c, c, maxW * 0.62f, deep, 0f);
+                    DrawDisc(canvas, c, c, maxW * 0.46f, color, 0f);
+                    DrawDisc(canvas, c, c, maxW * 0.22f, bright, 0f);
+                    break;
+                }
+
+                case CardSeries.Dark:
+                {
+                    // 暗咒：骷髅 + 下坠的毒滴
+                    DrawDisc(canvas, c, c + maxW * 0.12f, maxW * 0.82f, deep, 0f);
+                    EraseDisc(canvas, c - maxW * 0.34f, c + maxW * 0.30f, maxW * 0.22f);
+                    EraseDisc(canvas, c + maxW * 0.34f, c + maxW * 0.30f, maxW * 0.22f);
                     DrawPoly(canvas,
-                        new[] { c - maxW * 0.62f, c + maxW * 0.24f, c - maxW * 0.30f },
-                        new[] { c + maxW * 0.06f, c + maxW * 0.06f, c + maxW * 0.02f }, Theme.BgDeep);
-                    DrawDisc(canvas, c - maxW * 0.34f, c + maxW * 0.04f, maxW * 0.16f, bright, 0f);
+                        new[] { c - maxW * 0.16f, c + maxW * 0.16f, c },
+                        new[] { c - maxW * 0.14f, c - maxW * 0.14f, c - maxW * 0.50f }, bright);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float dx = (i - 1) * maxW * 0.56f;
+                        float dy = -maxW * (0.90f + (i % 2) * 0.18f);
+                        DrawPoly(canvas,
+                            new[] { c + dx - maxW * 0.12f, c + dx + maxW * 0.12f, c + dx },
+                            new[] { c + dy + maxW * 0.24f, c + dy + maxW * 0.24f, c + dy - maxW * 0.16f }, color);
+                    }
+
                     break;
                 }
 
                 default:
                 {
-                    // 时序：沙漏
-                    DrawPoly(canvas,
-                        new[] { c - maxW, c + maxW, c + maxW * 0.22f, c - maxW * 0.22f },
-                        new[] { c + maxW * 1.20f, c + maxW * 1.20f, c + maxW * 0.10f, c + maxW * 0.10f }, deep);
-                    DrawPoly(canvas,
-                        new[] { c - maxW, c + maxW, c + maxW * 0.22f, c - maxW * 0.22f },
-                        new[] { c - maxW * 1.20f, c - maxW * 1.20f, c - maxW * 0.10f, c - maxW * 0.10f }, deep);
-
-                    // 上部流沙 + 下部堆积
-                    for (float y = c + maxW * 0.16f; y < c + maxW * 1.16f; y += 1f)
+                    // 秘术：双环法阵 + 中心星
+                    DrawRing(canvas, c, c, maxW * 1.30f, maxW * 1.16f, deep);
+                    DrawRing(canvas, c, c, maxW * 0.82f, maxW * 0.72f, color);
+                    for (int i = 0; i < 6; i++)
                     {
-                        float k = (y - (c + maxW * 0.16f)) / (maxW * 1.0f);
-                        float hw = maxW * 0.86f * (1f - k);
-                        DrawPoly(canvas, new[] { c - hw, c + hw, c + hw, c - hw },
-                            new[] { y, y, y + 1f, y + 1f }, Theme.WithAlpha(color, 0.85f));
+                        float a = Mathf.PI / 3f * i;
+                        DrawLine(canvas, c + Mathf.Cos(a) * maxW * 0.72f, c + Mathf.Sin(a) * maxW * 0.72f,
+                            c + Mathf.Cos(a + Mathf.PI * 0.666f) * maxW * 0.72f,
+                            c + Mathf.Sin(a + Mathf.PI * 0.666f) * maxW * 0.72f, maxW * 0.05f, bright);
                     }
 
-                    for (float y = c - maxW * 1.14f; y < c - maxW * 0.12f; y += 1f)
-                    {
-                        float k = (y - (c - maxW * 1.14f)) / (maxW * 1.0f);
-                        float hw = maxW * 0.86f * Mathf.Pow(k, 0.72f);
-                        DrawPoly(canvas, new[] { c - hw, c + hw, c + hw, c - hw },
-                            new[] { y, y, y + 1f, y + 1f }, Theme.WithAlpha(color, 0.9f));
-                    }
-
-                    DrawLine(canvas, c, c + maxW * 0.30f, c, c - maxW * 0.24f, maxW * 0.07f, bright);
-                    DrawPoly(canvas, new[] { c - maxW * 1.26f, c + maxW * 1.26f, c + maxW * 1.26f, c - maxW * 1.26f },
-                        new[] { c + maxW * 1.20f, c + maxW * 1.20f, c + maxW * 1.40f, c + maxW * 1.40f }, bright);
-                    DrawPoly(canvas, new[] { c - maxW * 1.26f, c + maxW * 1.26f, c + maxW * 1.26f, c - maxW * 1.26f },
-                        new[] { c - maxW * 1.40f, c - maxW * 1.40f, c - maxW * 1.20f, c - maxW * 1.20f }, bright);
+                    DrawDisc(canvas, c, c, maxW * 0.20f, bright, 0f);
                     break;
                 }
             }
@@ -458,64 +446,65 @@ namespace Slime.Game
 
             switch (series)
             {
-                case CardSeries.Starter:
-                    // 简化的交叉刃
+                case CardSeries.Strike:
+                    // 竖直剑
+                    DrawLine(canvas, c, c - r * 0.30f, c, c + r * 1.14f, r * 0.22f, color);
+                    DrawLine(canvas, c - r * 0.60f, c + r * 0.42f, c + r * 0.60f, c + r * 0.42f, r * 0.18f, color);
+                    DrawDisc(canvas, c, c - r * 0.50f, r * 0.22f, color, 0f);
+                    break;
+
+                case CardSeries.Blade:
+                    // 交叉刃
                     DrawLine(canvas, c - r * 0.82f, c - r * 0.82f, c + r * 0.82f, c + r * 0.82f, r * 0.20f, color);
                     DrawLine(canvas, c + r * 0.82f, c - r * 0.82f, c - r * 0.82f, c + r * 0.82f, r * 0.20f, color);
                     DrawDisc(canvas, c, c, r * 0.26f, color, 0f);
                     break;
 
-                case CardSeries.Sin:
-                    DrawRing(canvas, c, c, r * 1.02f, r * 0.60f, color);
-                    EraseDisc(canvas, c + r * 1.18f, c, r * 0.48f);
-                    DrawHorn(canvas, c + r * 0.20f, c + r * 0.96f, r * 0.56f, Mathf.PI * 0.5f, color);
+                case CardSeries.Fire:
+                    FillShape(canvas, c, c - r * 1.10f, c + r * 0.92f,
+                        t => r * 0.80f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Clamp01(t)), 1.3f) * (1f - t * 0.40f) + 0.4f,
+                        color, Theme.Lighten(color, 0.5f), 0.6f);
                     break;
 
-                case CardSeries.Blood:
-                    FillShape(canvas, c, c + r * 0.96f, c - r * 1.30f,
-                        t => r * 0.72f * Mathf.Pow(Mathf.Sin(Mathf.PI * t * 0.5f + 0.35f), 0.8f),
-                        color, Theme.Lighten(color, 0.5f), 0.5f);
+                case CardSeries.Ice:
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float a = Mathf.PI / 3f * i;
+                        DrawLine(canvas, c - Mathf.Cos(a) * r * 1.10f, c - Mathf.Sin(a) * r * 1.10f,
+                            c + Mathf.Cos(a) * r * 1.10f, c + Mathf.Sin(a) * r * 1.10f, r * 0.18f, color);
+                    }
+
+                    DrawDisc(canvas, c, c, r * 0.24f, Theme.Lighten(color, 0.55f), 0f);
                     break;
 
-                case CardSeries.Fortify:
+                case CardSeries.Thunder:
                     DrawPoly(canvas,
-                        new[] { c - r, c + r, c + r, c, c - r },
-                        new[] { c + r * 0.82f, c + r * 0.82f, c - r * 0.10f, c - r * 1.24f, c - r * 0.10f }, color);
-                    DrawPoly(canvas,
-                        new[] { c - r * 0.20f, c + r * 0.20f, c + r * 0.20f, c - r * 0.20f },
-                        new[] { c + r * 0.42f, c + r * 0.42f, c - r * 0.62f, c - r * 0.62f }, Theme.BgDeep);
+                        new[] { c + r * 0.42f, c - r * 0.16f, c + r * 0.20f, c - r * 0.42f },
+                        new[] { c + r * 1.10f, c + r * 0.10f, c + r * 0.10f, c - r * 1.10f }, color);
                     break;
 
-                case CardSeries.Tech:
-                    DrawRing(canvas, c, c, r * 1.10f, r * 0.84f, color);
-                    DrawRing(canvas, c, c, r * 0.40f, r * 0.18f, color);
-                    DrawLine(canvas, c, c + r * 0.40f, c, c + r * 1.06f, r * 0.14f, color);
-                    DrawLine(canvas, c, c - r * 0.40f, c, c - r * 1.06f, r * 0.14f, color);
+                case CardSeries.Light:
+                    for (int i = 0; i < 4; i++)
+                    {
+                        float a = Mathf.PI * 0.5f * i + Mathf.PI * 0.25f;
+                        DrawLine(canvas, c - Mathf.Cos(a) * r * 1.12f, c - Mathf.Sin(a) * r * 1.12f,
+                            c + Mathf.Cos(a) * r * 1.12f, c + Mathf.Sin(a) * r * 1.12f, r * 0.16f, color);
+                    }
+
+                    DrawDisc(canvas, c, c, r * 0.44f, color, 0f);
                     break;
 
-                case CardSeries.Seed:
-                    DrawPoly(canvas,
-                        new[] { c - r * 0.94f, c + r * 0.94f, c + r * 0.94f, c - r * 0.94f },
-                        new[] { c - r * 0.94f, c - r * 0.94f, c + r * 0.94f, c + r * 0.94f }, color);
-                    DrawDisc(canvas, c - r * 0.40f, c + r * 0.40f, r * 0.17f, Theme.BgDeep, 0f);
-                    DrawDisc(canvas, c, c, r * 0.17f, Theme.BgDeep, 0f);
-                    DrawDisc(canvas, c + r * 0.40f, c - r * 0.40f, r * 0.17f, Theme.BgDeep, 0f);
-                    break;
-
-                case CardSeries.Shadow:
-                    DrawDisc(canvas, c, c, r * 1.06f, color, 0f);
-                    EraseDisc(canvas, c + r * 0.60f, c + r * 0.26f, r * 0.92f);
-                    DrawDisc(canvas, c - r * 0.22f, c + r * 0.16f, r * 0.22f, Theme.Lighten(color, 0.6f), 0f);
+                case CardSeries.Dark:
+                    DrawDisc(canvas, c, c + r * 0.14f, r * 0.80f, color, 0f);
+                    EraseDisc(canvas, c - r * 0.34f, c + r * 0.32f, r * 0.22f);
+                    EraseDisc(canvas, c + r * 0.34f, c + r * 0.32f, r * 0.22f);
                     break;
 
                 default:
-                    DrawPoly(canvas,
-                        new[] { c - r * 0.94f, c + r * 0.94f, c + r * 0.94f, c - r * 0.94f },
-                        new[] { c + r * 1.16f, c + r * 1.16f, c + r * 0.42f, c + r * 0.42f }, color);
-                    DrawPoly(canvas,
-                        new[] { c - r * 0.94f, c + r * 0.94f, c + r * 0.94f, c - r * 0.94f },
-                        new[] { c - r * 1.16f, c - r * 1.16f, c - r * 0.42f, c - r * 0.42f }, color);
-                    DrawLine(canvas, c, c + r * 0.56f, c, c - r * 0.56f, r * 0.14f, color);
+                    // 秘术：双环
+                    DrawRing(canvas, c, c, r * 1.14f, r * 0.90f, color);
+                    DrawRing(canvas, c, c, r * 0.52f, r * 0.32f, color);
+                    DrawDisc(canvas, c, c, r * 0.16f, color, 0f);
                     break;
             }
 
@@ -1172,7 +1161,7 @@ namespace Slime.Game
 
             if (face == SlimeFace.Happy)
             {
-                var blush = Theme.WithAlpha(Theme.SeriesSin, 0.32f);
+                var blush = Theme.WithAlpha(Theme.SeriesBlade, 0.32f);
                 DrawDisc(canvas, half - baseR * 0.60f, half - baseR * 0.13f, baseR * 0.15f, blush, 0f);
                 DrawDisc(canvas, half + baseR * 0.60f, half - baseR * 0.13f, baseR * 0.15f, blush, 0f);
             }

@@ -110,10 +110,10 @@ namespace Slime.Game
             // 右：两块等宽数据（与右栏同宽、同右缘）
             Stat("Trophy", RightX + 135f, App.Meta.Trophy.ToString(), "奖杯", Theme.Gold, Theme.WithAlpha(Theme.Gold, 0.45f));
 
-            int best = App.Director.RunCleared ? EnemyRoster.FinalBattle : App.Meta.BestBattle;
+            int best = App.Meta.BestChapter > 0 ? App.Meta.BestChapter : App.Director.Chapter;
             Stat("Best", RightX - 135f,
-                App.Director.RunCleared ? "已通关" : best + " / " + EnemyRoster.FinalBattle,
-                "赛程进度", Theme.Text, Theme.Border);
+                best + " / " + EnemyRoster.TotalChapters,
+                "最深章节", Theme.Text, Theme.Border);
         }
 
         private void Stat(string name, float centerX, string value, string caption, Color valueColor, Color border)
@@ -202,10 +202,8 @@ namespace Slime.Game
         private void BuildHero()
         {
             var director = App.Director;
-            var info = director.CurrentEnemy;
+            var info = director.NextEnemyPreview;
             Color accent = Theme.SeriesColor(info.Accent);
-            int battle = director.Battle;
-            int stage = director.Stage;
 
             var card = Ui.Rounded("Hero", Root, Theme.RadiusL,
                 Theme.WithAlpha(Theme.Panel, 0.96f), Theme.WithAlpha(accent, 0.45f), 2);
@@ -232,71 +230,49 @@ namespace Slime.Game
             Ui.Fixed(portrait.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0f, -158f), new Vector2(200f, 200f));
             Tween.PopIn(portrait.rectTransform, 0.12f, 0.85f);
 
-            // 第一行：这一刻该打哪一场
+            // 第一行：当前章节与所在层
             var levelChip = Ui.Rounded("Level", card.transform, 10,
-                Theme.WithAlpha(Theme.Darken(accent, 0.6f), 0.96f),
-                EnemyRoster.IsMasterStage(battle) ? Theme.Danger : Theme.WithAlpha(accent, 0.85f), 1);
-            Ui.Fixed(levelChip.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0f, -38f), new Vector2(420f, 40f));
+                Theme.WithAlpha(Theme.Darken(accent, 0.6f), 0.96f), Theme.WithAlpha(accent, 0.85f), 1);
+            Ui.Fixed(levelChip.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0f, -38f), new Vector2(480f, 40f));
 
             var levelLabel = Ui.Label("LevelText", levelChip.transform,
-                EnemyRoster.ActNames[EnemyRoster.ActOf(battle) - 1] + "　·　" + EnemyRoster.Describe(battle),
+                director.ChapterName + "　·　第 " + (director.Floor + 1) + " 层",
                 Theme.Body, Theme.Lighten(accent, 0.45f), TextAlignmentOptions.Center);
             Ui.Stretch(levelLabel.rectTransform, 0f, 1f, 0f, 1f);
 
-            var title = Ui.Label("Title", card.transform, info.Name, Theme.H1, Theme.Text, TextAlignmentOptions.Center);
-            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(620f, 56f));
+            var title = Ui.Label("Title", card.transform, director.ChapterSubtitle, Theme.H2, Theme.Text, TextAlignmentOptions.Center);
+            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(640f, 48f));
 
-            var subtitle = Ui.Label("Sub", card.transform, info.Title, Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -332f), new Vector2(620f, 30f));
+            var subtitle = Ui.Label("Sub", card.transform, "下一个对手 · " + info.Name,
+                Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
+            Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -328f), new Vector2(640f, 30f));
 
+            // 三项关键状态：生命是跨节点保留的稀缺资源，牌组是构筑成果
             var stats = Ui.Label("Stats", card.transform,
-                "守关者生命 " + EnemyRoster.EnemyHpFor(battle)
-                + "   ·   回魔 " + EnemyRoster.EnemyManaRegenFor(battle)
-                + "   ·   牌库 " + EnemyRoster.EnemyDeckSizeFor(battle) + " 张"
-                + "   ·   已解锁 " + EnemyRoster.UnlockedSeries(director.Level).Count + " / 8 系",
+                "生命 " + director.Hp + " / " + director.HpMax
+                + "   ·   金币 " + director.Gold
+                + "   ·   牌组 " + director.DeckCount + " 张",
                 Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(stats.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -366f), new Vector2(660f, 26f));
+            Ui.Fixed(stats.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -362f), new Vector2(660f, 26f));
             Tween.FadeIn(stats, 0.3f, 0.18f, 0f, 1f);
 
-            // 廿七战进度点：三幕，每幕九战；打过的金色、当前战放大、未到空心
-            const float pipStep = 22f;
-            int total = EnemyRoster.FinalBattle;
-            float rowWidth = (total - 1) * pipStep;
-            for (int i = 0; i < total; i++)
-            {
-                int battleIndex = i + 1;
-                bool passed = battleIndex < battle;
-                bool current = battleIndex == battle;
-                bool master = EnemyRoster.IsMasterStage(battleIndex);
+            // 生命条：一眼看出这局还能撑多久
+            var hpTrack = Ui.Panel("HpTrack", card.transform,
+                SpriteForge.Panel(8, Theme.PanelSunken, Theme.BorderSoft, 1), Color.white);
+            hpTrack.type = Image.Type.Sliced;
+            Ui.Fixed(hpTrack.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 168f), new Vector2(520f, 18f));
 
-                // 每一关的第一战稍微抬高一点，27 个点就有了「三幕九关」的节奏感
-                float lift = EnemyRoster.StageOf(battleIndex) == 1 ? 6f : 0f;
+            float hpPct = director.HpMax <= 0 ? 0f : (float)director.Hp / director.HpMax;
+            var hpFill = Ui.Panel("HpFill", hpTrack.transform,
+                SpriteForge.Panel(8, hpPct > 0.5f ? Theme.Hp : Theme.Danger, Theme.Lighten(Theme.Hp, 0.3f), 1), Color.white);
+            hpFill.type = Image.Type.Sliced;
+            Ui.Fixed(hpFill.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(2f, 0f),
+                new Vector2(Mathf.Max(6f, 516f * hpPct), 14f));
 
-                Color dotColor = passed ? Theme.Gold : (current ? accent : Theme.TextFaint);
-                var dot = Ui.Panel("Battle" + i, card.transform,
-                    SpriteForge.Circle(20,
-                        passed || current ? Theme.WithAlpha(dotColor, 0.92f) : Theme.WithAlpha(Theme.PanelSunken, 0.85f),
-                        Theme.WithAlpha(master ? Theme.Lighten(dotColor, 0.2f) : Theme.Lighten(dotColor, 0.3f), 0.85f),
-                        master ? 2 : 1),
-                    passed || current ? Color.white : new Color(1f, 1f, 1f, 0.30f));
-
-                float size = current ? (master ? 16f : 14f) : (master ? 11f : 9f);
-                Ui.Fixed(dot.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                    new Vector2(i * pipStep - rowWidth * 0.5f, 140f + lift), new Vector2(size, size));
-            }
-
-            var progress = Ui.Label("Progress", card.transform,
-                director.RunCleared
-                    ? "已打穿全部廿七战"
-                    : "进度 " + battle + " / " + total + "　·　第 " + director.Level + " 关 " + EnemyRoster.StageNames[stage - 1],
-                Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(progress.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 106f), new Vector2(620f, 26f));
-
-            var start = Ui.TextButton("Start", card.transform, "开 始 对 局", Theme.H3, Theme.AccentDeep, Theme.Text, StartRun);
+            var start = Ui.TextButton("Start", card.transform, "继 续 冒 险", Theme.H3, Theme.AccentDeep, Theme.Text, StartRun);
             Ui.Fixed(start.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(440f, 80f));
 
-            var restart = Ui.TextButton("Restart", card.transform, "重 置 牌 组", Theme.Caption, Theme.PanelRaised, Theme.TextDim, RestartRun);
+            var restart = Ui.TextButton("Restart", card.transform, "重 开 一 局", Theme.Caption, Theme.PanelRaised, Theme.TextDim, RestartRun);
             Ui.Fixed(restart.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(440f, 38f));
         }
 
@@ -309,30 +285,28 @@ namespace Slime.Game
                 Theme.TextFaint, TextAlignmentOptions.Center);
             Ui.Fixed(caption.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -206f), new Vector2(460f, 24f));
 
-            var ids = new List<int>();
-            for (int i = App.Director.DeckIds.Count - 1; i >= 0 && ids.Count < 5; i--)
+            // 取牌组里最近的五张（去重），让玩家一眼看到自己攒了什么
+            var defs = new List<CardDef>();
+            var seen = new HashSet<int>();
+            var deck = App.Director.Deck;
+            for (int i = deck.Count - 1; i >= 0 && defs.Count < 5; i--)
             {
-                int id = App.Director.DeckIds[i];
-                if (!ids.Contains(id))
+                var d = deck[i].Def;
+                if (d != null && seen.Add(d.Id))
                 {
-                    ids.Add(id);
+                    defs.Add(d);
                 }
             }
 
             const float scale = 0.60f;
             const float gap = 16f;
             float step = CardView.W * scale + gap;      // 缩放后的实际卡宽 + 视觉间距
-            float left = -step * (ids.Count - 1) * 0.5f;
+            float left = -step * (defs.Count - 1) * 0.5f;
 
             // SetPosition 的 y 是「卡底距画布底边」，-420 即与左右两栏共底线。
-            for (int i = 0; i < ids.Count; i++)
+            for (int i = 0; i < defs.Count; i++)
             {
-                var def = App.Cards.Get(ids[i]);
-                if (def == null)
-                {
-                    continue;
-                }
-
+                var def = defs[i];
                 var view = CardView.Create(strip, def, null);
                 if (view == null)
                 {
@@ -387,7 +361,7 @@ namespace Slime.Game
         private void BuildDeckPanel()
         {
             var panel = Panel("Deck", Root, RightX, LowerTop, Bottom, ColW, Theme.Border);
-            Header(panel, "牌 组", App.Director.DeckCount + " / " + App.Director.DeckCap + " 张",
+            Header(panel, "牌 组", App.Director.DeckCount + " / " + DeckRules.DeckCap + " 张",
                 App.Director.AtDeckCap ? Theme.Gold : Theme.Accent);
 
             var composition = App.Director.DeckComposition();
@@ -456,10 +430,9 @@ namespace Slime.Game
         private void StartRun()
         {
             App.Audio.PlaySfx("ui");
-            App.RunSelfDamage = 0;
             App.Fade(0f, 1f, Theme.Fast, () =>
             {
-                App.Replace(new BattleScreen());
+                App.Replace(new MapScreen());
                 App.Fade(1f, 0f, Theme.Normal, null);
             });
         }
@@ -468,9 +441,8 @@ namespace Slime.Game
         {
             App.Audio.PlaySfx("mana");
             App.Director.StartNewRun();
-            App.RunSelfDamage = 0;
             App.PersistMeta();
-            App.Toast("牌组已重置为新的一局");
+            App.Toast("已重开一局");
             App.Replace(new HomeScreen());
         }
 
@@ -489,8 +461,7 @@ namespace Slime.Game
             {
                 SaveService.DeleteFile();
                 App.Meta.Trophy = 0;
-                App.Meta.BestLevel = 1;
-                App.Meta.BestBattle = 1;
+                App.Meta.BestChapter = 1;
                 App.Meta.RunsPlayed = 0;
                 App.Meta.Wins = 0;
                 App.Meta.Losses = 0;
@@ -499,7 +470,7 @@ namespace Slime.Game
                 App.Meta.Counters.Clear();
                 App.Meta.Flags.Clear();
                 App.Meta.RunDeck.Clear();
-                App.Meta.RunBattle = 1;
+                App.Meta.RunChapter = 1;
                 App.Director.StartNewRun();
                 App.PersistMeta();
                 Object.Destroy(dialog.gameObject);

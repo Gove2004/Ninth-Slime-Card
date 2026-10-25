@@ -131,7 +131,7 @@ namespace Slime.Game
         public BattleScreen()
         {
             var app = GameApp.I;
-            session = app.Director.CreateBattle(6001 + app.Director.Battle * 131 + app.RunSelfDamage);
+            session = app.Director.CreateBattle(app.Director.DeckCount * 131 + app.Director.Chapter * 7919);
         }
 
         protected override void Build()
@@ -157,7 +157,7 @@ namespace Slime.Game
         private void BuildArena()
         {
             // 双方各一团身后光晕：敌方系列红、玩家翠绿，一左一右界定舞台
-            var enemyGlow = Ui.Panel("EnemyGlow", Root, SpriteForge.Glow(512, Theme.WithAlpha(Theme.SeriesBlood, 0.5f)), Color.white);
+            var enemyGlow = Ui.Panel("EnemyGlow", Root, SpriteForge.Glow(512, Theme.WithAlpha(Theme.SeriesBlade, 0.5f)), Color.white);
             Ui.Fixed(enemyGlow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(StageX, PortraitY), new Vector2(900f, 640f));
 
@@ -236,8 +236,11 @@ namespace Slime.Game
             enemyHpText.text = e.Hp + " / " + e.HpMax;
 
             RebuildStatus(enemyStatusRow, e, true);
-            // 称号 + 对手手牌/牌库并成一行，不再单独立一块角标
-            enemySubLabel.text = session.EnemyInfo.Title + "  ·  手牌 " + e.Hand.Count + "  ·  牌库 " + e.Deck.Count;
+            // 敌人不持牌组，靠招式池行动——这行改成展示它本回合的行动次数与谱系
+            var enemyInfo = session.EnemyInfo;
+            int acts = enemyInfo != null ? enemyInfo.ActionsPerTurn : 1;
+            string actHint = acts > 1 ? "  ·  每回合 " + acts + " 动" : string.Empty;
+            enemySubLabel.text = enemyInfo.Family + "  ·  " + enemyInfo.Title + actHint;
         }
 
         #endregion
@@ -261,13 +264,14 @@ namespace Slime.Game
             Ui.Fixed(stageLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
                 new Vector2(20f, -12f), new Vector2(240f, 26f));
 
-            // 右侧三个小点：先锋 / 中坚 / 宗师，走过的点亮
-            for (int i = 0; i < EnemyRoster.StagesPerLevel; i++)
+            // 本章进度点：按层数铺开，走过的点亮
+            int pipCount = Mathf.Clamp(EnemyRoster.FloorsPerChapter / 2, 3, 7);
+            for (int i = 0; i < pipCount; i++)
             {
                 var pip = Ui.Panel("StagePip" + i, stageChip,
                     SpriteForge.Circle(26, Theme.PanelSunken, Theme.WithAlpha(Theme.Border, 0.8f), 1), Color.white);
                 Ui.Fixed(pip.rectTransform, new Vector2(1f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(-30f - (EnemyRoster.StagesPerLevel - 1 - i) * 30f, 0f), new Vector2(16f, 16f));
+                    new Vector2(-30f - (pipCount - 1 - i) * 30f, 0f), new Vector2(16f, 16f));
                 stagePips.Add(pip);
             }
 
@@ -302,25 +306,28 @@ namespace Slime.Game
 
         private void RefreshStageChip()
         {
-            int battle = session.Battle;
-            int stage = session.Stage;
             Color accent = Theme.SeriesColor(session.EnemyInfo.Accent);
+            var director = GameApp.I.Director;
 
-            stageActLabel.text = EnemyRoster.ActNames[EnemyRoster.ActOf(battle) - 1];
-            stageLabel.text = "第 " + session.Level + " 关 · " + EnemyRoster.StageNames[stage - 1];
-            stageCountLabel.text = battle + " / " + EnemyRoster.FinalBattle;
+            stageActLabel.text = director.ChapterName;
+            stageLabel.text = "第 " + (session.Floor + 1) + " 层 · " +
+                              (session.IsBoss ? "章节首领" : session.IsElite ? "精英" : "普通");
+            stageCountLabel.text = (session.Floor + 1) + " / " + EnemyRoster.FloorsPerChapter;
 
-            Color border = EnemyRoster.IsMasterStage(battle) ? Theme.Danger : Theme.WithAlpha(accent, 0.55f);
+            Color border = session.IsBoss ? Theme.Danger : Theme.WithAlpha(accent, 0.55f);
             stageChipFill.sprite = SpriteForge.Panel(Theme.RadiusM, Theme.WithAlpha(Theme.Panel, 0.92f), border, 1);
             stageChipFill.type = Image.Type.Sliced;
             stageChipFill.color = Color.white;
 
-            stageLabel.color = EnemyRoster.IsMasterStage(battle) ? Theme.Danger : Theme.Text;
+            stageLabel.color = session.IsBoss ? Theme.Danger : Theme.Text;
 
+            // 小点表示本章进度：走到哪一层、还剩多少
             for (int i = 0; i < stagePips.Count; i++)
             {
-                bool done = i + 1 < stage;
-                bool current = i + 1 == stage;
+                float f = stagePips.Count <= 1 ? 0f : (float)i / (stagePips.Count - 1);
+                int pipFloor = Mathf.RoundToInt(f * (EnemyRoster.FloorsPerChapter - 1));
+                bool done = pipFloor < session.Floor;
+                bool current = pipFloor == session.Floor;
                 Color c = done ? Theme.Gold : (current ? accent : Theme.TextFaint);
                 stagePips[i].sprite = SpriteForge.Circle(26,
                     Theme.WithAlpha(c, current ? 0.95f : 0.55f),
@@ -450,22 +457,22 @@ namespace Slime.Game
 
             var p = session.Player;
 
-            // 一颗大宝石替代整排珠子：当前魔力写在宝石里，上限跟在右侧
+            // 一颗大宝石替代整排珠子：当前能量写在宝石里，上限跟在右侧
             var gem = Ui.Panel("ManaGem", manaRow,
                 SpriteForge.Circle(72, Theme.Mana, Theme.Lighten(Theme.Mana, 0.45f), 4), Color.white);
             Ui.Fixed(gem.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(-42f, 0f), new Vector2(84f, 84f));
 
-            var manaText = Ui.Label("ManaText", gem.transform, p.Mana.ToString(), Theme.H3,
+            var manaText = Ui.Label("ManaText", gem.transform, p.Energy.ToString(), Theme.H3,
                 Theme.BgDeep, TextAlignmentOptions.Center);
             Ui.Stretch(manaText.rectTransform, 0f, 0f, 0f, 0f);
 
-            var value = Ui.Label("ManaValue", manaRow, "/ " + p.ManaRegen, Theme.H3, Theme.Text,
+            var value = Ui.Label("ManaValue", manaRow, "/ " + p.EnergyMax, Theme.H3, Theme.Text,
                 TextAlignmentOptions.Left);
             Ui.Fixed(value.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
                 new Vector2(14f, 8f), new Vector2(120f, 40f));
 
-            var cap = Ui.Label("ManaCap", manaRow, "魔力", Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Left);
+            var cap = Ui.Label("ManaCap", manaRow, "能量", Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Left);
             Ui.Fixed(cap.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
                 new Vector2(14f, -26f), new Vector2(120f, 24f));
         }
@@ -601,7 +608,7 @@ namespace Slime.Game
         private void UpdateDropFeedback(CardView view, bool inside)
         {
             var card = view.Instance;
-            bool affordable = card.Cost <= session.Player.Mana;
+            bool affordable = card.Cost <= session.Player.Energy;
             bool blocked = inside && !affordable;
 
             if (inside == dropHot && blocked == dropBlocked)
@@ -635,7 +642,7 @@ namespace Slime.Game
             {
                 dropZoneLabel.text = "魔 力 不 足";
                 dropZoneLabel.color = Theme.Danger;
-                dropZoneCaption.text = "需要 " + card.Cost + " 点，现有 " + session.Player.Mana + " 点 · 松手退回";
+                dropZoneCaption.text = "需要 " + card.Cost + " 点，现有 " + session.Player.Energy + " 点 · 松手退回";
                 dropZoneCaption.color = Theme.WithAlpha(Theme.Danger, 0.85f);
 
                 var flash = Theme.WithAlpha(Theme.Danger, 0.9f);
@@ -792,7 +799,7 @@ namespace Slime.Game
 
             Debug.Log("[DragProbe] OnCardDragEnd fired: " + view.Instance.Name);
             bool inside = PointerInsideZone(data);
-            bool affordable = view.Instance.Cost <= session.Player.Mana;
+            bool affordable = view.Instance.Cost <= session.Player.Energy;
 
             HideDropZone();
             SetStatusFade(1f);
@@ -899,11 +906,11 @@ namespace Slime.Game
                     return "no non-zero-cost card in hand";
                 }
 
-                session.DebugSetMana(0);
+                session.Player.Energy = 0;
             }
             else
             {
-                session.DebugSetMana(30);
+                session.Player.Energy = 30;
             }
 
             if (index < 0 || index >= handViews.Count)
@@ -1042,14 +1049,6 @@ namespace Slime.Game
             if (session.Finished)
             {
                 GameApp.I.Run(FinishAfterDelay(0.6f, session.Victory));
-                return;
-            }
-
-            if (session.EndTurnRequested)
-            {
-                settlePending = true;
-                settleTimer = 0.55f;
-                GameApp.I.Toast("回合被强制结束");
             }
         }
 
@@ -1068,9 +1067,10 @@ namespace Slime.Game
         private void OnQuitClicked()
         {
             GameApp.I.Audio.PlaySfx("ui");
-            GameApp.I.Director.SettleDefeat(BattleFacts.Capture(session, GameApp.I.RunSelfDamage));
+            // 认输即本局结束：走统一的失败结算，而不是只记一次战斗
+            GameApp.I.Director.SettleDefeat(session);
             GameApp.I.PersistMeta();
-            GameApp.I.Replace(new ResultScreen(false, session, session.Battle));
+            GameApp.I.Replace(new ResultScreen(false, session));
         }
 
         #endregion
@@ -1091,8 +1091,8 @@ namespace Slime.Game
             turnLabel.text = "第 " + session.TurnNumber + " 回合 · " +
                 (session.Phase == BattlePhase.PlayerTurn ? "你的行动"
                     : (session.Phase == BattlePhase.EnemyTurn ? "敌方行动中…" : "对决结束"));
-            drawPileCount.text = session.Player.Deck.Count.ToString();
-            discardPileCount.text = session.Player.Discard.Count.ToString();
+            drawPileCount.text = session.Player.DrawPile.Count.ToString();
+            discardPileCount.text = session.Player.DiscardPile.Count.ToString();
 
             turnLabel.color = Theme.SeriesColor(session.EnemyInfo.Accent);
         }
@@ -1135,7 +1135,7 @@ namespace Slime.Game
                 }
 
                 view.SetVisible(true);
-                view.SetAffordable(hand[i].Cost <= session.Player.Mana);
+                view.SetAffordable(hand[i].Cost <= session.Player.Energy);
                 view.SetInteractive(!busy && session.Phase == BattlePhase.PlayerTurn);
                 view.AttachDrag(this);
             }
@@ -1221,33 +1221,10 @@ namespace Slime.Game
             endTurnImage.color = Color.white;
         }
 
-        /// <summary>整张牌只对自己生效时不显示为攻击。</summary>
+        /// <summary>打向敌人还是自己：看卡定义的目标，不再靠猜 op 名字。</summary>
         private static bool IsSelfTargeted(CardInstance card)
         {
-            var def = card.Def;
-            for (int i = 0; i < def.Ops.Count; i++)
-            {
-                switch (def.Ops[i].Kind)
-                {
-                    case "dmg":
-                    case "dmgadd":
-                    case "grow":
-                    case "randdmg":
-                    case "drain":
-                    case "ssteal":
-                    case "emanalse":
-                    case "esteal":
-                    case "stealcard":
-                    case "purge":
-                    case "etakenmul":
-                    case "edmgdown":
-                    case "randomplay":
-                    case "copydraw":
-                        return false;
-                }
-            }
-
-            return true;
+            return card.Def.Target != CardTarget.Enemy;
         }
 
         private void RebuildStatus(RectTransform row, BattleUnit unit, bool onEnemy)
@@ -1265,30 +1242,17 @@ namespace Slime.Game
                 MakeChip(row, "护盾 " + unit.Shield, Theme.Shield, ref x, y);
             }
 
-            for (int i = 0; i < unit.Buffs.Count; i++)
+            // 状态统一按层数计量，增益与减益分色显示
+            foreach (var pair in unit.Status)
             {
-                MakeChip(row, unit.Buffs[i].Describe() + " (" + unit.Buffs[i].TurnsLeft + ")", Theme.Gold, ref x, y);
-            }
+                if (pair.Value <= 0)
+                {
+                    continue;
+                }
 
-            for (int i = 0; i < unit.Hooks.Count; i++)
-            {
-                string label = string.IsNullOrEmpty(unit.Hooks[i].Label) ? "持续效果" : unit.Hooks[i].Label;
-                MakeChip(row, label + " ×" + unit.Hooks[i].TurnsLeft, Theme.SeriesChrono, ref x, y);
-            }
-
-            if (unit.ImmunityCharges > 0)
-            {
-                MakeChip(row, "免疫 ×" + unit.ImmunityCharges, Theme.SeriesShadow, ref x, y);
-            }
-
-            if (unit.DodgeCharges > 0)
-            {
-                MakeChip(row, "闪避 ×" + unit.DodgeCharges, Theme.SeriesShadow, ref x, y);
-            }
-
-            if (unit.Mana > 0)
-            {
-                MakeChip(row, "魔力 " + unit.Mana, Theme.Mana, ref x, y);
+                bool isBuff = Statuses.IsBuff(pair.Key);
+                Color color = isBuff ? Theme.Gold : Theme.Danger;
+                MakeChip(row, Statuses.DisplayName(pair.Key) + " " + pair.Value, color, ref x, y);
             }
 
             // 居中排布
@@ -1337,16 +1301,16 @@ namespace Slime.Game
                 items.Add(new KeyValuePair<string, Color>("护盾 " + unit.Shield, Theme.Shield));
             }
 
-            for (int i = 0; i < unit.Buffs.Count; i++)
+            // 增益按层数统一显示。这里只列增益侧，减益走敌人那一行的 RebuildStatus。
+            foreach (var pair in unit.Status)
             {
-                items.Add(new KeyValuePair<string, Color>(
-                    unit.Buffs[i].Describe() + "  " + unit.Buffs[i].TurnsLeft, Theme.Gold));
-            }
+                if (pair.Value <= 0 || !Statuses.IsBuff(pair.Key))
+                {
+                    continue;
+                }
 
-            for (int i = 0; i < unit.Hooks.Count; i++)
-            {
-                string label = string.IsNullOrEmpty(unit.Hooks[i].Label) ? "持续" : unit.Hooks[i].Label;
-                items.Add(new KeyValuePair<string, Color>(label + "  " + unit.Hooks[i].TurnsLeft, Theme.SeriesChrono));
+                items.Add(new KeyValuePair<string, Color>(
+                    Statuses.DisplayName(pair.Key) + "  " + pair.Value, Theme.Gold));
             }
 
             // 流式排布：从左缘起依次摆，超出 380 就换行
@@ -1384,17 +1348,18 @@ namespace Slime.Game
             RefreshHand();
             RefreshEndTurnButton();
 
-            session.PlayerEndTurn();
+            session.EndPlayerTurn();
             DrainEvents();
             RefreshAll();
             UpdateLog("敌方回合");
 
             yield return new WaitForSeconds(0.45f);
 
-            session.EnemyTurnStart();
+            session.StartEnemyTurn();
             DrainEvents();
             RefreshAll();
 
+            // 逐条执行意图：敌人可能一回合多动，逐段演出比一次性结算更好读
             int guard = 0;
             while (session.Phase == BattlePhase.EnemyTurn && !session.Finished && guard++ < 12)
             {
@@ -1416,12 +1381,12 @@ namespace Slime.Game
                 yield break;
             }
 
-            session.EnemyTurnEnd();
+            // EnemyActOnce 已经把相位推进到玩家回合，这里不能再调一次结束
             DrainEvents();
             RefreshAll();
             yield return new WaitForSeconds(0.4f);
 
-            session.PlayerTurnStart();
+            session.StartPlayerTurn();
             DrainEvents();
             RefreshAll();
             UpdateLog("第 " + session.TurnNumber + " 回合，你的行动。");
@@ -1443,21 +1408,27 @@ namespace Slime.Game
         {
             var app = GameApp.I;
             var director = app.Director;
-            var facts = BattleFacts.Capture(session, app.RunSelfDamage);
 
             if (victory)
             {
-                director.SettleVictory(facts);
+                director.SettleVictory(session);
                 app.PersistMeta();
-                app.Replace(director.JustClearedRun
-                    ? (Screen)new ResultScreen(true, session, EnemyRoster.FinalBattle, true)
-                    : new RewardScreen(session, director.LastWasMasterStage));
+
+                if (director.Phase == RunPhase.Reward)
+                {
+                    // 地图流程：回地图界面选奖励，而不是弹独立结算屏
+                    app.Replace(new RewardScreen(session));
+                }
+                else
+                {
+                    app.Replace(new ResultScreen(true, session));
+                }
             }
             else
             {
-                director.SettleDefeat(facts);
+                director.SettleDefeat(session);
                 app.PersistMeta();
-                app.Replace(new ResultScreen(false, session, session.Battle));
+                app.Replace(new ResultScreen(false, session));
             }
         }
 
@@ -1504,7 +1475,7 @@ namespace Slime.Game
                     case EventKind.Shield:
                         SpawnFloat(e.Text, Theme.Shield, at + new Vector2(Random.Range(-30f, 30f), 24f), 1.0f);
                         break;
-                    case EventKind.Mana:
+                    case EventKind.Energy:
                         SpawnFloat(e.Text, Theme.Mana, at + new Vector2(Random.Range(-30f, 30f), 44f), 0.95f);
                         GameApp.I.Audio.PlaySfx("mana");
                         break;
@@ -1516,11 +1487,8 @@ namespace Slime.Game
                         UpdateLog(e.Text);
                         break;
                     case EventKind.Debuff:
-                        SpawnFloat(e.Text, Theme.SeriesShadow, at + new Vector2(0f, 64f), 1.0f);
+                        SpawnFloat(e.Text, Theme.SeriesDark, at + new Vector2(0f, 64f), 1.0f);
                         GameApp.I.Audio.PlaySfx("venom");
-                        break;
-                    case EventKind.Hook:
-                        UpdateLog(e.Text);
                         break;
                 }
             }
@@ -1681,9 +1649,9 @@ namespace Slime.Game
             RefreshAll();
         }
 
-        public void DebugSetMana(int amount)
+        public void DebugSetEnergy(int amount)
         {
-            session.DebugSetMana(amount);
+            session.Player.Energy = amount;
             DebugRefresh();
         }
 #endif

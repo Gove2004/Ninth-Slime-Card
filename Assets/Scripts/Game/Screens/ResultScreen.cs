@@ -11,14 +11,12 @@ namespace Slime.Game
         private readonly bool victory;
         private readonly bool cleared;
         private readonly BattleSession session;
-        private readonly int reachedBattle;
 
-        public ResultScreen(bool victory, BattleSession battle, int battleIndex, bool runCleared = false)
+        public ResultScreen(bool victory, BattleSession battle)
         {
             this.victory = victory;
-            cleared = runCleared;
             session = battle;
-            reachedBattle = battleIndex;
+            cleared = GameApp.I != null && GameApp.I.Director.Phase == RunPhase.Victory;
         }
 
         protected override void Build()
@@ -36,7 +34,7 @@ namespace Slime.Game
             slime.preserveAspect = true;
             if (art == null)
             {
-                slime.sprite = SpriteForge.Slime(256, victory ? Theme.Accent : Theme.SeriesShadow, Theme.BgDeep,
+                slime.sprite = SpriteForge.Slime(256, victory ? Theme.Accent : Theme.SeriesDark, Theme.BgDeep,
                     victory ? 9001 : 313, victory, victory ? SlimeFace.Happy : SlimeFace.Worried);
             }
 
@@ -50,10 +48,10 @@ namespace Slime.Game
 
             var sub = Ui.Label("Sub", Root,
                 cleared
-                    ? "廿七战全部打赢——你打穿了整个赛程。"
+                    ? "四章全部打通——你走到了深渊的尽头。"
                     : (victory
                         ? "击败了这位守关者，牌组已经补强。"
-                        : "赛程到此为止。牌组与进度都留着，可以再挑战这一战。"),
+                        : "这趟冒险到此为止。已解锁的卡牌与成就都留着。"),
                 Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(sub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -37f), new Vector2(1500f, 36f));
             Tween.FadeIn(sub, 0.3f, 0.16f, 0f, 1f);
@@ -66,9 +64,10 @@ namespace Slime.Game
             int best = session != null ? session.BestTurnDamage : 0;
             int turns = session != null ? session.TurnNumber : 0;
 
-            BuildStat(stats, "止步战序", reachedBattle + " / " + EnemyRoster.FinalBattle, Theme.Gold, 0.02f);
+            var director = App.Director;
+            BuildStat(stats, "抵达章节", director.Chapter + " / " + EnemyRoster.TotalChapters, Theme.Gold, 0.02f);
             BuildStat(stats, "总伤害", dealt.ToString(), Theme.Danger, 0.08f);
-            BuildStat(stats, "单回合最高", best.ToString(), Theme.SeriesChrono, 0.14f);
+            BuildStat(stats, "单回合最高", best.ToString(), Theme.SeriesFire, 0.14f);
             BuildStat(stats, "回合数", turns.ToString(), Theme.Mana, 0.20f);
             BuildStat(stats, "累计奖杯", App.Meta.Trophy.ToString(), Theme.Accent, 0.26f);
             BuildStat(stats, "是否通关",
@@ -101,11 +100,10 @@ namespace Slime.Game
         private void Restart()
         {
             App.Director.StartNewRun();
-            App.RunSelfDamage = 0;
             App.PersistMeta();
             App.Fade(0f, 1f, Theme.Fast, () =>
             {
-                App.Replace(new BattleScreen());
+                App.Replace(new MapScreen());
                 App.Fade(1f, 0f, Theme.Normal, null);
             });
         }

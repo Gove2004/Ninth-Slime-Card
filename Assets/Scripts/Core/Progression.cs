@@ -5,22 +5,25 @@ using System.Text;
 namespace Slime.Core
 {
     /// <summary>
-    /// 跨局存档。奖杯、最高层数、图鉴收集、成就解锁与统计数据。
+    /// 跨局存档。奖杯、图鉴收集、成就解锁与统计数据。
     /// 用 key=value 文本序列化，纯 C# 可测。
     /// </summary>
     public sealed class MetaState
     {
         public int Trophy;
-        public int BestLevel = 1;
-        /// <summary>历史最高战序（1..27），主界面按它显示赛程进度。</summary>
-        public int BestBattle = 1;
         public int RunsPlayed;
+        public int RunsCleared;
         public int Wins;
         public int Losses;
+        /// <summary>历史到达的最深章节。</summary>
+        public int BestChapter = 1;
 
-        /// <summary>当前局正在进行到第几战。局内进度随存档持久化，长赛程可中途退出。</summary>
-        public int RunBattle = 1;
-        /// <summary>当前局的牌组。为空表示还没有开局的残局可以续。</summary>
+        // ---- 当前局的续档 ----
+        public int RunChapter;
+        public int RunHp;
+        public int RunHpMax;
+        public int RunGold;
+        public int RunNodeId;
         public readonly List<int> RunDeck = new List<int>();
 
         public readonly HashSet<int> DiscoveredCards = new HashSet<int>();
@@ -59,14 +62,19 @@ namespace Slime.Core
         public string Serialize()
         {
             var sb = new StringBuilder();
-            sb.Append("v=3\n");
+            sb.Append("v=4\n");
             sb.Append("trophy=").Append(Trophy).Append('\n');
-            sb.Append("best=").Append(BestLevel).Append('\n');
-            sb.Append("bestbattle=").Append(BestBattle).Append('\n');
             sb.Append("runs=").Append(RunsPlayed).Append('\n');
+            sb.Append("cleared=").Append(RunsCleared).Append('\n');
             sb.Append("wins=").Append(Wins).Append('\n');
             sb.Append("losses=").Append(Losses).Append('\n');
-            sb.Append("runbattle=").Append(RunBattle).Append('\n');
+            sb.Append("bestchapter=").Append(BestChapter).Append('\n');
+
+            sb.Append("runchapter=").Append(RunChapter).Append('\n');
+            sb.Append("runhp=").Append(RunHp).Append('\n');
+            sb.Append("runhpmax=").Append(RunHpMax).Append('\n');
+            sb.Append("rungold=").Append(RunGold).Append('\n');
+            sb.Append("runnode=").Append(RunNodeId).Append('\n');
             sb.Append("rundeck=").Append(string.Join(",", RunDeck.ConvertAll(i => i.ToString()).ToArray())).Append('\n');
 
             sb.Append("cards=");
@@ -126,9 +134,17 @@ namespace Slime.Core
                 switch (key)
                 {
                     case "trophy": meta.Trophy = ParseInt(value, 0); break;
-                    case "best": meta.BestLevel = Math.Max(1, ParseInt(value, 1)); break;
-                    case "bestbattle": meta.BestBattle = Math.Max(1, ParseInt(value, 1)); break;
-                    case "runbattle": meta.RunBattle = Math.Max(1, ParseInt(value, 1)); break;
+                    case "runs": meta.RunsPlayed = ParseInt(value, 0); break;
+                    case "cleared": meta.RunsCleared = ParseInt(value, 0); break;
+                    case "wins": meta.Wins = ParseInt(value, 0); break;
+                    case "losses": meta.Losses = ParseInt(value, 0); break;
+                    case "bestchapter": meta.BestChapter = Math.Max(1, ParseInt(value, 1)); break;
+
+                    case "runchapter": meta.RunChapter = ParseInt(value, 0); break;
+                    case "runhp": meta.RunHp = ParseInt(value, 0); break;
+                    case "runhpmax": meta.RunHpMax = ParseInt(value, 0); break;
+                    case "rungold": meta.RunGold = ParseInt(value, 0); break;
+                    case "runnode": meta.RunNodeId = ParseInt(value, 0); break;
                     case "rundeck":
                         meta.RunDeck.Clear();
                         foreach (var piece in Split(value))
@@ -141,9 +157,7 @@ namespace Slime.Core
                         }
 
                         break;
-                    case "runs": meta.RunsPlayed = ParseInt(value, 0); break;
-                    case "wins": meta.Wins = ParseInt(value, 0); break;
-                    case "losses": meta.Losses = ParseInt(value, 0); break;
+
                     case "cards":
                         foreach (var piece in Split(value))
                         {
@@ -155,6 +169,7 @@ namespace Slime.Core
                         }
 
                         break;
+
                     case "unlocked":
                         foreach (var piece in Split(value))
                         {
@@ -162,6 +177,7 @@ namespace Slime.Core
                         }
 
                         break;
+
                     case "flags":
                         foreach (var piece in Split(value))
                         {
@@ -169,6 +185,7 @@ namespace Slime.Core
                         }
 
                         break;
+
                     case "counters":
                         foreach (var piece in Split(value))
                         {
@@ -210,22 +227,17 @@ namespace Slime.Core
     public struct BattleFacts
     {
         public bool Victory;
-        public int Battle;
-        public int Stage;
-        public int Level;
+        public int Chapter;
         public int TurnCount;
         public int DamageDealt;
         public int BestTurnDamage;
         public int CardsPlayed;
         public int CardsDrawn;
-        public int ManaGained;
+        public int EnergyGained;
         public int Healed;
         public int SelfDamageTaken;
-        public int Overheat;
-        public bool EnemyCardsPlayed;
-        public int EnemyCardsStolen;
 
-        public static BattleFacts Capture(BattleSession session, int selfDamage)
+        public static BattleFacts Capture(BattleSession session, int currentHp)
         {
             var facts = new BattleFacts();
             if (session == null)
@@ -234,17 +246,15 @@ namespace Slime.Core
             }
 
             facts.Victory = session.Victory;
-            facts.Battle = session.Battle;
-            facts.Stage = session.Stage;
-            facts.Level = session.Level;
+            facts.Chapter = session.Chapter;
             facts.TurnCount = session.TurnNumber;
             facts.DamageDealt = session.DamageDealtByPlayer;
             facts.BestTurnDamage = session.BestTurnDamage;
             facts.CardsPlayed = session.CardsPlayedByPlayer;
-            facts.CardsDrawn = session.DrawnTotal;
-            facts.ManaGained = session.ManaGainedTotal;
+            facts.CardsDrawn = session.CardsDrawnTotal;
+            facts.EnergyGained = session.ManaGainedTotal;
             facts.Healed = session.HealedTotal;
-            facts.SelfDamageTaken = selfDamage;
+            facts.SelfDamageTaken = Math.Max(0, session.Player.HpMax - currentHp);
             return facts;
         }
     }

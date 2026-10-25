@@ -141,9 +141,9 @@ namespace Slime.Game
                 SaveService.DeleteFile();
                 var meta = App.Director.Meta;
                 meta.Trophy = 0;
-                meta.BestLevel = 1;
-                meta.BestBattle = 1;
+                meta.BestChapter = 1;
                 meta.RunsPlayed = 0;
+                meta.RunsCleared = 0;
                 meta.Wins = 0;
                 meta.Losses = 0;
                 meta.DiscoveredCards.Clear();
@@ -151,7 +151,11 @@ namespace Slime.Game
                 meta.Counters.Clear();
                 meta.Flags.Clear();
                 meta.RunDeck.Clear();
-                meta.RunBattle = 1;
+                meta.RunChapter = 1;
+                meta.RunHp = 0;
+                meta.RunHpMax = 0;
+                meta.RunGold = 0;
+                meta.RunNodeId = 0;
                 App.Director.StartNewRun();
                 App.PersistMeta();
                 UnityEngine.Object.Destroy(dialog.gameObject);

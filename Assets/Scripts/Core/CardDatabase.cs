@@ -3,12 +3,18 @@ using System.Collections.Generic;
 
 namespace Slime.Core
 {
-    /// <summary>卡池。数据来自 Resources/Configs/cards.csv，纯 C# 解析。</summary>
+    /// <summary>
+    /// 卡池。数据来自 Resources/Configs/cards.csv，纯 C# 解析。
+    ///
+    /// CSV 列序：
+    /// id,名称,种类,系列,费用,数值1,数值2,数值3,描述,效果,升级1,升级2,升级3,目标,稀有度,趣闻
+    /// </summary>
     public sealed class CardDatabase
     {
         private readonly Dictionary<int, CardDef> byId = new Dictionary<int, CardDef>();
         private readonly List<CardDef> all = new List<CardDef>();
         private readonly Dictionary<CardSeries, List<CardDef>> bySeries = new Dictionary<CardSeries, List<CardDef>>();
+        private readonly Dictionary<CardKind, List<CardDef>> byKind = new Dictionary<CardKind, List<CardDef>>();
 
         public IReadOnlyList<CardDef> All { get { return all; } }
 
@@ -38,43 +44,37 @@ namespace Slime.Core
             }
 
             bucket.Add(def);
+
+            if (!byKind.TryGetValue(def.Kind, out bucket))
+            {
+                bucket = new List<CardDef>();
+                byKind[def.Kind] = bucket;
+            }
+
+            bucket.Add(def);
         }
 
         public List<CardDef> OfSeries(CardSeries series)
         {
             List<CardDef> bucket;
-            return bySeries.TryGetValue(series, out bucket) ? bucket : new List<CardDef>();
+            return bySeries.TryGetValue(series, out bucket) ? new List<CardDef>(bucket) : new List<CardDef>();
         }
 
-        public List<CardDef> OfSeries(IEnumerable<CardSeries> seriesList)
+        public List<CardDef> OfKind(CardKind kind)
         {
-            var set = new HashSet<CardSeries>();
-            foreach (var s in seriesList)
-            {
-                set.Add(s);
-            }
+            List<CardDef> bucket;
+            return byKind.TryGetValue(kind, out bucket) ? new List<CardDef>(bucket) : new List<CardDef>();
+        }
 
+        /// <summary>按稀有度筛选。</summary>
+        public List<CardDef> OfRarity(int maxRarity)
+        {
             var result = new List<CardDef>();
             for (int i = 0; i < all.Count; i++)
             {
-                if (set.Contains(all[i].Series))
+                if (all[i].Rarity <= maxRarity)
                 {
                     result.Add(all[i]);
-                }
-            }
-
-            return result;
-        }
-
-        public List<CardDef> OfSeries(CardSeries series, int minCost, int maxCost)
-        {
-            var result = new List<CardDef>();
-            var bucket = OfSeries(series);
-            for (int i = 0; i < bucket.Count; i++)
-            {
-                if (bucket[i].Cost >= minCost && bucket[i].Cost <= maxCost)
-                {
-                    result.Add(bucket[i]);
                 }
             }
 
@@ -89,7 +89,7 @@ namespace Slime.Core
             for (int i = 0; i < rows.Count; i++)
             {
                 var cells = rows[i];
-                if (cells.Length < 9)
+                if (cells.Length < 10)
                 {
                     continue;
                 }
@@ -104,25 +104,51 @@ namespace Slime.Core
                 {
                     Id = id,
                     Name = cells[1].Trim(),
-                    Series = Series.FromName(cells[2]),
-                    Cost = ParseInt(cells[3], 0),
-                    V1 = ParseInt(cells[4], 0),
-                    V2 = ParseInt(cells[5], 0),
-                    V3 = ParseInt(cells[6], 0),
-                    Raw = cells[7].Trim(),
-                    Script = cells[8].Trim()
+                    Kind = ParseKind(cells[2]),
+                    Series = Series.FromName(cells[3]),
+                    Cost = ParseInt(cells[4], 0),
+                    V1 = ParseInt(cells[5], 0),
+                    V2 = ParseInt(cells[6], 0),
+                    V3 = ParseInt(cells[7], 0),
+                    Raw = cells[8].Trim(),
+                    Script = cells[9].Trim()
                 };
 
-                if (cells.Length > 9)
-                {
-                    def.Flavor = cells[9].Trim();
-                }
+                if (cells.Length > 10) def.UpV1 = ParseInt(cells[10], 0);
+                if (cells.Length > 11) def.UpV2 = ParseInt(cells[11], 0);
+                if (cells.Length > 12) def.UpV3 = ParseInt(cells[12], 0);
+                if (cells.Length > 13) def.Target = ParseTarget(cells[13]);
+                if (cells.Length > 14) def.Rarity = ParseInt(cells[14], 0);
+                if (cells.Length > 15) def.Flavor = cells[15].Trim();
 
                 def.Ops = EffectScript.Parse(def.Script, def.V1, def.V2, def.V3);
                 db.Add(def);
             }
 
             return db;
+        }
+
+        private static CardKind ParseKind(string raw)
+        {
+            switch ((raw ?? string.Empty).Trim())
+            {
+                case "攻击": case "attack": return CardKind.Attack;
+                case "技能": case "skill": return CardKind.Skill;
+                case "咒文": case "spell": return CardKind.Spell;
+                case "能力": case "power": return CardKind.Power;
+                default: return CardKind.Attack;
+            }
+        }
+
+        private static CardTarget ParseTarget(string raw)
+        {
+            switch ((raw ?? string.Empty).Trim())
+            {
+                case "自身": case "self": return CardTarget.Self;
+                case "全体": case "all": return CardTarget.AllEnemies;
+                case "无": case "none": return CardTarget.None;
+                default: return CardTarget.Enemy;
+            }
         }
 
         private static int ParseInt(string raw, int fallback)
@@ -136,24 +162,27 @@ namespace Slime.Core
         {
             var db = new CardDatabase();
 
-            db.Add(Make(101, "普攻", CardSeries.Starter, 1, 4, "造成[数值1]点伤害", "dmg:v1"));
-            db.Add(Make(102, "治疗", CardSeries.Starter, 1, 4, "恢复[数值1]点生命", "heal:v1"));
-            db.Add(Make(103, "抽牌", CardSeries.Starter, 0, 1, "抽取[数值1]张牌", "draw:v1"));
-            db.Add(Make(105, "强击", CardSeries.Starter, 1, 6, "造成[数值1]点伤害", "dmg:v1"));
-            db.Add(Make(106, "防御", CardSeries.Starter, 1, 4, "获得[数值1]点护盾", "shield:v1"));
+            db.Add(Make(1, "斩击", CardKind.Attack, CardSeries.Strike, 1, 6, 3, "造成[数值1]点伤害", "dmg:v1"));
+            db.Add(Make(2, "格挡", CardKind.Skill, CardSeries.Light, 1, 5, 3, "获得[数值1]点护盾", "shield:v1"));
+            db.Add(Make(3, "火球", CardKind.Spell, CardSeries.Fire, 1, 7, 3, "造成[数值1]点伤害", "spdmg:v1"));
+            db.Add(Make(4, "治疗", CardKind.Spell, CardSeries.Light, 1, 6, 3, "恢复[数值1]点生命", "heal:v1"));
+            db.Add(Make(5, "冥想", CardKind.Skill, CardSeries.Arcane, 0, 1, 0, "抽[数值1]张牌", "draw:v1"));
 
             return db;
         }
 
-        private static CardDef Make(int id, string name, CardSeries series, int cost, int v1, string text, string script)
+        private static CardDef Make(int id, string name, CardKind kind, CardSeries series, int cost,
+            int v1, int up1, string text, string script)
         {
             var def = new CardDef
             {
                 Id = id,
                 Name = name,
+                Kind = kind,
                 Series = series,
                 Cost = cost,
                 V1 = v1,
+                UpV1 = up1,
                 Raw = text,
                 Script = script
             };
@@ -162,7 +191,67 @@ namespace Slime.Core
         }
     }
 
-    /// <summary>成就条目。旧版的成就靠奖杯购买解锁，同时记录统计进度。</summary>
+    /// <summary>起始牌组与奖励规则。</summary>
+    public static class DeckRules
+    {
+        /// <summary>初始牌组：5 斩击 + 4 格挡 + 1 火球（10 张，够循环起来）。</summary>
+        public static readonly int[] StarterDeck = { 1, 1, 1, 1, 1, 2, 2, 2, 2, 3 };
+
+        /// <summary>牌组上限，超过后奖励转为「换牌」。</summary>
+        public const int DeckCap = 40;
+
+        public const int StarterDeckSize = 10;
+
+        public static List<CardInstance> BuildStarter(CardDatabase db)
+        {
+            var list = new List<CardInstance>();
+            for (int i = 0; i < StarterDeck.Length; i++)
+            {
+                var def = db != null ? db.Get(StarterDeck[i]) : null;
+                if (def != null)
+                {
+                    list.Add(CardInstance.Wrap(def));
+                }
+            }
+
+            if (list.Count == 0 && db != null)
+            {
+                for (int i = 0; i < db.All.Count && list.Count < 10; i++)
+                {
+                    list.Add(CardInstance.Wrap(db.All[i]));
+                }
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// 奖励池：按章节开放稀有度，避免前期就拿到终结牌。
+        /// 自由混池——不按职业筛，只按稀有度与系列分布。
+        /// </summary>
+        public static List<CardDef> RewardPool(CardDatabase db, int chapter, bool elite)
+        {
+            int maxRarity = elite ? 2 : Math.Min(2, Math.Max(0, chapter - 1));
+            var pool = new List<CardDef>();
+            for (int i = 0; i < db.All.Count; i++)
+            {
+                var def = db.All[i];
+                if (def.Rarity <= maxRarity && def.Kind != CardKind.Power)
+                {
+                    pool.Add(def);
+                }
+            }
+
+            if (pool.Count == 0)
+            {
+                pool.AddRange(db.All);
+            }
+
+            return pool;
+        }
+    }
+
+    /// <summary>成就条目。</summary>
     public sealed class AchievementDef
     {
         public int Order;
@@ -232,43 +321,6 @@ namespace Slime.Core
             }
 
             return db;
-        }
-    }
-
-    /// <summary>起始牌组与奖励池规则。</summary>
-    public static class DeckRules
-    {
-        /// <summary>初始牌组：3 张普攻、2 张治疗、1 张抽牌。</summary>
-        public static readonly int[] StarterDeck = { 101, 101, 101, 102, 102, 103 };
-
-        public const int HandLimit = 8;
-
-        /// <summary>
-        /// 牌组容量上限。廿七战最多能给到 36 次补强，不设上限牌组会膨胀到 40+ 张，
-        /// 每回合只抽 2 张的情况下根本轮不到关键牌——所以满了之后奖励转为「换牌」。
-        /// </summary>
-        public const int DeckCap = 30;
-
-        /// <summary>奖励卡池：按当前关解锁的系列取牌，费用不超过 3，避免过早出现终结牌。</summary>
-        public static List<CardDef> RewardPool(CardDatabase db, int level)
-        {
-            var unlocked = EnemyRoster.UnlockedSeries(level);
-            var pool = db.OfSeries(unlocked);
-            var result = new List<CardDef>();
-            for (int i = 0; i < pool.Count; i++)
-            {
-                if (pool[i].Cost <= 3)
-                {
-                    result.Add(pool[i]);
-                }
-            }
-
-            if (result.Count == 0)
-            {
-                result.AddRange(pool);
-            }
-
-            return result;
         }
     }
 }

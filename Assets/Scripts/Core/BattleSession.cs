@@ -17,14 +17,16 @@ namespace Slime.Core
         Damage = 1,
         Heal = 2,
         Shield = 3,
-        Mana = 4,
+        Energy = 4,
         Draw = 5,
         Play = 6,
-        Hook = 7,
-        Debuff = 8
+        Status = 7,
+        Debuff = 8,
+        Discard = 9,
+        EnemyIntent = 10
     }
 
-    /// <summary>一条战斗播报。视图层消费它来做飘字、震屏与提示。</summary>
+    /// <summary>一条战斗播报。视图层消费它做飘字、震屏与提示。</summary>
     public struct BattleEvent
     {
         public EventKind Kind;
@@ -35,164 +37,146 @@ namespace Slime.Core
     }
 
     /// <summary>
-    /// 一局 1v1 卡牌对决。规则完整沿用旧版《第九张史莱姆牌》：
-    /// 每回合恢复魔力、抽 2 张牌；卡牌按费用出手；护盾先抵伤害；
-    /// 持续效果以"回合数"计时并在各自回合结束时递减。
+    /// 战斗配置。把回合抽牌、手牌上限、能量等从常量里解放出来，
+    /// 让遗物、事件、Boss 机制都能改写规则。
+    /// </summary>
+    public sealed class BattleRules
+    {
+        public int DrawPerTurn = 5;
+        public int HandLimit = 10;
+        public int StartingHand = 5;
+        public int EnergyPerTurn = 3;
+        /// <summary>超过这个回合数后双方开始流失生命，防止无限拉锯。</summary>
+        public int SoftTurnLimit = 30;
+
+        public static BattleRules Default()
+        {
+            return new BattleRules();
+        }
+    }
+
+    /// <summary>
+    /// 一局 1v1 回合制卡牌对决。
+    ///
+    /// 规则要点：
+    /// - 每回合能量回满（不是累加），抽 / 打 / 弃构成牌库循环，弃牌堆耗尽时洗回；
+    /// - 敌人有「可读意图」，玩家回合开始时就能看到它下回合要做什么；
+    /// - 状态是唯一的力量来源，全部按层数计量并在回合结束统一衰减。
     /// </summary>
     public sealed class BattleSession
     {
-        public const int DrawPerTurn = 2;
-        public const int StartingHand = 1;
-        /// <summary>超过这个回合数后开始结算"牌局衰减"，防止无限拉锯。</summary>
-        public const int SoftTurnLimit = 20;
-
         private readonly CardDatabase db;
         private readonly DeterministicRng rng;
         private readonly List<BattleEvent> events = new List<BattleEvent>();
 
-        private readonly List<CardInstance> resolving = new List<CardInstance>();
-        private bool resolvingHooks;
-        private int pendingHookDelay;
-        private int damageAtTurnStart;
+        private readonly BattleRules rules;
+        private readonly EnemyDef enemyDef;
+        private readonly EnemyBrain brain;
 
         public readonly BattleUnit Player;
         public readonly BattleUnit Enemy;
 
-        public int Battle = 1;
-        /// <summary>关号（1..9），由战序推导。</summary>
-        public int Level;
-        /// <summary>关内场次（1 先锋 / 2 中坚 / 3 宗师）。</summary>
-        public int Stage = 1;
         public int TurnNumber;
         public BattlePhase Phase = BattlePhase.Setup;
         public bool Victory;
         public bool Defeat;
-        /// <summary>本回合因卡牌效果被要求立刻结束（懒惰 / 怠惰）。</summary>
-        public bool EndTurnRequested;
 
-        public int DamageDealtByPlayer { get { return Player.DamageDealtTotal; } }
-        public int CardsPlayedByPlayer { get { return playedTotal; } }
+        /// <summary>本场战斗的关卡信息（地图节点带来）。</summary>
+        public int Chapter = 1;
+        public int Floor;
+        public bool IsElite;
+        public bool IsBoss;
 
-        private int playedTotal;
-        private int drawnTotal;
-        private int manaGainedTotal;
-        private int healedTotal;
-        private int bestTurnDamage;
-
-        public int BestTurnDamage { get { return bestTurnDamage; } }
-        public int DrawnTotal { get { return drawnTotal; } }
-        public int ManaGainedTotal { get { return manaGainedTotal; } }
-        public int HealedTotal { get { return healedTotal; } }
-
-        private EnemyDef enemyDef = EnemyRoster.All[0];
-
-        public BattleSession(CardDatabase database, int battle, int seed, IReadOnlyList<int> playerDeck, EnemyDef enemy)
-        {
-            db = database ?? CardDatabase.CreateFallback();
-            Battle = EnemyRoster.ClampBattle(battle);
-            Level = EnemyRoster.LevelOf(Battle);
-            Stage = EnemyRoster.StageOf(Battle);
-            rng = new DeterministicRng(seed == 0 ? 20261001 + Battle * 977 : seed);
-            enemyDef = enemy ?? EnemyRoster.ForBattle(Battle);
-
-            Player = new BattleUnit { IsPlayer = true, Name = "你" };
-            Enemy = new BattleUnit { IsPlayer = false, Name = enemyDef.Name };
-
-            BuildPlayer(playerDeck);
-            BuildEnemy();
-        }
+        public BattleRules Rules { get { return rules; } }
 
         public EnemyDef EnemyInfo { get { return enemyDef; } }
 
+        public int DamageDealtByPlayer { get { return Player.DamageDealtTotal; } }
+        public int CardsPlayedByPlayer { get { return Player.CardsPlayedTotal; } }
+        public int CardsDrawnTotal { get; private set; }
+        public int ManaGainedTotal { get; private set; }
+        public int HealedTotal { get { return Player.HealedTotal; } }
+        public int BestTurnDamage { get; private set; }
+
+        public BattleSession(CardDatabase database, EnemyDef enemy, IEnumerable<CardInstance> deck, int seed, BattleRules battleRules = null)
+        {
+            db = database ?? CardDatabase.CreateFallback();
+            enemyDef = enemy ?? EnemyRoster.Default;
+            rules = battleRules ?? BattleRules.Default();
+            rng = new DeterministicRng(seed == 0 ? 20261024 : seed);
+
+            Player = new BattleUnit { IsPlayer = true, Name = "勇者" };
+            Enemy = new BattleUnit { IsPlayer = false, Name = enemyDef.Name };
+
+            BuildPlayer(deck);
+            BuildEnemy();
+            brain = new EnemyBrain(enemyDef, rng);
+        }
+
         // ------------------------------------------------------------ 初始化
 
-        private void BuildPlayer(IReadOnlyList<int> ids)
+        private void BuildPlayer(IEnumerable<CardInstance> deck)
         {
-            Player.HpMax = EnemyRoster.PlayerHpFor(Battle);
+            Player.HpMax = enemyDef.PlayerHp;
             Player.Hp = Player.HpMax;
-            Player.Mana = 0;
-            Player.ManaRegen = 2;
+            Player.EnergyMax = rules.EnergyPerTurn;
+            Player.Energy = 0;
 
-            var source = ids != null && ids.Count > 0 ? ids : DeckRules.StarterDeck;
-            for (int i = 0; i < source.Count; i++)
+            var cards = new List<CardInstance>();
+            if (deck != null)
             {
-                var def = db.Get(source[i]);
-                if (def != null)
+                foreach (var card in deck)
                 {
-                    Player.Deck.Add(CardInstance.Wrap(def));
-                }
-            }
-
-            if (Player.Deck.Count == 0)
-            {
-                for (int i = 0; i < DeckRules.StarterDeck.Length; i++)
-                {
-                    var def = db.Get(DeckRules.StarterDeck[i]);
-                    if (def != null)
+                    if (card != null)
                     {
-                        Player.Deck.Add(CardInstance.Wrap(def));
+                        cards.Add(card.Clone());
                     }
                 }
             }
 
-            rng.Shuffle(Player.Deck);
+            if (cards.Count == 0)
+            {
+                cards.AddRange(DeckRules.BuildStarter(db));
+            }
+
+            Player.LoadDeck(cards);
+            rng.Shuffle(Player.DrawPile);
         }
 
         private void BuildEnemy()
         {
-            Enemy.HpMax = EnemyRoster.EnemyHpFor(Battle);
+            Enemy.HpMax = enemyDef.Hp;
             Enemy.Hp = Enemy.HpMax;
-            Enemy.Mana = 0;
-            Enemy.ManaRegen = EnemyRoster.EnemyManaRegenFor(Battle);
+            Enemy.EnergyMax = 3;
+            Enemy.Energy = 0;
 
-            int deckSize = EnemyRoster.EnemyDeckSizeFor(Battle);
-            var unlocked = EnemyRoster.UnlockedSeries(Level);
-            var pool = db.OfSeries(unlocked);
-
-            var attacks = new List<CardDef>();
-            for (int i = 0; i < pool.Count; i++)
+            // 敌人不再持有实体牌组——它靠 EnemyBrain 出招，牌面只是展示。
+            // 这样敌人的行为可以精确设计（多段、附状态、蓄力），而不是从卡池里随机抽。
+            foreach (var status in enemyDef.StartStatuses)
             {
-                if (pool[i].Cost <= 2 && pool[i].V1 >= 2)
-                {
-                    attacks.Add(pool[i]);
-                }
+                Enemy.SetStatus(status.Key, status.Value);
             }
-
-            int guaranteed = Math.Max(2, deckSize / 3);
-            for (int i = 0; i < guaranteed && attacks.Count > 0; i++)
-            {
-                Enemy.Deck.Add(CardInstance.Wrap(attacks[rng.Range(0, attacks.Count)]));
-            }
-
-            var fallbackPool = pool.Count > 0 ? pool : attacks;
-            while (Enemy.Deck.Count < deckSize && fallbackPool.Count > 0)
-            {
-                Enemy.Deck.Add(CardInstance.Wrap(fallbackPool[rng.Range(0, fallbackPool.Count)]));
-            }
-
-            if (Enemy.Deck.Count == 0)
-            {
-                var def = db.Get(101);
-                if (def != null)
-                {
-                    Enemy.Deck.Add(CardInstance.Wrap(def));
-                }
-            }
-
-            rng.Shuffle(Enemy.Deck);
         }
 
-        /// <summary>开局：双方各摸起手牌，玩家先行动。</summary>
+        /// <summary>开局：先手抽牌，玩家先行动。</summary>
         public void Begin()
         {
-            Draw(Player, StartingHand, false);
-            Draw(Enemy, StartingHand, false);
-            PlayerTurnStart();
+            Phase = BattlePhase.PlayerTurn;
+            TurnNumber = 1;
+            Player.ResetTurnStats();
+            Enemy.ResetTurnStats();
+
+            Draw(Player, rules.StartingHand);
+            RefreshPlayerEnergy();
+            PlanEnemyIntent();
+
+            Emit(EventKind.Info, "第 1 回合 · 你的行动", 0, false);
         }
 
-        // ------------------------------------------------------------ 回合流程
+        // ------------------------------------------------------------ 玩家回合
 
-        public void PlayerTurnStart()
+        /// <summary>开始新的玩家回合（第一回合由 Begin 处理）。</summary>
+        public void StartPlayerTurn()
         {
             if (Phase == BattlePhase.Ended)
             {
@@ -201,155 +185,38 @@ namespace Slime.Core
 
             TurnNumber++;
             Phase = BattlePhase.PlayerTurn;
-            EndTurnRequested = false;
-            damageAtTurnStart = Player.DamageDealtTotal;
+            Player.ResetTurnStats();
+            Enemy.ResetTurnStats();
 
-            Player.ResetTurnFlags();
-            Player.ClearPending();
-
-            FireHooks(Player, Enemy, HookTiming.StartTurn);
-            AddTurnMana(Player);
-            Draw(Player, DrawPerTurn, false);
-
+            TickStartOfTurn(Player);
             if (CheckEnd())
             {
                 return;
             }
 
+            if (SkipTurnIfIncapacitated(Player))
+            {
+                EndPlayerTurn();
+                return;
+            }
+
+            int drawCount = rules.DrawPerTurn - Player.GetStatus(StatusKind.Blind);
+            Draw(Player, Math.Max(0, drawCount));
+            RefreshPlayerEnergy();
+
+            PlanEnemyIntent();
             Emit(EventKind.Info, "第 " + TurnNumber + " 回合 · 你的行动", 0, false);
         }
 
-        public void PlayerEndTurn()
+        private void RefreshPlayerEnergy()
         {
-            if (Phase != BattlePhase.PlayerTurn)
-            {
-                return;
-            }
-
-            FireHooks(Player, Enemy, HookTiming.EndTurn);
-
-            int thisTurn = Player.DamageDealtTotal - damageAtTurnStart;
-            if (thisTurn > bestTurnDamage)
-            {
-                bestTurnDamage = thisTurn;
-            }
-
-            Player.TickDurations();
-            Phase = BattlePhase.EnemyTurn;
+            Player.Energy = Player.EnergyMax;
+            Emit(EventKind.Energy, "能量回满 " + Player.Energy, Player.Energy, false);
         }
-
-        public void EnemyTurnStart()
-        {
-            if (Phase == BattlePhase.Ended)
-            {
-                return;
-            }
-
-            Enemy.ResetTurnFlags();
-            Enemy.ClearPending();
-
-            FireHooks(Enemy, Player, HookTiming.StartTurn);
-            AddTurnMana(Enemy);
-            Draw(Enemy, DrawPerTurn, false);
-        }
-
-        /// <summary>敌方行动一次。返回 false 表示无牌可出，回合结束。</summary>
-        public bool EnemyActOnce()
-        {
-            if (Phase != BattlePhase.EnemyTurn || CheckEnd())
-            {
-                return false;
-            }
-
-            int chosen = -1;
-            int fallback = -1;
-
-            for (int i = 0; i < Enemy.Hand.Count; i++)
-            {
-                var card = Enemy.Hand[i];
-                if (card.Cost > Enemy.Mana)
-                {
-                    continue;
-                }
-
-                bool aggressive = IsAggressive(card.Def);
-                if (aggressive)
-                {
-                    chosen = i;
-                    break;
-                }
-
-                if (fallback < 0)
-                {
-                    fallback = i;
-                }
-            }
-
-            if (chosen < 0)
-            {
-                chosen = fallback;
-            }
-
-            if (chosen < 0)
-            {
-                return false;
-            }
-
-            bool ok = PlayInternal(Enemy, Player, chosen, true);
-            return ok;
-        }
-
-        public void EnemyTurnEnd()
-        {
-            if (Phase == BattlePhase.Ended)
-            {
-                return;
-            }
-
-            FireHooks(Enemy, Player, HookTiming.EndTurn);
-            Enemy.TickDurations();
-            ApplyAttrition();
-        }
-
-        /// <summary>
-        /// 拉锯保险：第 SoftTurnLimit 回合之后双方每回合固定流失递增的生命，
-        /// 保证任何牌组组合的对局都能在有限回合内收敛（不会被无限治疗拖死）。
-        /// </summary>
-        private void ApplyAttrition()
-        {
-            if (TurnNumber <= SoftTurnLimit)
-            {
-                return;
-            }
-
-            int pressure = TurnNumber - SoftTurnLimit;
-            HurtDirect(Player, pressure);
-            HurtDirect(Enemy, pressure);
-            Emit(EventKind.Debuff, "牌局拖太久：双方每回合流失 " + pressure + " 点生命", pressure, false);
-            CheckEnd();
-        }
-
-        private static bool IsAggressive(CardDef def)
-        {
-            if (def == null)
-            {
-                return false;
-            }
-
-            string text = def.Raw ?? string.Empty;
-            return text.Contains("造成") && text.Contains("伤害") && !text.Contains("对自身");
-        }
-
-        // ------------------------------------------------------------ 玩家出牌
 
         public bool CanPlay(CardInstance card)
         {
-            if (card == null || Phase != BattlePhase.PlayerTurn)
-            {
-                return false;
-            }
-
-            return card.Cost <= Player.Mana;
+            return card != null && Phase == BattlePhase.PlayerTurn && card.Cost <= Player.Energy;
         }
 
         public bool PlayCard(int handIndex)
@@ -364,132 +231,351 @@ namespace Slime.Core
                 return false;
             }
 
-            if (!CanPlay(Player.Hand[handIndex]))
+            var card = Player.Hand[handIndex];
+            if (!CanPlay(card))
             {
                 return false;
             }
 
-            return PlayInternal(Player, Enemy, handIndex, false);
-        }
-
-        private bool PlayInternal(BattleUnit self, BattleUnit foe, int handIndex, bool enemySide)
-        {
-            var card = self.Hand[handIndex];
-            var def = card.Def;
-
-            int extraTriggers = self.PendingExtraTriggers + card.ExtraTriggers;
-            int bonusDamage = self.PendingDamageBonus;
-            int costReduction = self.PendingCostReduction;
-
-            self.PendingExtraTriggers = 0;
-            self.PendingDamageBonus = 0;
-            self.PendingCostReduction = 0;
-            card.ExtraTriggers = 0;
-
-            if (card.IsTech)
-            {
-                extraTriggers += self.PendingTechExtraTriggers;
-                self.PendingTechExtraTriggers = 0;
-
-                if (self.PendingTechDamageBonusUses > 0)
-                {
-                    bonusDamage += self.PendingTechDamageBonus;
-                    self.PendingTechDamageBonusUses--;
-                    if (self.PendingTechDamageBonusUses <= 0)
-                    {
-                        self.PendingTechDamageBonus = 0;
-                    }
-                }
-            }
-
-            int payCost = card.Cost;
-            if (costReduction > 0)
-            {
-                payCost = Math.Max(0, payCost - costReduction);
-            }
-
-            if (payCost > self.Mana)
-            {
-                return false;
-            }
-
-            self.Mana -= payCost;
-
-            self.Hand.RemoveAt(handIndex);
-            resolving.Add(card);
-
-            Emit(EventKind.Play, (enemySide ? "敌方 · " : string.Empty) + def.Name, card.Def.Cost, enemySide);
-
-            bool blocked = false;
-            if (IsTargeted(def) && foe.ImmunityCharges > 0)
-            {
-                foe.ImmunityCharges--;
-                blocked = true;
-                Emit(EventKind.Debuff, foe.Name + " 免疫了 " + def.Name, 0, !enemySide);
-            }
-
-            if (!blocked)
-            {
-                ResolveOps(self, foe, def.Ops, card, bonusDamage);
-                for (int i = 0; i < extraTriggers; i++)
-                {
-                    if (CheckEnd())
-                    {
-                        break;
-                    }
-
-                    ResolveOps(self, foe, def.Ops, card, bonusDamage);
-                }
-            }
-
-            self.CardsPlayedThisTurn++;
-            playedTotal += enemySide ? 0 : 1;
-            if (card.IsTech)
-            {
-                self.TechCardsPlayedThisTurn++;
-            }
-
-            FireHooks(self, foe, HookTiming.UseCard);
-            if (card.IsTech)
-            {
-                FireHooks(self, foe, HookTiming.UseCardTech);
-            }
-
-            FireHooks(foe, self, HookTiming.EnemyUseCard);
-
-            resolving.Remove(card);
-            self.Discard.Add(card);
-
+            PlayInternal(Player, Enemy, handIndex);
             CheckEnd();
             return true;
         }
 
-        /// <summary>卡牌是否指向对手（用于免疫判定）。</summary>
-        private static bool IsTargeted(CardDef def)
+        private void PlayInternal(BattleUnit self, BattleUnit foe, int handIndex)
         {
-            if (def == null)
+            var card = self.Hand[handIndex];
+            var def = card.Def;
+
+            self.Energy -= card.Cost;
+            self.Hand.RemoveAt(handIndex);
+
+            self.CardsPlayedThisTurn++;
+            self.CardsPlayedTotal++;
+            if (def.Kind == CardKind.Attack)
+            {
+                self.AttacksPlayedThisTurn++;
+                self.PlayedAttackThisTurn = true;
+            }
+            else if (def.Kind == CardKind.Skill)
+            {
+                self.SkillsPlayedThisTurn++;
+            }
+
+            Emit(EventKind.Play, def.Name, card.Cost, !self.IsPlayer);
+
+            ResolveOps(self, foe, def.Ops, card);
+
+            // 能力牌（Power）打出后整场生效，不进弃牌堆
+            bool exhaust = card.Exhaust || def.Exhaust || def.Kind == CardKind.Power;
+            if (exhaust)
+            {
+                self.ExhaustPile.Add(card);
+            }
+            else
+            {
+                self.DiscardPile.Add(card);
+            }
+        }
+
+        public void EndPlayerTurn()
+        {
+            if (Phase != BattlePhase.PlayerTurn)
+            {
+                return;
+            }
+
+            int thisTurn = Player.DamageDealtThisTurn;
+            if (thisTurn > BestTurnDamage)
+            {
+                BestTurnDamage = thisTurn;
+            }
+
+            // 手牌超过上限的部分弃掉
+            DiscardExcess(Player);
+
+            TickEndOfTurn(Player);
+            if (CheckEnd())
+            {
+                return;
+            }
+
+            Phase = BattlePhase.EnemyTurn;
+        }
+
+        // ------------------------------------------------------------ 敌人回合
+
+        public void StartEnemyTurn()
+        {
+            if (Phase == BattlePhase.Ended || Phase == BattlePhase.PlayerTurn)
+            {
+                return;
+            }
+
+            Phase = BattlePhase.EnemyTurn;
+            Enemy.ResetTurnStats();
+
+            TickStartOfTurn(Enemy);
+            if (CheckEnd())
+            {
+                return;
+            }
+
+            if (SkipTurnIfIncapacitated(Enemy))
+            {
+                FinishEnemyTurn();
+            }
+        }
+
+        /// <summary>
+        /// 执行敌人的意图。返回 false 表示这个回合的动作已经做完。
+        /// 视图层逐段调用以便逐条演出。
+        /// </summary>
+        public bool EnemyActOnce()
+        {
+            if (Phase != BattlePhase.EnemyTurn || CheckEnd())
             {
                 return false;
             }
 
-            for (int i = 0; i < def.Ops.Count; i++)
+            int guard = 0;
+            while (guard++ < 8)
             {
-                string k = def.Ops[i].Kind;
-                if (k == "dmg" || k == "dmgadd" || k == "drain" || k == "ssteal"
-                    || k == "emanalse" || k == "esteal" || k == "stealcard"
-                    || k == "purge" || k == "etakenmul" || k == "edmgdown"
-                    || k == "grow" || k == "randdmg" || k == "randomplay")
+                if (TurnNumber <= rules.SoftTurnLimit)
                 {
-                    return true;
+                    // 每回合多次意图：Boss 可连续行动
+                    if (brain.Queue.Count == 0)
+                    {
+                        return false;
+                    }
+
+                    var intent = brain.Queue.Dequeue();
+                    ExecuteIntent(intent);
+                    if (CheckEnd())
+                    {
+                        return false;
+                    }
+
+                    return brain.Queue.Count > 0;
                 }
+
+                return false;
             }
 
             return false;
         }
 
+        private void FinishEnemyTurn()
+        {
+            if (Phase == BattlePhase.Ended)
+            {
+                return;
+            }
+
+            TickEndOfTurn(Enemy);
+            if (CheckEnd())
+            {
+                return;
+            }
+
+            ApplyAttrition();
+            Phase = BattlePhase.PlayerTurn;
+        }
+
+        /// <summary>敌人回合并发执行（视图层不必逐段演出时使用）。</summary>
+        public void RunEnemyTurn()
+        {
+            if (Phase != BattlePhase.EnemyTurn)
+            {
+                return;
+            }
+
+            int guard = 0;
+            while (brain.Queue.Count > 0 && guard++ < 12)
+            {
+                if (CheckEnd())
+                {
+                    return;
+                }
+
+                var intent = brain.Queue.Dequeue();
+                ExecuteIntent(intent);
+            }
+
+            FinishEnemyTurn();
+        }
+
+        private void ExecuteIntent(EnemyIntent intent)
+        {
+            if (intent == null)
+            {
+                return;
+            }
+
+            Emit(EventKind.EnemyIntent, Enemy.Name + " · " + intent.Describe(), intent.Value, true);
+
+            switch (intent.Kind)
+            {
+                case IntentKind.Attack:
+                    for (int i = 0; i < intent.Hits; i++)
+                    {
+                        if (CheckEnd())
+                        {
+                            return;
+                        }
+
+                        DealDamage(Enemy, Player, intent.Value, true);
+                    }
+
+                    break;
+
+                case IntentKind.Defend:
+                    GainShield(Enemy, intent.Value);
+                    break;
+
+                case IntentKind.Buff:
+                    if (intent.AppliesStatus != StatusKind.None)
+                    {
+                        Enemy.AddStatus(intent.AppliesStatus, intent.StatusStacks);
+                        Emit(EventKind.Status, Enemy.Name + " 获得 " + Statuses.DisplayName(intent.AppliesStatus) + " " + intent.StatusStacks, intent.StatusStacks, true);
+                    }
+
+                    break;
+
+                case IntentKind.Debuff:
+                    if (intent.AppliesStatus != StatusKind.None)
+                    {
+                        ApplyStatus(Enemy, Player, intent.AppliesStatus, intent.StatusStacks);
+                    }
+
+                    break;
+
+                case IntentKind.AttackDebuff:
+                    DealDamage(Enemy, Player, intent.Value, true);
+                    if (!CheckEnd() && intent.AppliesStatus != StatusKind.None)
+                    {
+                        ApplyStatus(Enemy, Player, intent.AppliesStatus, intent.StatusStacks);
+                    }
+
+                    break;
+
+                case IntentKind.Heal:
+                    Heal(Enemy, intent.Value);
+                    break;
+            }
+        }
+
+        /// <summary>根据敌人定义生成本回合意图（玩家回合开始时调用，供 UI 展示）。</summary>
+        private void PlanEnemyIntent()
+        {
+            brain.Plan(Enemy, Player, TurnNumber, IsElite, IsBoss);
+            if (brain.Queue.Count > 0)
+            {
+                Emit(EventKind.EnemyIntent, "敌方意图：" + brain.Queue.Peek().Describe(), brain.Queue.Peek().Value, true);
+            }
+        }
+
+        /// <summary>当前展示给玩家的敌方意图。</summary>
+        public EnemyIntent CurrentIntent
+        {
+            get { return brain.Queue.Count > 0 ? brain.Queue.Peek() : null; }
+        }
+
+        // ------------------------------------------------------------ 回合钩子
+
+        private void TickStartOfTurn(BattleUnit unit)
+        {
+            // 控制免疫只覆盖「刚醒来的那一回合」，这里先清掉
+            if (unit.ControlImmunity > 0)
+            {
+                unit.ControlImmunity--;
+            }
+
+            // 中毒：回合开始失去生命
+            int poison = unit.GetStatus(StatusKind.Poison);
+            if (poison > 0)
+            {
+                LoseHp(unit, poison);
+                Emit(EventKind.Debuff, unit.Name + " 中毒 -" + poison, poison, !unit.IsPlayer);
+                unit.AddStatus(StatusKind.Poison, -1);
+            }
+
+            // 回灵：回合开始回血
+            int aura = unit.GetStatus(StatusKind.RegenAura);
+            if (aura > 0)
+            {
+                Heal(unit, aura);
+            }
+        }
+
+        private void TickEndOfTurn(BattleUnit unit)
+        {
+            // 再生：回合结束回血
+            int regen = unit.GetStatus(StatusKind.Regen);
+            if (regen > 0)
+            {
+                Heal(unit, regen);
+            }
+
+            // 灼烧：回合结束结算后减半
+            int burn = unit.GetStatus(StatusKind.Burn);
+            if (burn > 0)
+            {
+                LoseHp(unit, burn);
+                Emit(EventKind.Debuff, unit.Name + " 灼烧 -" + burn, burn, !unit.IsPlayer);
+            }
+
+            unit.DecayStatuses();
+
+            // 护盾每回合清空（尖塔式），结界也在此时归零
+            if (unit.Shield > 0)
+            {
+                unit.Shield = 0;
+            }
+        }
+
+        /// <summary>返回 true 表示本回合因控制效果被跳过。</summary>
+        private bool SkipTurnIfIncapacitated(BattleUnit unit)
+        {
+            if (!unit.IsIncapacitated)
+            {
+                return false;
+            }
+
+            var kind = unit.HasStatus(StatusKind.Stun) ? StatusKind.Stun : StatusKind.Freeze;
+            Emit(EventKind.Debuff, unit.Name + " 被" + Statuses.DisplayName(kind) + "，跳过本回合", 0, !unit.IsPlayer);
+            if (kind == StatusKind.Freeze)
+            {
+                unit.AddStatus(StatusKind.Freeze, -1);
+            }
+            else
+            {
+                unit.SetStatus(StatusKind.Stun, 0);
+            }
+
+            // 醒来后给一回合免疫，避免被同一招连续锁住
+            unit.ControlImmunity = 1;
+            return true;
+        }
+
+        /// <summary>拉锯保险：超过软上限后双方每回合流失递增生命。</summary>
+        private void ApplyAttrition()
+        {
+            if (TurnNumber <= rules.SoftTurnLimit)
+            {
+                return;
+            }
+
+            int pressure = TurnNumber - rules.SoftTurnLimit;
+            LoseHp(Player, pressure);
+            LoseHp(Enemy, pressure);
+            Emit(EventKind.Debuff, "牌局拖太久：双方流失 " + pressure + " 点生命", pressure, false);
+            CheckEnd();
+        }
+
         // ------------------------------------------------------------ 效果解释
 
-        private void ResolveOps(BattleUnit self, BattleUnit foe, List<CardOp> ops, CardInstance src, int bonusDamage)
+        private void ResolveOps(BattleUnit self, BattleUnit foe, List<EffectOp> ops, CardInstance src)
         {
             if (ops == null)
             {
@@ -503,20 +589,11 @@ namespace Slime.Core
                     return;
                 }
 
-                if (EndTurnRequested && self.IsPlayer)
-                {
-                    // 懒惰/怠惰：结束回合，但钩子类 op 仍需挂上
-                    if (ops[i].Kind != "hook")
-                    {
-                        continue;
-                    }
-                }
-
-                Exec(self, foe, ops[i], src, bonusDamage);
+                Exec(self, foe, ops[i], src);
             }
         }
 
-        private void Exec(BattleUnit self, BattleUnit foe, CardOp op, CardInstance src, int bonusDamage)
+        private void Exec(BattleUnit self, BattleUnit foe, EffectOp op, CardInstance src)
         {
             if (op == null)
             {
@@ -531,39 +608,36 @@ namespace Slime.Core
                 {
                     for (int i = 0; i < branch.Count; i++)
                     {
-                        Exec(self, foe, branch[i], src, bonusDamage);
+                        Exec(self, foe, branch[i], src);
                     }
                 }
 
                 return;
             }
 
-            if (op.IsHook)
-            {
-                var created = self.AddHook(op.Timing, op.Hook, op.HookTurns, HookLabel(op));
-                if (created != null && pendingHookDelay > 0)
-                {
-                    created.Delay = pendingHookDelay;
-                }
+            int v1 = src != null ? src.Value1 : 0;
+            int v2 = src != null ? src.Value2 : 0;
+            int v3 = src != null ? src.Value3 : 0;
 
-                pendingHookDelay = 0;
-
-                Emit(EventKind.Hook, self.Name + " 获得持续效果：" + HookLabel(op) + " (" + op.HookTurns + " 回合)", op.HookTurns, !self.IsPlayer);
-                return;
-            }
+            bool isSpell = src != null && src.Def.Kind == CardKind.Spell;
+            int bonus = SpellBonus(self, isSpell);
 
             switch (op.Kind)
             {
                 case "dmg":
-                    DealDamage(self, foe, op.A + bonusDamage);
+                    DealDamage(self, foe, op.A + AttackBonusFor(self, src), src != null && src.Def.Kind == CardKind.Attack);
                     break;
 
-                case "dmgadd":
-                    DealDamage(self, foe, op.A);
+                case "vdmg":
+                    DealDamage(self, foe, op.A + AttackBonusFor(self, src), src != null && src.Def.Kind == CardKind.Attack);
+                    break;
+
+                case "spdmg":
+                    DealDamage(self, foe, op.A + bonus, false);
                     break;
 
                 case "selfdmg":
-                    TakeDamage(self, self, op.A, false);
+                    LoseHp(self, op.A);
                     break;
 
                 case "heal":
@@ -575,623 +649,164 @@ namespace Slime.Core
                     break;
 
                 case "draw":
-                    Draw(self, op.A, true);
+                    Draw(self, op.A);
                     break;
 
-                case "edraw":
-                    Draw(foe, op.A, true);
+                case "discard":
+                    DiscardRandom(self, op.A);
                     break;
 
-                case "mana":
-                    GainMana(self, op.A);
+                case "energy":
+                    GainEnergy(self, op.A);
                     break;
 
-                case "manalose":
-                    self.Mana = Math.Max(0, self.Mana - op.A);
-                    Emit(EventKind.Mana, self.Name + " 失去 " + op.A + " 魔力", -op.A, !self.IsPlayer);
+                case "status":
+                    ApplyStatus(self, foe, op.StatusKind, op.A);
                     break;
 
-                case "emanalse":
-                    foe.Mana = Math.Max(0, foe.Mana - op.A);
-                    Emit(EventKind.Debuff, foe.Name + " 失去 " + op.A + " 魔力", -op.A, !foe.IsPlayer);
+                case "sstatus":
+                    ApplyStatus(self, self, op.StatusKind, op.A);
                     break;
 
-                case "esteal":
-                    foe.Mana = Math.Max(0, foe.Mana - op.A);
-                    GainMana(self, op.A);
+                case "estatus":
+                    ApplyStatus(self, foe, op.StatusKind, op.A);
                     break;
 
-                case "manaloseall":
-                    self.Mana = 0;
-                    Emit(EventKind.Mana, self.Name + " 的魔力被清空", 0, !self.IsPlayer);
-                    break;
-
-                case "manalosealle":
-                    foe.Mana = 0;
-                    Emit(EventKind.Mana, foe.Name + " 的魔力被清空", 0, !foe.IsPlayer);
-                    break;
-
-                case "manaswap":
-                    self.Mana = foe.Mana;
-                    Emit(EventKind.Mana, self.Name + " 的魔力变为 " + self.Mana, self.Mana, !self.IsPlayer);
-                    break;
-
-                case "setmana":
-                    self.Mana = Math.Max(0, op.A);
-                    break;
-
-                case "setmanaboth":
-                    self.Mana = Math.Max(0, op.A);
-                    foe.Mana = Math.Max(0, op.A);
-                    Emit(EventKind.Info, "双方魔力重置为 " + op.A, op.A, false);
-                    break;
-
-                case "setregenboth":
-                    self.ManaRegen = Math.Max(0, op.A);
-                    foe.ManaRegen = Math.Max(0, op.A);
-                    Emit(EventKind.Info, "双方每回合魔力重置为 " + op.A, op.A, false);
-                    break;
-
-                case "ssteal":
-                    {
-                        int stolen = Math.Min(foe.Shield, op.A);
-                        foe.Shield -= stolen;
-                        GainShield(self, stolen);
-                        Emit(EventKind.Debuff, self.Name + " 偷取 " + stolen + " 点护盾", stolen, !self.IsPlayer);
-                        break;
-                    }
-
-                case "drain":
-                    {
-                        int lost = Math.Min(foe.Hp, op.A);
-                        HurtDirect(foe, lost);
-                        Heal(self, lost);
-                        break;
-                    }
-
-                case "healhand":
-                    Heal(self, Math.Max(0, self.Hand.Count) * op.A);
-                    break;
-
-                case "randdmg":
-                    DealDamage(self, foe, rng.Range(0, op.A + 1));
-                    break;
-
-                case "randheal":
-                    Heal(self, rng.Range(0, op.A + 1));
-                    break;
-
-                case "randmana":
-                    GainMana(self, rng.Range(0, op.A + 1));
-                    break;
-
-                case "randshield":
-                    GainShield(self, rng.Range(0, op.A + 1));
-                    break;
-
-                case "randdraw":
-                    Draw(self, rng.Range(0, op.A + 1), true);
-                    break;
-
-                case "randadd":
-                    AddRandomCards(self, Series.FromName(op.Text), Math.Max(0, op.B), op.Free);
-                    break;
-
-                case "addrandom":
-                    AddRandomCards(self, Series.FromName(op.Text), Math.Max(0, op.B), op.Free);
+                case "heal_self":
+                    Heal(self, op.A);
                     break;
 
                 case "addcard":
-                    AddCard(self, db.Get(op.A), op.B, false);
+                    AddCardToHand(self, op.A, op.B);
                     break;
 
-                case "copydraw":
-                    AddRandomCards(self, PickSeries(foe), Math.Max(1, op.A), false);
+                case "addrandom":
+                    AddRandomToHand(self, Series.FromName(op.Text), op.A);
                     break;
 
-                case "randpick":
-                    {
-                        var names = (op.Text ?? string.Empty).Split('~');
-                        if (names.Length > 0)
-                        {
-                            string pick = names[rng.Range(0, names.Length)].Trim();
-                            ApplySimple(self, foe, pick, op.B);
-                        }
-
-                        break;
-                    }
-
-                case "randpick4":
-                    {
-                        var items = (op.Text ?? string.Empty).Split('~');
-                        if (items.Length > 0)
-                        {
-                            string pick = items[rng.Range(0, items.Length)].Trim();
-                            var kv = pick.Split('=');
-                            if (kv.Length == 2)
-                            {
-                                int value;
-                                int.TryParse(kv[1].Trim(), out value);
-                                ApplySimple(self, foe, kv[0].Trim(), value);
-                            }
-                        }
-
-                        break;
-                    }
-
-                case "discardall":
-                    DiscardAll(self, foe, op);
+                case "losehp":
+                    LoseHp(self, op.A);
                     break;
 
-                case "discardrand":
-                    DiscardRandom(self, foe, op.A, op.B);
+                case "double_shield":
+                    GainShield(self, self.Shield);
                     break;
 
-                case "randomplay":
-                    {
-                        int index = RandomOtherHandIndex(self);
-                        if (index >= 0)
-                        {
-                            var target = self.Hand[index];
-                            target.ExtraTriggers += op.A;
-                            Emit(EventKind.Info, "随机打出：" + target.Name, 0, !self.IsPlayer);
-                            PlayInternal(self, foe, index, !self.IsPlayer);
-                        }
-
-                        break;
-                    }
-
-                case "randombuff":
-                    {
-                        int index = RandomOtherHandIndex(self);
-                        if (index >= 0)
-                        {
-                            self.Hand[index].ExtraTriggers += op.A;
-                            Emit(EventKind.Info, self.Hand[index].Name + " 本回合额外触发 " + op.A + " 次", op.A, !self.IsPlayer);
-                        }
-
-                        break;
-                    }
-
-                case "nextxtra":
-                    self.PendingExtraTriggers += op.A;
-                    Emit(EventKind.Info, "下一张牌额外触发 " + op.A + " 次", op.A, !self.IsPlayer);
+                case "double_poison":
+                    ApplyStatus(self, foe, StatusKind.Poison, foe.GetStatus(StatusKind.Poison));
                     break;
 
-                case "nextdmg":
-                    self.PendingDamageBonus += op.A;
+                case "multiply":
+                    // 重复上一张牌的伤害一次（配合 if 使用）
+                    DealDamage(self, foe, op.A + AttackBonusFor(self, src), src != null && src.Def.Kind == CardKind.Attack);
                     break;
 
-                case "nextcost":
-                    self.PendingCostReduction += op.A;
+                case "exhaust_hand":
+                    ExhaustHand(self, op.A);
                     break;
 
-                case "techxtra":
-                    self.PendingTechExtraTriggers += op.A;
+                case "scry":
+                    Scry(self, op.A);
                     break;
 
-                case "techdmg":
-                    self.PendingTechDamageBonus = op.A;
-                    self.PendingTechDamageBonusUses = op.B;
+                case "cleanse":
+                    self.ClearStatuses();
+                    Emit(EventKind.Status, self.Name + " 净化了所有状态", 0, !self.IsPlayer);
                     break;
 
-                case "immunity":
-                    self.ImmunityCharges += op.A;
-                    Emit(EventKind.Shield, self.Name + " 免疫 " + op.A + " 次指向效果", op.A, !self.IsPlayer);
-                    break;
-
-                case "dodge":
-                    self.DodgeCharges += op.A;
-                    Emit(EventKind.Shield, self.Name + " 闪避 " + op.A + " 次伤害", op.A, !self.IsPlayer);
-                    break;
-
-                case "transfer":
-                    self.TransferPool += op.A;
-                    Emit(EventKind.Info, self.Name + " 转移接下来 " + op.A + " 点伤害", op.A, !self.IsPlayer);
-                    break;
-
-                case "dmgup":
-                    self.AddBuff(BuffKind.DmgFlatUp, op.A, op.B > 0 ? op.B : 1);
-                    Emit(EventKind.Info, "伤害提高 " + op.A + (op.B > 1 ? "（" + op.B + " 回合）" : ""), op.A, !self.IsPlayer);
-                    break;
-
-                case "healup":
-                    self.AddBuff(BuffKind.HealFlatUp, op.A, op.B > 0 ? op.B : 1);
-                    break;
-
-                case "dmgdown":
-                    self.AddBuff(BuffKind.DmgFlatDown, op.A, op.B > 0 ? op.B : 1);
-                    Emit(EventKind.Shield, "获得 " + op.A + " 点伤害减免", op.A, !self.IsPlayer);
-                    break;
-
-                case "edmgdown":
-                    foe.AddBuff(BuffKind.DmgFlatDown, op.A, op.B > 0 ? op.B : 1);
-                    break;
-
-                case "etakenmul":
-                    foe.AddBuff(BuffKind.DmgTakenPctUp, op.A * 100, op.B > 0 ? op.B : 1);
-                    Emit(EventKind.Debuff, foe.Name + " 受到的伤害提高 " + (op.A * 100) + "%", op.A, !foe.IsPlayer);
-                    break;
-
-                case "dmgmul":
-                    self.AddBuff(BuffKind.DmgOutPctUp, (op.A - 1) * 100, op.B > 0 ? op.B : 1);
-                    Emit(EventKind.Info, "本回合伤害 ×" + op.A, op.A, !self.IsPlayer);
-                    break;
-
-                case "purge":
-                    PurgeBuffs(foe, op.A);
-                    break;
-
-                case "extend":
-                    ExtendOwnEffects(self, op.A);
-                    break;
-
-                case "settle":
-                    for (int i = 0; i < op.A; i++)
-                    {
-                        FireHooks(self, foe, HookTiming.EndTurn);
-                    }
-
-                    break;
-
-                case "stealcard":
-                    {
-                        for (int i = 0; i < op.A && foe.Deck.Count > 0; i++)
-                        {
-                            var stolen = foe.Deck[0];
-                            foe.Deck.RemoveAt(0);
-                            self.Hand.Add(stolen);
-                        }
-
-                        Emit(EventKind.Debuff, self.Name + " 偷取 " + op.A + " 张牌", op.A, !self.IsPlayer);
-                        break;
-                    }
-
-                case "storehand":
-                    {
-                        int keep = self.Hand.Count;
-                        Draw(self, keep, true);
-                        self.AddHook(HookTiming.EndTurn, new List<CardOp> { new CardOp { Kind = "draw", A = op.A } }, op.B, "传送");
-                        Emit(EventKind.Hook, "手牌被封存，每回合复制 " + op.A + " 份", op.B, !self.IsPlayer);
-                        break;
-                    }
-
-                case "mirrorhand":
-                    {
-                        self.Hand.Clear();
-                        AddRandomCards(self, PickSeries(foe), Math.Max(1, op.A), true);
-                        Emit(EventKind.Info, "手牌被替换", op.A, !self.IsPlayer);
-                        break;
-                    }
-
-                case "rampdmg":
-                    DealDamage(self, foe, op.A);
-                    break;
-
-                case "grow":
-                    {
-                        int mul = src != null ? src.PowerMul : 1;
-                        DealDamage(self, foe, op.A * mul);
-                        if (src != null)
-                        {
-                            src.PowerMul *= 2;
-                            src.CostDelta += 1;
-                        }
-
-                        break;
-                    }
-
-                case "delayed":
-                    pendingHookDelay = op.A;
-                    Emit(EventKind.Hook, "延迟 " + op.A + " 回合后生效", op.A, !self.IsPlayer);
-                    break;
-
-                case "endturn":
-                    EndTurnRequested = true;
+                default:
+                    // 未知 op 静默忽略，避免旧数据炸掉整场战斗
                     break;
             }
         }
 
-        /// <summary>条件判定。对应旧版卡面里"若……则……"的分支。</summary>
-        private bool Test(BattleUnit self, BattleUnit foe, CardOp op)
+        private static int AttackBonusFor(BattleUnit unit, CardInstance src)
         {
-            switch (op.Test)
+            if (src != null && src.Def.Kind == CardKind.Attack)
             {
-                case OpTest.Always:
+                return unit.AttackBonus;
+            }
+
+            return 0;
+        }
+
+        private static int SpellBonus(BattleUnit unit, bool isSpell)
+        {
+            return isSpell ? unit.SpellBonus : 0;
+        }
+
+        private bool Test(BattleUnit self, BattleUnit foe, EffectOp op)
+        {
+            switch (op.Cond)
+            {
+                case Condition.Always:
                     return true;
 
-                case OpTest.FirstCard:
+                case Condition.FirstCard:
                     return self.CardsPlayedThisTurn == 0;
 
-                case OpTest.PlayedOther:
-                    return self.CardsPlayedThisTurn > 0;
+                case Condition.ThirdCard:
+                    return self.CardsPlayedThisTurn >= 2;
 
-                case OpTest.PlayedTech:
-                    return self.TechCardsPlayedThisTurn > 0;
-
-                case OpTest.HalfHp:
+                case Condition.HalfHp:
                     return self.Hp * 2 <= self.HpMax;
 
-                case OpTest.HasShield:
+                case Condition.LowHp:
+                    return self.Hp * 10 <= self.HpMax * 3;
+
+                case Condition.HasShield:
                     return self.Shield > 0;
 
-                case OpTest.EnemyHasShield:
+                case Condition.EnemyHasShield:
                     return foe != null && foe.Shield > 0;
 
-                case OpTest.TookDamage:
+                case Condition.EnemyPoisoned:
+                    return foe != null && foe.GetStatus(StatusKind.Poison) > 0;
+
+                case Condition.HasStatus:
+                    return self.GetStatus((StatusKind)op.CondValue) > 0;
+
+                case Condition.HandCount:
+                    return self.Hand.Count >= op.CondValue;
+
+                case Condition.EnergyZero:
+                    return self.Energy <= 0;
+
+                case Condition.TookDamage:
                     return self.TookDamageThisTurn;
 
-                case OpTest.HandGte:
-                    return self.Hand.Count >= op.TestValue;
+                case Condition.DrawPileLow:
+                    return self.DrawPile.Count <= op.CondValue;
 
-                case OpTest.EnemyManaHigher:
-                    return foe != null && foe.Mana > self.Mana;
-
-                case OpTest.EnemyAttackedMe:
-                    return self.EnemyAttackedMeThisTurn;
-
-                case OpTest.HasSeed:
-                    for (int i = 0; i < self.Hand.Count; i++)
-                    {
-                        if (self.Hand[i].Def.Series == CardSeries.Seed)
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-
-                case OpTest.NoOtherHand:
-                    return self.Hand.Count == 0;
+                case Condition.EveryOtherTurn:
+                    return TurnNumber % 2 == 0;
 
                 default:
                     return true;
             }
         }
 
-        private static string HookLabel(CardOp op)
-        {
-            switch (op.Timing)
-            {
-                case HookTiming.StartTurn: return "回合开始";
-                case HookTiming.EndTurn: return "回合结束";
-                case HookTiming.UseCard: return "出牌后";
-                case HookTiming.UseCardTech: return "科技牌触发";
-                case HookTiming.EnemyUseCard: return "敌方出牌时";
-                case HookTiming.Heal: return "恢复时";
-                case HookTiming.Hurt: return "受伤时";
-                case HookTiming.DealDamage: return "造成伤害时";
-                default: return "持续效果";
-            }
-        }
-
-        private CardSeries PickSeries(BattleUnit source)
-        {
-            if (source == Enemy)
-            {
-                var unlocked = EnemyRoster.UnlockedSeries(Level);
-                return unlocked[rng.Range(0, unlocked.Count)];
-            }
-
-            return CardSeries.Starter;
-        }
-
-        private int RandomOtherHandIndex(BattleUnit unit)
-        {
-            return unit.Hand.Count == 0 ? -1 : rng.Range(0, unit.Hand.Count);
-        }
-
-        private void ApplySimple(BattleUnit self, BattleUnit foe, string name, int value)
-        {
-            switch (name)
-            {
-                case "dmg": DealDamage(self, foe, value); break;
-                case "heal": Heal(self, value); break;
-                case "mana": GainMana(self, value); break;
-                case "shield": GainShield(self, value); break;
-                case "draw": Draw(self, value, true); break;
-            }
-        }
-
-        private void DiscardAll(BattleUnit self, BattleUnit foe, CardOp op)
-        {
-            string mode = op.Text ?? string.Empty;
-            int count = self.Hand.Count;
-            self.Hand.Clear();
-
-            switch (mode)
-            {
-                case "heal":
-                    Heal(self, count * Math.Max(1, op.B));
-                    break;
-                case "mana":
-                    GainMana(self, count);
-                    break;
-                case "draw":
-                    Draw(self, count, true);
-                    break;
-                case "manaheal":
-                    GainMana(self, count);
-                    Heal(self, count);
-                    break;
-            }
-
-            Emit(EventKind.Info, "弃掉 " + count + " 张手牌", count, !self.IsPlayer);
-        }
-
-        private void DiscardRandom(BattleUnit self, BattleUnit foe, int healAmount, int sinMana)
-        {
-            if (self.Hand.Count == 0)
-            {
-                Heal(self, healAmount);
-                return;
-            }
-
-            int index = rng.Range(0, self.Hand.Count);
-            var card = self.Hand[index];
-            bool wasSin = card.Def.Series == CardSeries.Sin;
-            self.Hand.RemoveAt(index);
-            self.Discard.Add(card);
-
-            Heal(self, healAmount);
-            if (wasSin)
-            {
-                GainMana(self, sinMana);
-            }
-
-            Emit(EventKind.Info, "弃掉 " + card.Name + "，恢复 " + healAmount + " 点生命", healAmount, !self.IsPlayer);
-        }
-
-        private void PurgeBuffs(BattleUnit target, int count)
-        {
-            int removed = 0;
-            for (int i = 0; i < count && target.Buffs.Count > 0; i++)
-            {
-                int index = rng.Range(0, target.Buffs.Count);
-                Emit(EventKind.Debuff, "驱散：" + target.Buffs[index].Describe(), 0, !target.IsPlayer);
-                target.Buffs.RemoveAt(index);
-                removed++;
-            }
-
-            if (target.Hooks.Count > 0 && removed < count)
-            {
-                target.Hooks.RemoveAt(rng.Range(0, target.Hooks.Count));
-                removed++;
-            }
-        }
-
-        private void ExtendOwnEffects(BattleUnit unit, int turns)
-        {
-            for (int i = 0; i < unit.Buffs.Count; i++)
-            {
-                unit.Buffs[i].TurnsLeft += turns;
-            }
-
-            for (int i = 0; i < unit.Hooks.Count; i++)
-            {
-                unit.Hooks[i].Times += turns;
-            }
-
-            Emit(EventKind.Hook, "所有持续效果延长 " + turns + " 回合", turns, !unit.IsPlayer);
-        }
-
-        private void AddCard(BattleUnit unit, CardDef def, int count, bool free)
-        {
-            if (def == null)
-            {
-                return;
-            }
-
-            for (int i = 0; i < count; i++)
-            {
-                var inst = CardInstance.Wrap(def);
-                if (free)
-                {
-                    inst.FreeTurns = 1;
-                }
-
-                unit.Hand.Add(inst);
-            }
-        }
-
-        private void AddRandomCards(BattleUnit unit, CardSeries series, int count, bool free)
-        {
-            var pool = db.OfSeries(series);
-            if (pool.Count == 0)
-            {
-                pool = db.OfSeries(EnemyRoster.UnlockedSeries(Level));
-            }
-
-            if (pool.Count == 0)
-            {
-                return;
-            }
-
-            for (int i = 0; i < count; i++)
-            {
-                AddCard(unit, pool[rng.Range(0, pool.Count)], 1, free);
-            }
-        }
-
         // ------------------------------------------------------------ 数值管线
 
-        private void AddTurnMana(BattleUnit unit)
-        {
-            GainMana(unit, unit.ManaRegen);
-        }
-
-        public void GainMana(BattleUnit unit, int amount)
-        {
-            if (amount <= 0)
-            {
-                return;
-            }
-
-            unit.Mana += amount;
-            unit.ManaGainedTotal += amount;
-            if (unit.IsPlayer)
-            {
-                manaGainedTotal += amount;
-            }
-
-            Emit(EventKind.Mana, "+" + amount + " 魔力", amount, !unit.IsPlayer);
-        }
-
-        public void GainShield(BattleUnit unit, int amount)
-        {
-            if (amount <= 0)
-            {
-                return;
-            }
-
-            unit.Shield += amount;
-            Emit(EventKind.Shield, "+" + amount + " 护盾", amount, !unit.IsPlayer);
-        }
-
-        public void Heal(BattleUnit unit, int amount)
-        {
-            if (amount <= 0)
-            {
-                return;
-            }
-
-            amount += unit.BuffValue(BuffKind.HealFlatUp);
-            int before = unit.Hp;
-            unit.Hp = Math.Min(unit.HpMax, unit.Hp + amount);
-            int gained = unit.Hp - before;
-            unit.HealedTotal += gained;
-            if (unit.IsPlayer)
-            {
-                healedTotal += gained;
-            }
-
-            Emit(EventKind.Heal, "+" + gained + " 生命", gained, !unit.IsPlayer);
-            if (gained > 0)
-            {
-                FireHooks(unit, unit == Player ? Enemy : Player, HookTiming.Heal);
-            }
-        }
-
-        /// <summary>攻击管线：加成 → 百分比 → 目标减免。</summary>
-        public void DealDamage(BattleUnit source, BattleUnit target, int raw)
+        public void DealDamage(BattleUnit source, BattleUnit target, int raw, bool isAttack)
         {
             if (raw <= 0 || target == null || Phase == BattlePhase.Ended)
             {
                 return;
             }
 
-            int amount = raw + source.BuffValue(BuffKind.DmgFlatUp);
-            int pctUp = source.BuffValue(BuffKind.DmgOutPctUp);
-            if (pctUp > 0)
+            int amount = raw;
+
+            // 虚弱：输出 -25%
+            if (source.HasStatus(StatusKind.Weak))
             {
-                amount = amount * (100 + pctUp) / 100;
+                amount = amount * 3 / 4;
             }
 
-            amount -= target.BuffValue(BuffKind.DmgFlatDown);
-            int takenPct = target.BuffValue(BuffKind.DmgTakenPctUp);
-            if (takenPct > 0)
+            // 易伤：受伤 +50%
+            if (target.HasStatus(StatusKind.Vulnerable))
             {
-                amount = amount * (100 + takenPct) / 100;
+                amount = amount * 3 / 2;
             }
 
             if (amount < 1)
@@ -1199,45 +814,45 @@ namespace Slime.Core
                 amount = 1;
             }
 
-            int applied = TakeDamage(target, source, amount, true);
+            int applied = TakeDamage(target, amount);
             source.DamageDealtTotal += applied;
-            if (applied > 0 && target.IsPlayer)
-            {
-                target.EnemyAttackedMeThisTurn = true;
-            }
+            source.DamageDealtThisTurn += applied;
 
             if (applied > 0)
             {
-                FireHooks(source, target, HookTiming.DealDamage);
+                target.TookDamageThisTurn = true;
+            }
+
+            // 荆棘：受到攻击时反弹
+            if (isAttack && applied > 0)
+            {
+                int thorns = target.GetStatus(StatusKind.Thorns);
+                if (thorns > 0 && source != null && !source.IsDead)
+                {
+                    LoseHp(source, thorns);
+                    Emit(EventKind.Damage, target.Name + " 荆棘反弹 " + thorns, thorns, source.IsPlayer);
+                }
             }
         }
 
-        /// <summary>伤害结算：闪避 → 转移 → 护盾 → 生命。</summary>
-        private int TakeDamage(BattleUnit target, BattleUnit source, int amount, bool fromCombat)
+        /// <summary>伤害结算：结界 → 护盾 → 生命。</summary>
+        private int TakeDamage(BattleUnit target, int amount)
         {
             if (amount <= 0)
             {
                 return 0;
             }
 
-            if (fromCombat && target.DodgeCharges > 0)
+            int barrier = target.GetStatus(StatusKind.Barrier);
+            if (barrier > 0)
             {
-                target.DodgeCharges--;
-                Emit(EventKind.Shield, target.Name + " 闪避了这次伤害", 0, !target.IsPlayer);
-                return 0;
-            }
-
-            if (fromCombat && target.TransferPool > 0)
-            {
-                int moved = Math.Min(target.TransferPool, amount);
-                target.TransferPool -= moved;
-                amount -= moved;
-                var other = target == Player ? Enemy : Player;
-                HurtDirect(other, moved);
-                Emit(EventKind.Damage, "伤害转移 " + moved + " 点", moved, other.IsPlayer);
+                int absorbedBarrier = Math.Min(barrier, amount);
+                target.AddStatus(StatusKind.Barrier, -absorbedBarrier);
+                amount -= absorbedBarrier;
+                Emit(EventKind.Shield, "结界抵挡 " + absorbedBarrier, absorbedBarrier, !target.IsPlayer);
                 if (amount <= 0)
                 {
-                    return moved;
+                    return absorbedBarrier;
                 }
             }
 
@@ -1255,26 +870,17 @@ namespace Slime.Core
                 hpLoss = Math.Min(target.Hp, amount);
                 target.Hp -= hpLoss;
                 target.DamageTakenThisTurn += hpLoss;
-                target.TookDamageThisTurn = true;
+                target.DamageTakenTotal += hpLoss;
             }
 
-            int total = absorbed + hpLoss;
-            Emit(EventKind.Damage,
-                (hpLoss > 0 ? "-" + hpLoss : string.Empty) + (absorbed > 0 ? (hpLoss > 0 ? " " : "") + "护盾-" + absorbed : string.Empty),
-                total, !target.IsPlayer);
-
-            if (hpLoss > 0)
-            {
-                FireHooks(target, source, HookTiming.Hurt);
-            }
-
-            return total;
+            Emit(EventKind.Damage, "-" + hpLoss, hpLoss, !target.IsPlayer);
+            return absorbed + hpLoss;
         }
 
-        /// <summary>无视护盾的直接生命损失（吸血 / 转移 / 借命）。</summary>
-        private void HurtDirect(BattleUnit unit, int amount)
+        /// <summary>无视护盾的直接生命损失（中毒 / 灼烧 / 自伤 / 流失）。</summary>
+        private void LoseHp(BattleUnit unit, int amount)
         {
-            if (amount <= 0)
+            if (amount <= 0 || unit == null)
             {
                 return;
             }
@@ -1282,89 +888,229 @@ namespace Slime.Core
             int lost = Math.Min(unit.Hp, amount);
             unit.Hp -= lost;
             unit.DamageTakenThisTurn += lost;
+            unit.DamageTakenTotal += lost;
             unit.TookDamageThisTurn = true;
             Emit(EventKind.Damage, "-" + lost, lost, !unit.IsPlayer);
         }
 
-        public void Draw(BattleUnit unit, int count, bool announce)
+        public void Heal(BattleUnit unit, int amount)
         {
-            int limit = unit.IsPlayer ? DeckRules.HandLimit : 12;
-            for (int i = 0; i < count; i++)
-            {
-                if (unit.Hand.Count >= limit)
-                {
-                    break;
-                }
-
-                if (unit.Deck.Count == 0)
-                {
-                    if (unit.Discard.Count == 0)
-                    {
-                        break;
-                    }
-
-                    unit.Deck.AddRange(unit.Discard);
-                    unit.Discard.Clear();
-                    rng.Shuffle(unit.Deck);
-                }
-
-                if (unit.Deck.Count == 0)
-                {
-                    break;
-                }
-
-                var card = unit.Deck[0];
-                unit.Deck.RemoveAt(0);
-                unit.Hand.Add(card);
-            }
-
-            if (announce)
-            {
-                Emit(EventKind.Draw, "抽牌", count, !unit.IsPlayer);
-            }
-        }
-
-        // ------------------------------------------------------------ 钩子
-
-        private void FireHooks(BattleUnit unit, BattleUnit foe, HookTiming timing)
-        {
-            if (resolvingHooks || unit.Hooks.Count == 0)
+            if (amount <= 0 || unit == null)
             {
                 return;
             }
 
-            resolvingHooks = true;
-            var snapshot = new List<Hook>(unit.Hooks);
-
-            for (int i = 0; i < snapshot.Count; i++)
+            int before = unit.Hp;
+            unit.Hp = Math.Min(unit.HpMax, unit.Hp + amount);
+            int gained = unit.Hp - before;
+            unit.HealedTotal += gained;
+            if (gained > 0)
             {
-                var hook = snapshot[i];
-                if (hook.Timing != timing || hook.Times <= 0 || hook.Delay > 0 || !unit.Hooks.Contains(hook))
-                {
-                    continue;
-                }
+                Emit(EventKind.Heal, "+" + gained + " 生命", gained, !unit.IsPlayer);
+            }
+        }
 
-                hook.Fired++;
-                for (int k = 0; k < hook.Ops.Count; k++)
-                {
-                    var op = hook.Ops[k];
-                    if (op.Kind == "rampdmg")
-                    {
-                        var ramped = new CardOp
-                        {
-                            Kind = "rampdmg",
-                            A = op.A + op.B * (hook.Fired - 1)
-                        };
-                        Exec(unit, foe, ramped, null, 0);
-                    }
-                    else
-                    {
-                        Exec(unit, foe, op, null, 0);
-                    }
-                }
+        public void GainShield(BattleUnit unit, int amount)
+        {
+            if (amount <= 0 || unit == null)
+            {
+                return;
             }
 
-            resolvingHooks = false;
+            amount += unit.ShieldBonus;
+
+            if (unit.HasStatus(StatusKind.Frail))
+            {
+                amount = amount * 3 / 4;
+            }
+
+            if (amount <= 0)
+            {
+                return;
+            }
+
+            unit.Shield += amount;
+            Emit(EventKind.Shield, "+" + amount + " 护盾", amount, !unit.IsPlayer);
+        }
+
+        public void GainEnergy(BattleUnit unit, int amount)
+        {
+            if (amount <= 0 || unit == null)
+            {
+                return;
+            }
+
+            unit.Energy += amount;
+            if (unit.IsPlayer)
+            {
+                ManaGainedTotal += amount;
+            }
+
+            Emit(EventKind.Energy, "+" + amount + " 能量", amount, !unit.IsPlayer);
+        }
+
+        private void ApplyStatus(BattleUnit source, BattleUnit target, StatusKind kind, int stacks)
+        {
+            if (kind == StatusKind.None || stacks <= 0 || target == null)
+            {
+                return;
+            }
+
+            // 控制免疫窗口内不吃冻/晕。窗口在脱离控制后的那一回合生效，
+            // 否则「每回合都施加控制」会把对方永久锁死。
+            if ((kind == StatusKind.Freeze || kind == StatusKind.Stun) && target.HasControlImmunity)
+            {
+                Emit(EventKind.Status, target.Name + " 免疫了" + Statuses.DisplayName(kind), 0, !target.IsPlayer);
+                return;
+            }
+
+            target.AddStatus(kind, stacks);
+            Emit(EventKind.Status,
+                target.Name + " 获得 " + Statuses.DisplayName(kind) + " " + stacks,
+                stacks, !target.IsPlayer);
+        }
+
+        public void Draw(BattleUnit unit, int count)
+        {
+            int drawn = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (unit.Hand.Count >= rules.HandLimit)
+                {
+                    break;
+                }
+
+                if (unit.DrawPile.Count == 0)
+                {
+                    Reshuffle(unit);
+                }
+
+                if (unit.DrawPile.Count == 0)
+                {
+                    break;
+                }
+
+                var card = unit.DrawPile[unit.DrawPile.Count - 1];
+                unit.DrawPile.RemoveAt(unit.DrawPile.Count - 1);
+                unit.Hand.Add(card);
+                drawn++;
+            }
+
+            if (drawn > 0)
+            {
+                if (unit.IsPlayer)
+                {
+                    CardsDrawnTotal += drawn;
+                }
+
+                Emit(EventKind.Draw, "抽 " + drawn + " 张", drawn, !unit.IsPlayer);
+            }
+        }
+
+        /// <summary>弃牌堆洗回抽牌堆。洗牌时打出一次「洗牌」播报，让玩家知道循环了一圈。</summary>
+        private void Reshuffle(BattleUnit unit)
+        {
+            if (unit.DiscardPile.Count == 0)
+            {
+                return;
+            }
+
+            unit.DrawPile.AddRange(unit.DiscardPile);
+            unit.DiscardPile.Clear();
+            rng.Shuffle(unit.DrawPile);
+            Emit(EventKind.Draw, "弃牌堆洗回", unit.DrawPile.Count, !unit.IsPlayer);
+        }
+
+        private void DiscardExcess(BattleUnit unit)
+        {
+            while (unit.Hand.Count > rules.HandLimit)
+            {
+                int last = unit.Hand.Count - 1;
+                var card = unit.Hand[last];
+                unit.Hand.RemoveAt(last);
+                unit.DiscardPile.Add(card);
+                Emit(EventKind.Discard, "弃掉 " + card.Name, 1, !unit.IsPlayer);
+            }
+        }
+
+        private void DiscardRandom(BattleUnit unit, int count)
+        {
+            for (int i = 0; i < count && unit.Hand.Count > 0; i++)
+            {
+                int index = rng.Range(0, unit.Hand.Count);
+                var card = unit.Hand[index];
+                unit.Hand.RemoveAt(index);
+                unit.DiscardPile.Add(card);
+                Emit(EventKind.Discard, "弃掉 " + card.Name, 1, !unit.IsPlayer);
+            }
+        }
+
+        private void ExhaustHand(BattleUnit unit, int count)
+        {
+            for (int i = 0; i < count && unit.Hand.Count > 0; i++)
+            {
+                int index = rng.Range(0, unit.Hand.Count);
+                var card = unit.Hand[index];
+                unit.Hand.RemoveAt(index);
+                unit.ExhaustPile.Add(card);
+                Emit(EventKind.Discard, "消耗 " + card.Name, 1, !unit.IsPlayer);
+            }
+        }
+
+        /// <summary>观星：查看抽牌堆顶若干张，把不想要的弃掉。</summary>
+        private void Scry(BattleUnit unit, int count)
+        {
+            int discarded = 0;
+            for (int i = 0; i < count && unit.DrawPile.Count > 0; i++)
+            {
+                var card = unit.DrawPile[unit.DrawPile.Count - 1];
+                unit.DrawPile.RemoveAt(unit.DrawPile.Count - 1);
+                unit.DiscardPile.Add(card);
+                discarded++;
+            }
+
+            if (discarded > 0)
+            {
+                Emit(EventKind.Discard, "观星弃掉 " + discarded + " 张", discarded, !unit.IsPlayer);
+            }
+        }
+
+        private void AddCardToHand(BattleUnit unit, int cardId, int count)
+        {
+            var def = db.Get(cardId);
+            if (def == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                if (unit.Hand.Count >= rules.HandLimit)
+                {
+                    return;
+                }
+
+                unit.Hand.Add(CardInstance.Wrap(def));
+            }
+        }
+
+        private void AddRandomToHand(BattleUnit unit, CardSeries series, int count)
+        {
+            var pool = db.OfSeries(series);
+            if (pool.Count == 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                if (unit.Hand.Count >= rules.HandLimit)
+                {
+                    return;
+                }
+
+                unit.Hand.Add(CardInstance.Wrap(pool[rng.Range(0, pool.Count)]));
+            }
         }
 
         // ------------------------------------------------------------ 结算
@@ -1420,19 +1166,19 @@ namespace Slime.Core
 
         // ------------------------------------------------------------ 调试
 
-        public void DebugGrantMana(int amount)
+        public void DebugGrantEnergy(int amount)
         {
-            GainMana(Player, amount);
+            GainEnergy(Player, amount);
         }
 
-        public void DebugSetMana(int amount)
+        public void DebugSetHp(int hp)
         {
-            Player.Mana = amount;
+            Player.Hp = Math.Max(1, Math.Min(Player.HpMax, hp));
         }
 
         public string DeckSummary()
         {
-            return "牌库 " + Player.Deck.Count + " / 手牌 " + Player.Hand.Count + " / 弃牌 " + Player.Discard.Count;
+            return "抽 " + Player.DrawPile.Count + " / 手 " + Player.Hand.Count + " / 弃 " + Player.DiscardPile.Count;
         }
     }
 }

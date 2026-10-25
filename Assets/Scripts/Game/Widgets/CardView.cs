@@ -115,7 +115,9 @@ namespace Slime.Game
             nameLabel = Ui.Label("Name", Root, def.Name, 26, Theme.Text, TextAlignmentOptions.Center);
             Ui.Fixed(nameLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(W - 20f, 34f));
 
-            descLabel = Ui.Label("Desc", Root, Wrap(def.Text(), series), 15,
+            // 用实例文本而不是模板文本：牌升级后卡面数值必须跟着变，
+            // 否则锻造完看上去跟没升一样。
+            descLabel = Ui.Label("Desc", Root, Wrap(inst.DisplayText, series), 15,
                 Theme.WithAlpha(Theme.Text, 0.92f), TextAlignmentOptions.Top);
             Ui.Fixed(descLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(W - 26f, 56f));
             descLabel.lineSpacing = 2f;

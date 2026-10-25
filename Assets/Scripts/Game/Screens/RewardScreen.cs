@@ -17,7 +17,6 @@ namespace Slime.Game
         private const float CardGap = 48f;
 
         private readonly BattleSession session;
-        private readonly bool masterStage;
 
         private RectTransform content;
         private TextMeshProUGUI headline;
@@ -30,29 +29,29 @@ namespace Slime.Game
 
         private int round;
 
-        public RewardScreen(BattleSession battle, bool master)
+        public RewardScreen(BattleSession battle)
         {
             session = battle;
-            masterStage = master;
         }
 
-        /// <summary>宗师战两轮选牌，其余一场一轮。</summary>
-        private int TotalRounds { get { return masterStage ? 2 : 1; } }
+        /// <summary>精英与首领额外多给一轮奖励，普通战一轮。</summary>
+        private int TotalRounds { get { return session != null && (session.IsElite || session.IsBoss) ? 2 : 1; } }
 
         protected override void Build()
         {
             App.Audio.PlayMusic("title2");
 
             var director = App.Director;
-            int wonBattle = Mathf.Max(1, director.Battle - 1);
+            var defeated = director.LastEnemy;
 
             BuildHeader("战 利 品",
-                EnemyRoster.Describe(wonBattle) + " 已清空",
+                (defeated != null ? defeated.Name : "对手") + " 已被击败",
                 string.Empty);
 
             stageLine = Ui.Label("StageLine", Root,
-                EnemyRoster.ActNames[EnemyRoster.ActOf(wonBattle) - 1]
-                + "  ·  赛程 " + wonBattle + " / " + EnemyRoster.FinalBattle,
+                director.ChapterName
+                + "  ·  第 " + (director.Floor + 1) + " 层"
+                + "  ·  生命 " + director.Hp + " / " + director.HpMax,
                 Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
             Ui.Fixed(stageLine.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -96f), new Vector2(1400f, 26f));
@@ -96,7 +95,7 @@ namespace Slime.Game
         {
             var director = App.Director;
             int count = director.DeckCount;
-            int cap = director.DeckCap;
+            int cap = DeckRules.DeckCap;
 
             deckInfo.text = "当前牌组 " + count + " / " + cap
                             + (count >= cap ? "　·　已满，奖励将以「替换」形式加入" : "　·　还可加入 " + (cap - count) + " 张");
@@ -125,14 +124,11 @@ namespace Slime.Game
             // 候选一出现就记入图鉴：单局没选的牌，跨局仍然会慢慢集齐
             App.Director.MarkSeen(list);
 
-            bool bonus = round > 0 && masterStage;
-            string bonusSeries = App.Director.LastDefeated != null
-                ? Series.DisplayName(App.Director.LastDefeated.Accent)
-                : string.Empty;
+            bool bonus = round > 0;
             headline.text = bonus
-                ? "宗师额外奖励 · 再从「" + bonusSeries + "」选一张"
+                ? "精英额外奖励 · 再选一张"
                 : "选择一张卡牌加入牌组";
-            headline.color = bonus ? Theme.SeriesChrono : Theme.Gold;
+            headline.color = bonus ? Theme.SeriesBlade : Theme.Gold;
             headline.rectTransform.localScale = Vector3.one * 0.9f;
             Tween.Scale(headline.rectTransform, 0.9f, 1f, 0.28f, Easing.OutBack);
 
@@ -234,7 +230,7 @@ namespace Slime.Game
             Tween.PopIn(panel.rectTransform, 0f, 0.9f);
 
             var title = Ui.Label("Title", panel.transform,
-                "牌组已满 " + App.Director.DeckCount + " / " + App.Director.DeckCap,
+                "牌组已满 " + App.Director.DeckCount + " / " + DeckRules.DeckCap,
                 Theme.H2, Theme.Gold, TextAlignmentOptions.Center);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -30f), new Vector2(1200f, 44f));
@@ -330,7 +326,7 @@ namespace Slime.Game
             Ui.Fixed(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
                 new Vector2(76f, 10f), new Vector2(420f, 30f));
 
-            var desc = Ui.Label("Desc", img.transform, def.Text(), Theme.Caption, Theme.TextDim, TextAlignmentOptions.Left);
+            var desc = Ui.Label("Desc", img.transform, def.Text(0), Theme.Caption, Theme.TextDim, TextAlignmentOptions.Left);
             Ui.Fixed(desc.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
                 new Vector2(76f, -18f), new Vector2(700f, 24f));
 
@@ -352,10 +348,11 @@ namespace Slime.Game
 
         private void Advance()
         {
+            App.Director.LeaveNode();
             App.PersistMeta();
             App.Fade(0f, 1f, Theme.Fast, () =>
             {
-                App.Replace(new BattleScreen());
+                App.Replace(new MapScreen());
                 App.Fade(1f, 0f, Theme.Normal, null);
             });
         }

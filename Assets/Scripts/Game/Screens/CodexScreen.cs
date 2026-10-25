@@ -179,7 +179,7 @@ namespace Slime.Game
                 known ? Theme.Text : Theme.TextFaint, TextAlignmentOptions.Left);
             Ui.Fixed(name.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -34f), new Vector2(250f, 28f));
 
-            string body = known ? def.Text() : "在冒险中获取后解锁";
+            string body = known ? def.Text(0) : "在冒险中获取后解锁";
             var text = Ui.Label("Text", tile.transform, body, 14,
                 known ? Theme.TextDim : Theme.TextFaint, TextAlignmentOptions.TopLeft);
             Ui.Fixed(text.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -58f), new Vector2(250f, 50f));

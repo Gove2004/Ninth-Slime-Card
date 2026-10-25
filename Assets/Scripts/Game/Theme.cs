@@ -28,15 +28,15 @@ namespace Slime.Game
         public static readonly Color Shield = Hex("#9FB4CC");
         public static readonly Color Hp = Hex("#E8556B");
 
-        // ---- 八系列配色 ----
-        public static readonly Color SeriesStarter = Hex("#8FA6BF"); // 初始 · 中性钢灰
-        public static readonly Color SeriesSin = Hex("#C9553F");     // 七罪 · 罪火
-        public static readonly Color SeriesBlood = Hex("#D8344F");   // 血族 · 猩红
-        public static readonly Color SeriesFortify = Hex("#C8A24A"); // 坚固 · 古铜
-        public static readonly Color SeriesTech = Hex("#3FC8D8");    // 科技 · 青蓝
-        public static readonly Color SeriesSeed = Hex("#7BC24A");    // 种子 · 苗绿
-        public static readonly Color SeriesShadow = Hex("#8465D6");  // 暗影 · 幽紫
-        public static readonly Color SeriesChrono = Hex("#D9A0E8");  // 时序 · 淡紫
+        // ---- 八系列配色（战技 / 剑技 / 炎咒 / 冰咒 / 雷咒 / 光咒 / 暗咒 / 秘术）----
+        public static readonly Color SeriesStrike = Hex("#8FA6BF");  // 战技 · 中性钢灰
+        public static readonly Color SeriesBlade = Hex("#D9553F");   // 剑技 · 火焰赤
+        public static readonly Color SeriesFire = Hex("#E8862A");    // 炎咒 · 橙金
+        public static readonly Color SeriesIce = Hex("#4FA8D8");     // 冰咒 · 寒蓝
+        public static readonly Color SeriesThunder = Hex("#E0C452");  // 雷咒 · 电黄
+        public static readonly Color SeriesLight = Hex("#EFE3B0");    // 光咒 · 暖白
+        public static readonly Color SeriesDark = Hex("#8465D6");     // 暗咒 · 幽紫
+        public static readonly Color SeriesArcane = Hex("#4FC0A8");   // 秘术 · 青碧
 
         public const int H1 = 46;
         public const int H2 = 34;
@@ -62,14 +62,14 @@ namespace Slime.Game
         {
             switch (series)
             {
-                case CardSeries.Starter: return SeriesStarter;
-                case CardSeries.Sin: return SeriesSin;
-                case CardSeries.Blood: return SeriesBlood;
-                case CardSeries.Fortify: return SeriesFortify;
-                case CardSeries.Tech: return SeriesTech;
-                case CardSeries.Seed: return SeriesSeed;
-                case CardSeries.Shadow: return SeriesShadow;
-                case CardSeries.Chrono: return SeriesChrono;
+                case CardSeries.Strike: return SeriesStrike;
+                case CardSeries.Blade: return SeriesBlade;
+                case CardSeries.Fire: return SeriesFire;
+                case CardSeries.Ice: return SeriesIce;
+                case CardSeries.Thunder: return SeriesThunder;
+                case CardSeries.Light: return SeriesLight;
+                case CardSeries.Dark: return SeriesDark;
+                case CardSeries.Arcane: return SeriesArcane;
                 default: return TextFaint;
             }
         }

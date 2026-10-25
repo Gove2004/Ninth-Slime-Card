@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Slime.Core;
 using Slime.Game;
 using UnityEngine;
@@ -33,16 +34,30 @@ namespace Slime.DevTools
                     app.Replace(new HomeScreen());
                     break;
 
+                case "map":
+                    EnsureRun(app);
+                    app.Replace(new MapScreen());
+                    break;
+
                 case "battle":
                     EnsureRun(app);
-                    app.Replace(new BattleScreen());
+                    EnterKind(app, NodeKind.Battle);
+                    break;
+
+                case "battle-elite":
+                    EnsureRun(app);
+                    EnterKind(app, NodeKind.Elite);
+                    break;
+
+                case "battle-boss":
+                    EnsureRun(app);
+                    EnterKind(app, NodeKind.Boss);
                     break;
 
                 case "battle-demo":
                     EnsureRun(app);
                     {
-                        var battle = new BattleScreen();
-                        app.Replace(battle);
+                        var battle = EnterKind(app, NodeKind.Battle);
                         PlayDemo(battle, 4);
                     }
                     break;
@@ -50,8 +65,7 @@ namespace Slime.DevTools
                 case "battle-danger":
                     EnsureRun(app);
                     {
-                        var battle = new BattleScreen();
-                        app.Replace(battle);
+                        var battle = EnterKind(app, NodeKind.Battle);
                         HurtPlayer(battle, 7);
                     }
                     break;
@@ -59,8 +73,7 @@ namespace Slime.DevTools
                 case "battle-full":
                     EnsureRun(app);
                     {
-                        var battle = new BattleScreen();
-                        app.Replace(battle);
+                        var battle = EnterKind(app, NodeKind.Battle);
                         FillHand(battle, 8);
                     }
                     break;
@@ -78,33 +91,46 @@ namespace Slime.DevTools
                 case "drag-play":
                     EnsureRun(app);
                     {
-                        // 把界面摆成"正在拖动一张牌"的样子，验收拖放反馈（可打出/魔力不足/区外）
-                        var battle = new BattleScreen();
-                        app.Replace(battle);
+                        // 把界面摆成"正在拖动一张牌"的样子，验收拖放反馈
+                        var battle = EnterKind(app, NodeKind.Battle);
                         FillHand(battle, 6);
                         return battle.DebugDrag(key.Substring(5));
                     }
 
+                case "treasure":
+                    EnsureRun(app);
+                    EnterKind(app, NodeKind.Treasure);
+                    break;
+
+                case "rest":
+                    EnsureRun(app);
+                    EnterKind(app, NodeKind.Rest);
+                    break;
+
+                case "shop":
+                    EnsureRun(app);
+                    EnterKind(app, NodeKind.Shop);
+                    break;
+
+                case "event":
+                    EnsureRun(app);
+                    EnterKind(app, NodeKind.Event);
+                    break;
+
                 case "reward":
                     EnsureRun(app);
                     {
-                        var session = WinBattle(app);
-                        app.Replace(new RewardScreen(session, app.Director.LastWasMasterStage));
+                        var session = WinBattle(app, NodeKind.Battle);
+                        app.Replace(new RewardScreen(session));
                     }
                     break;
 
-                case "reward-master":
+                case "reward-elite":
                     EnsureRun(app);
                     {
-                        // 推到关底宗师战再结算，用来验收"双轮选牌 + 牌组替换"
-                        while (!EnemyRoster.IsMasterStage(app.Director.Battle)
-                               && app.Director.Battle < EnemyRoster.FinalBattle)
-                        {
-                            WinBattle(app);
-                        }
-
-                        var session = WinBattle(app);
-                        app.Replace(new RewardScreen(session, app.Director.LastWasMasterStage));
+                        // 精英战奖励是两轮，用来验收"再选一张"
+                        var session = WinBattle(app, NodeKind.Elite);
+                        app.Replace(new RewardScreen(session));
                     }
                     break;
 
@@ -113,21 +139,21 @@ namespace Slime.DevTools
                     {
                         // 把牌组灌到上限，验收"牌组已满 → 替换"流程
                         var pool = app.Cards.All;
-                        for (int i = 0; app.Director.DeckCount < app.Director.DeckCap && pool.Count > 0; i++)
+                        for (int i = 0; app.Director.DeckCount < DeckRules.DeckCap && pool.Count > 0; i++)
                         {
                             app.Director.TakeReward(pool[i % pool.Count]);
                         }
 
-                        var session = WinBattle(app);
-                        app.Replace(new RewardScreen(session, app.Director.LastWasMasterStage));
+                        var session = WinBattle(app, NodeKind.Battle);
+                        app.Replace(new RewardScreen(session));
                     }
                     break;
 
                 case "result-win":
                     EnsureRun(app);
                     {
-                        var session = WinBattle(app);
-                        app.Replace(new ResultScreen(true, session, app.Director.Battle));
+                        var session = WinBattle(app, NodeKind.Boss);
+                        app.Replace(new ResultScreen(true, session));
                     }
                     break;
 
@@ -135,7 +161,7 @@ namespace Slime.DevTools
                     EnsureRun(app);
                     {
                         var session = LoseBattle(app);
-                        app.Replace(new ResultScreen(false, session, app.Director.Battle));
+                        app.Replace(new ResultScreen(false, session));
                     }
                     break;
 
@@ -161,6 +187,70 @@ namespace Slime.DevTools
             return "jumped:" + key;
         }
 
+        /// <summary>
+        /// 直接构造指定类型的节点并进入它，跳过地图上找这类节点的麻烦。
+        /// 节点挂到当前地图上但不加入可达集合——这样离开时就停在原地，不会真的推进。
+        /// </summary>
+        private static BattleScreen EnterKind(GameApp app, NodeKind kind)
+        {
+            var director = app.Director;
+            director.EnsureRun();
+
+            var map = director.Map;
+            if (map != null)
+            {
+                MapNode match = null;
+                for (int i = 0; i < map.Nodes.Count; i++)
+                {
+                    if (map.Nodes[i].Kind == kind)
+                    {
+                        match = map.Nodes[i];
+                        break;
+                    }
+                }
+
+                if (match != null)
+                {
+                    director.Reachable.Add(match.Id);
+                    director.EnterNode(match.Id);
+                }
+            }
+
+            // 地图里找不到这类节点（比如刚进第一章第一层只有战斗）就手动补一个
+            if (director.CurrentNode == null || director.CurrentNode.Kind != kind)
+            {
+                var node = new MapNode
+                {
+                    Id = 9000 + (int)kind,
+                    Kind = kind,
+                    Floor = director.Floor,
+                    X = 0.5f,
+                    Y = 0.5f
+                };
+                director.Map.Nodes.Add(node);
+                director.Reachable.Add(node.Id);
+                director.EnterNode(node.Id);
+            }
+
+            if (kind == NodeKind.Treasure || kind == NodeKind.Rest
+                || kind == NodeKind.Shop || kind == NodeKind.Event)
+            {
+                switch (kind)
+                {
+                    case NodeKind.Treasure: app.Replace(new TreasureScreen()); break;
+                    case NodeKind.Rest: app.Replace(new RestScreen()); break;
+                    case NodeKind.Shop: app.Replace(new ShopScreen()); break;
+                    default: app.Replace(new EventScreen()); break;
+                }
+
+                return null;
+            }
+
+            var battle = new BattleScreen();
+            app.Replace(battle);
+            return battle;
+        }
+
         /// <summary>给图鉴/成就屏填充演示数据，便于验收排版。</summary>
         public static string SeedDemo()
         {
@@ -171,20 +261,20 @@ namespace Slime.DevTools
             }
 
             app.Meta.Trophy = 420;
-            app.Meta.BestLevel = 6;
-            app.Meta.BestBattle = 17;
+            app.Meta.BestChapter = 3;
             app.Meta.RunsPlayed = 14;
+            app.Meta.RunsCleared = 2;
             app.Meta.Wins = 5;
             app.Meta.Losses = 9;
 
             app.Meta.AddCounter("score", 18400);
             app.Meta.AddCounter("draw", 520);
             app.Meta.AddCounter("play", 430);
-            app.Meta.AddCounter("mana", 980);
+            app.Meta.AddCounter("energy", 980);
             app.Meta.AddCounter("heal", 610);
-            app.Meta.Flags.Add("draw_draw");
             app.Meta.Flags.Add("overheat");
-            app.Meta.Flags.Add("clear_easy");
+            app.Meta.Flags.Add("fast_kill");
+            app.Meta.Flags.Add("elite_slayer");
 
             var all = app.Cards.All;
             for (int i = 0; i < all.Count; i += 3)
@@ -192,9 +282,13 @@ namespace Slime.DevTools
                 app.Meta.Discover(all[i].Id);
             }
 
+            app.Director.EnsureRun();
             for (int i = 0; i < all.Count; i += 7)
             {
-                app.Director.DeckIds.Add(all[i].Id);
+                if (!app.Director.AtDeckCap)
+                {
+                    app.Director.TakeReward(all[i]);
+                }
             }
 
             app.EvaluateAndFlush();
@@ -212,18 +306,19 @@ namespace Slime.DevTools
                 return "no GameApp in scene";
             }
 
-            app.Director.DeckIds.Clear();
+            app.Director.EnsureRun();
+            app.Director.Deck.Clear();
             var all = app.Cards.All;
             for (int i = 0; i < all.Count; i++)
             {
                 app.Meta.Discover(all[i].Id);
-                if (all[i].Cost <= 3)
+                if (all[i].Cost <= 3 && app.Director.Deck.Count < DeckRules.DeckCap)
                 {
-                    app.Director.DeckIds.Add(all[i].Id);
+                    app.Director.TakeReward(all[i]);
                 }
             }
 
-            return "deck=" + app.Director.DeckIds.Count;
+            return "deck=" + app.Director.DeckCount;
         }
 
         // ------------------------------------------------------------ 自检
@@ -307,7 +402,7 @@ namespace Slime.DevTools
             // 1) 解析完整性
             int noOps = 0;
             int badText = 0;
-            var perSeries = new System.Collections.Generic.Dictionary<CardSeries, int>();
+            var perSeries = new Dictionary<CardSeries, int>();
             for (int i = 0; i < db.All.Count; i++)
             {
                 var def = db.All[i];
@@ -317,7 +412,7 @@ namespace Slime.DevTools
                     sb.Append("\n  [no-ops] ").Append(def.Id).Append(' ').Append(def.Name);
                 }
 
-                string text = def.Text();
+                string text = def.Text(0);
                 if (text != null && text.Contains("[数值"))
                 {
                     badText++;
@@ -338,36 +433,30 @@ namespace Slime.DevTools
                 sb.Append("\n  ").Append(Series.DisplayName(series)).Append(" = ").Append(n);
             }
 
-            // 2) 每张卡单独打出一次（取赛程中段的一战作为环境）
-            int probeBattle = EnemyRoster.FinalBattle / 2;
+            // 2) 每张卡单独打出一次，环境取第一章的一只普通怪
+            var probeEnemy = ScaleEnemy(EnemyRoster.Default, 1, 1, false);
             int crashed = 0;
             for (int i = 0; i < db.All.Count; i++)
             {
                 var def = db.All[i];
-                var deck = new System.Collections.Generic.List<int> { def.Id };
-                var session = new BattleSession(db, probeBattle, 4242 + def.Id, deck, EnemyRoster.ForBattle(probeBattle));
+                var deck = new List<CardInstance> { CardInstance.Wrap(def) };
+                var session = new BattleSession(db, probeEnemy, deck, 4242 + def.Id);
                 session.Begin();
-                session.DebugSetMana(30);
 
                 try
                 {
                     for (int k = 0; k < 6 && session.Player.Hand.Count > 0 && !session.Finished; k++)
                     {
+                        session.Player.Energy = 30;
                         session.PlayCard(0);
-                        session.DebugSetMana(30);
                     }
 
-                    session.PlayerEndTurn();
-                    session.EnemyTurnStart();
-                    for (int k = 0; k < 8 && !session.Finished; k++)
+                    if (!session.Finished)
                     {
-                        if (!session.EnemyActOnce())
-                        {
-                            break;
-                        }
+                        session.EndPlayerTurn();
+                        session.StartEnemyTurn();
+                        session.RunEnemyTurn();
                     }
-
-                    session.EnemyTurnEnd();
                 }
                 catch (System.Exception e)
                 {
@@ -379,56 +468,62 @@ namespace Slime.DevTools
 
             sb.Append("\ncardCrash=").Append(crashed);
 
-            // 3) 单场收敛性：廿七战逐战取样 × 3 个种子，用固定策略打到底
+            // 3) 单怪收敛性：四章 × 各池子取样，用固定策略打到底
             int stuck = 0;
             int wins = 0;
             int losses = 0;
             int maxTurns = 0;
             var lossMap = new System.Text.StringBuilder();
+            int batches = 0;
 
-            for (int battle = 1; battle <= EnemyRoster.FinalBattle; battle++)
+            for (int chapter = 1; chapter <= EnemyRoster.TotalChapters; chapter++)
             {
-                int battleLosses = 0;
-                for (int seed = 0; seed < 3; seed++)
+                var pool = EnemyRoster.NormalPool(chapter);
+                for (int p = 0; p < pool.Count; p++)
                 {
-                    var session = new BattleSession(db, battle, 9000 + battle * 97 + seed, null, EnemyRoster.ForBattle(battle));
-                    session.Begin();
-                    RunToEnd(session);
+                    for (int seed = 0; seed < 2; seed++)
+                    {
+                        batches++;
+                        var enemy = ScaleEnemy(pool[p], chapter, 6, false);
+                        var session = new BattleSession(db, enemy, null, 9000 + chapter * 97 + p * 7 + seed);
+                        session.Begin();
+                        RunToEnd(session);
 
-                    if (!session.Finished)
-                    {
-                        stuck++;
-                    }
-                    else if (session.Victory)
-                    {
-                        wins++;
-                    }
-                    else
-                    {
-                        losses++;
-                        battleLosses++;
-                    }
+                        if (!session.Finished)
+                        {
+                            stuck++;
+                        }
+                        else if (session.Victory)
+                        {
+                            wins++;
+                        }
+                        else
+                        {
+                            losses++;
+                            lossMap.Append(' ').Append(enemy.Id).Append(':')
+                                   .Append(enemy.Name);
+                        }
 
-                    if (session.TurnNumber > maxTurns)
-                    {
-                        maxTurns = session.TurnNumber;
+                        if (session.TurnNumber > maxTurns)
+                        {
+                            maxTurns = session.TurnNumber;
+                        }
                     }
-                }
-
-                if (battleLosses > 0)
-                {
-                    lossMap.Append(' ').Append(battle).Append(':').Append(battleLosses);
                 }
             }
 
-            sb.Append("\nbatches=").Append(EnemyRoster.FinalBattle * 3)
+            sb.Append("\nbatches=").Append(batches)
               .Append(" stuck=").Append(stuck)
               .Append(" wins=").Append(wins)
               .Append(" losses=").Append(losses)
-              .Append(" maxTurns=").Append(maxTurns)
-              .Append(" 败点(战:次)=").Append(lossMap.Length > 0 ? lossMap.ToString() : "无");
+              .Append(" maxTurns=").Append(maxTurns);
 
-            // 4) 整局循环：从第 1 战打到通关，验证牌组上限 / 奖励产出 / 宗师战双轮
+            if (lossMap.Length > 0)
+            {
+                sb.Append("\n败点=").Append(lossMap.ToString());
+            }
+
+            // 4) 整局循环：从第一章打到通关或阵亡，验证地图推进 / 奖励产出 / 牌组上限
             sb.Append("\n").Append(RunLoopCheck(db, achievements));
 
             // 5) 音频资源：键名与目录是否对得上（失配会静默无声）
@@ -438,54 +533,100 @@ namespace Slime.DevTools
         }
 
         /// <summary>
+        /// 按章节/层数缩放一只怪，用于自检取样。
+        /// 与 RunDirector 的缩放规则保持一致，否则自检打出来的数值跟实际对局不是一回事。
+        /// </summary>
+        private static EnemyDef ScaleEnemy(EnemyDef template, int chapter, int floor, bool elite)
+        {
+            var scaled = new EnemyDef
+            {
+                Id = template.Id,
+                Name = template.Name,
+                Title = template.Title,
+                Family = template.Family,
+                Blurb = template.Blurb,
+                Sprite = template.Sprite,
+                Chapter = template.Chapter,
+                Accent = template.Accent,
+                Seed = template.Seed,
+                IsElite = elite,
+                IsBoss = template.IsBoss,
+                ActionsPerTurn = template.ActionsPerTurn,
+                Hp = EnemyRoster.ScaleHp(template.Hp, chapter, floor, elite),
+                PlayerHp = EnemyRoster.PlayerHpForChapter(chapter)
+            };
+
+            foreach (var pair in template.StartStatuses)
+            {
+                scaled.StartStatuses[pair.Key] = pair.Value;
+            }
+
+            for (int i = 0; i < template.Moves.Count; i++)
+            {
+                var m = template.Moves[i];
+                scaled.Moves.Add(new EnemyMove
+                {
+                    Label = m.Label,
+                    Kind = m.Kind,
+                    Damage = m.Damage > 0 ? EnemyRoster.ScaleDamage(m.Damage, chapter, floor, elite) : 0,
+                    Hits = m.Hits,
+                    Shield = m.Shield > 0 ? m.Shield + (chapter - 1) * 3 : 0,
+                    Heal = m.Heal > 0 ? m.Heal + (chapter - 1) * 2 : 0,
+                    Status = m.Status,
+                    StatusStacks = m.StatusStacks,
+                    Weight = m.Weight,
+                    Cooldown = m.Cooldown,
+                    OnlyBelowHpPct = m.OnlyBelowHpPct
+                });
+            }
+
+            return scaled;
+        }
+
+        /// <summary>
         /// 模拟玩家打到底：优先出攻击牌，出不动了再出功能牌，最后结束回合。
-        /// 比"无脑出第一张"更接近真实操作，用来判断难度曲线是否合理。
+        /// 按相位驱动，而不是按"玩家回合一次"——被冻结时相位会被推进到敌方回合，
+        /// 按回合数驱动的写法会在这里误判为战斗未结束。
         /// </summary>
         private static void RunToEnd(BattleSession session)
         {
             int guard = 0;
-            while (!session.Finished && guard < 90)
+            while (!session.Finished && guard++ < 300)
             {
-                guard++;
-
-                for (int k = 0; k < 8 && !session.Finished; k++)
+                if (session.Phase == BattlePhase.PlayerTurn)
                 {
-                    int pick = PickCard(session);
-                    if (pick < 0)
+                    for (int k = 0; k < 12 && !session.Finished; k++)
                     {
-                        break;
+                        int pick = PickCard(session);
+                        if (pick < 0)
+                        {
+                            break;
+                        }
+
+                        session.PlayCard(pick);
                     }
 
-                    session.PlayCard(pick);
-                    if (session.EndTurnRequested)
+                    if (!session.Finished)
                     {
-                        break;
+                        session.EndPlayerTurn();
                     }
+
+                    continue;
                 }
 
-                if (session.Finished)
+                if (session.Phase == BattlePhase.EnemyTurn)
                 {
-                    return;
-                }
-
-                session.PlayerEndTurn();
-                session.EnemyTurnStart();
-                for (int k = 0; k < 10 && !session.Finished; k++)
-                {
-                    if (!session.EnemyActOnce())
+                    session.StartEnemyTurn();
+                    session.RunEnemyTurn();
+                    if (!session.Finished)
                     {
-                        break;
+                        session.StartPlayerTurn();
                     }
+
+                    continue;
                 }
 
-                if (session.Finished)
-                {
-                    return;
-                }
-
-                session.EnemyTurnEnd();
-                session.PlayerTurnStart();
-                session.TakeEvents();
+                break;
             }
         }
 
@@ -534,7 +675,7 @@ namespace Slime.DevTools
             return def == null ? int.MinValue : AttackWeight(def) * 4 + def.Cost;
         }
 
-        private static void AccumulateWeight(System.Collections.Generic.List<CardOp> ops, ref int weight)
+        private static void AccumulateWeight(List<EffectOp> ops, ref int weight)
         {
             if (ops == null)
             {
@@ -554,7 +695,6 @@ namespace Slime.DevTools
                         break;
                     case "drain":
                     case "ssteal":
-                    case "emanalse":
                     case "esteal":
                     case "stealcard":
                         weight += 8;
@@ -563,143 +703,241 @@ namespace Slime.DevTools
 
                 AccumulateWeight(op.Then, ref weight);
                 AccumulateWeight(op.Else, ref weight);
-                AccumulateWeight(op.Hook, ref weight);
             }
         }
 
         /// <summary>
-        /// 跑一整局（廿七战 + 每战拿奖励），检查：
-        /// 战斗数是否与卡池节奏匹配、牌组是否守住上限、宗师战是否真的给两轮。
+        /// 跑一整局（走地图直到通关或阵亡），检查：
+        /// 章节推进是否顺畅、牌组是否守住上限、奖励是否产出、最深能到第几章。
         /// </summary>
         private static string RunLoopCheck(CardDatabase db, AchievementDatabase achievements)
         {
             var director = new RunDirector(db, achievements, new MetaState(), 31337);
             director.StartNewRun();
 
+            int nodes = 0;
             int battles = 0;
             int picks = 0;
             int swaps = 0;
-            int masterRounds = 0;
-            int emptyChoices = 0;
-            int retries = 0;
-            int failedAt = 0;
             int peakDeck = director.DeckCount;
+            int deepestChapter = 1;
+            bool cleared = false;
 
-            while (battles < 60)
+            while (nodes < 200)
             {
-                // 重试要吃不同种子，否则"重打一次"等于把同一场败仗回放四遍
-                var session = director.CreateBattle(1000 + battles * 31 + retries * 7);
-                RunToEnd(session);
-                var facts = BattleFacts.Capture(session, 0);
+                if (director.Phase == RunPhase.Victory)
+                {
+                    cleared = true;
+                    break;
+                }
 
-                if (!session.Finished)
+                if (director.Phase == RunPhase.Defeat)
                 {
                     break;
                 }
 
-                if (!session.Victory)
+                var reachable = director.ReachableNodes();
+                if (reachable.Count == 0)
                 {
-                    director.SettleDefeat(facts);
-                    retries++;
-                    if (retries > 8)
+                    break;
+                }
+
+                // 简单策略：优先精英与战斗，血量低时优先篝火
+                var node = reachable[0];
+                bool critical = director.HpMax > 0 && director.Hp * 100 / director.HpMax < 40;
+                for (int i = 0; i < reachable.Count; i++)
+                {
+                    var candidate = reachable[i];
+                    if (critical && candidate.Kind == NodeKind.Rest)
                     {
-                        failedAt = director.Battle;
+                        node = candidate;
                         break;
                     }
 
-                    continue;
-                }
-
-                retries = 0;
-                bool master = EnemyRoster.IsMasterStage(director.Battle);
-                director.SettleVictory(facts);
-                battles++;
-
-                int rounds = master ? 2 : 1;
-                if (master)
-                {
-                    masterRounds++;
-                }
-
-                for (int r = 0; r < rounds; r++)
-                {
-                    var options = director.BuildRewardChoices(3);
-                    if (options.Count == 0)
+                    if (!critical && (candidate.Kind == NodeKind.Elite || candidate.Kind == NodeKind.Boss))
                     {
-                        emptyChoices++;
-                        continue;
+                        node = candidate;
+                        break;
                     }
+                }
 
-                    if (director.AtDeckCap)
-                    {
-                        // 换掉牌组里进攻价值最低的那张——玩家真会这么干
-                        int worstId = director.DeckIds[0];
-                        int worstScore = int.MaxValue;
-                        for (int d = 0; d < director.DeckIds.Count; d++)
+                director.EnterNode(node.Id);
+                nodes++;
+
+                if (director.Chapter > deepestChapter)
+                {
+                    deepestChapter = director.Chapter;
+                }
+
+                switch (director.Phase)
+                {
+                    case RunPhase.Battle:
                         {
-                            int score = Score(db.Get(director.DeckIds[d]));
-                            if (score < worstScore)
+                            var session = director.CreateBattle(1000 + nodes * 31);
+                            RunToEnd(session);
+                            battles++;
+
+                            if (!session.Finished || !session.Victory)
                             {
-                                worstScore = score;
-                                worstId = director.DeckIds[d];
+                                director.SettleDefeat(session);
+                                break;
+                            }
+
+                            director.SettleVictory(session);
+
+                            // 领奖：进攻价值最高的那张
+                            if (director.Phase == RunPhase.Reward)
+                            {
+                                var options = director.BuildRewardChoices(3);
+                                if (options.Count > 0)
+                                {
+                                    if (director.AtDeckCap)
+                                    {
+                                        int worstId = director.Deck[0].Def.Id;
+                                        int worstScore = int.MaxValue;
+                                        for (int d = 0; d < director.Deck.Count; d++)
+                                        {
+                                            int score = Score(director.Deck[d].Def);
+                                            if (score < worstScore)
+                                            {
+                                                worstScore = score;
+                                                worstId = director.Deck[d].Def.Id;
+                                            }
+                                        }
+
+                                        director.RemoveFromDeck(worstId);
+                                        swaps++;
+                                    }
+
+                                    CardDef best = options[0];
+                                    int bestScore = Score(best);
+                                    for (int i = 1; i < options.Count; i++)
+                                    {
+                                        int score = Score(options[i]);
+                                        if (score > bestScore)
+                                        {
+                                            bestScore = score;
+                                            best = options[i];
+                                        }
+                                    }
+
+                                    director.TakeReward(best);
+                                    picks++;
+                                }
+
+                                director.LeaveNode();
+                            }
+                        }
+                        break;
+
+                    case RunPhase.Rest:
+                        if (director.Hp * 100 < director.HpMax * 80)
+                        {
+                            director.RestHeal();
+                        }
+                        else
+                        {
+                            for (int d = 0; d < director.Deck.Count; d++)
+                            {
+                                if (director.Deck[d].Level == 0)
+                                {
+                                    director.UpgradeCard(d);
+                                    break;
+                                }
                             }
                         }
 
-                        director.RemoveFromDeck(worstId);
-                        swaps++;
-                    }
+                        director.LeaveNode();
+                        break;
 
-                    // 模拟"普通玩家"：进攻价值优先，同分再看费用
-                    CardDef best = options[0];
-                    int bestScore = Score(best);
-                    for (int i = 1; i < options.Count; i++)
-                    {
-                        int score = Score(options[i]);
-                        if (score > bestScore)
+                    case RunPhase.Treasure:
                         {
-                            bestScore = score;
-                            best = options[i];
-                        }
-                    }
+                            var card = director.RollTreasureCard();
+                            if (card != null && !director.AtDeckCap)
+                            {
+                                director.TakeReward(card);
+                                picks++;
+                            }
 
-                    director.TakeReward(best);
-                    picks++;
+                            director.LeaveNode();
+                        }
+                        break;
+
+                    case RunPhase.Shop:
+                        {
+                            // 商店：买得起就买第一张，否则删一张最弱的
+                            var pool = DeckRules.RewardPool(db, director.Chapter, false);
+                            if (pool.Count > 0 && !director.AtDeckCap && director.Gold >= 60)
+                            {
+                                director.Gold -= 60;
+                                director.TakeReward(pool[0]);
+                                picks++;
+                            }
+                            else if (director.Gold >= 100 && director.DeckCount > 12)
+                            {
+                                int worstId = director.Deck[0].Def.Id;
+                                int worstScore = int.MaxValue;
+                                for (int d = 0; d < director.Deck.Count; d++)
+                                {
+                                    int score = Score(director.Deck[d].Def);
+                                    if (score < worstScore)
+                                    {
+                                        worstScore = score;
+                                        worstId = director.Deck[d].Def.Id;
+                                    }
+                                }
+
+                                director.Gold -= 100;
+                                director.RemoveFromDeck(worstId);
+                                swaps++;
+                            }
+
+                            director.LeaveNode();
+                        }
+                        break;
+
+                    case RunPhase.Event:
+                        director.LeaveNode();
+                        break;
+
+                    default:
+                        director.LeaveNode();
+                        break;
                 }
 
                 if (director.DeckCount > peakDeck)
                 {
                     peakDeck = director.DeckCount;
                 }
-
-                if (director.JustClearedRun)
-                {
-                    break;
-                }
             }
 
-            return "run: battles=" + battles
+            return "run: nodes=" + nodes
+                 + " battles=" + battles
                  + " picks=" + picks
                  + " swaps=" + swaps
-                 + " masterStages=" + masterRounds
-                 + " emptyChoices=" + emptyChoices
-                 + " deck=" + director.DeckCount + "/" + director.DeckCap
+                 + " deck=" + director.DeckCount + "/" + DeckRules.DeckCap
                  + " peakDeck=" + peakDeck
+                 + " chapter=" + deepestChapter + "/" + EnemyRoster.TotalChapters
                  + " discovered=" + director.DiscoveredCount + "/" + director.TotalCards
-                 + " cleared=" + director.JustClearedRun
-                 + " failedAt=" + failedAt;
+                 + " cleared=" + cleared;
         }
 
         // ------------------------------------------------------------ 演示操作
 
         private static void PlayDemo(BattleScreen battle, int plays)
         {
+            if (battle == null)
+            {
+                return;
+            }
+
             var session = battle.DebugSession;
             if (session == null)
             {
                 return;
             }
 
-            session.DebugSetMana(12);
+            session.Player.Energy = 12;
             for (int i = 0; i < plays; i++)
             {
                 if (session.Player.Hand.Count == 0 || session.Finished)
@@ -707,17 +945,7 @@ namespace Slime.DevTools
                     break;
                 }
 
-                int index = 0;
-                for (int k = 0; k < session.Player.Hand.Count; k++)
-                {
-                    if (session.Player.Hand[k].Cost <= session.Player.Mana)
-                    {
-                        index = k;
-                        break;
-                    }
-                }
-
-                if (!session.PlayCard(index))
+                if (!session.PlayCard(0))
                 {
                     break;
                 }
@@ -728,79 +956,81 @@ namespace Slime.DevTools
 
         private static void HurtPlayer(BattleScreen battle, int amount)
         {
+            if (battle == null)
+            {
+                return;
+            }
+
             var session = battle.DebugSession;
             if (session == null)
             {
                 return;
             }
 
-            session.DebugGrantMana(6);
+            session.Player.Energy = session.Player.EnergyMax + 3;
             session.Player.Hp = Mathf.Max(1, session.Player.Hp - amount);
             session.Player.Shield = 9;
-            session.Player.AddBuff(BuffKind.DmgFlatUp, 3, 2);
-            session.Player.AddHook(HookTiming.EndTurn, new System.Collections.Generic.List<CardOp>
-            {
-                new CardOp { Kind = "dmg", A = 2 }
-            }, 3, "流血");
+            session.Player.SetStatus(StatusKind.Strength, 3);
+            session.Player.SetStatus(StatusKind.Poison, 2);
             session.Enemy.Shield = 6;
-            session.Enemy.AddBuff(BuffKind.DmgFlatDown, 2, 2);
+            session.Enemy.SetStatus(StatusKind.Weak, 2);
             battle.DebugRefresh();
         }
 
         /// <summary>把手牌灌满，用来验收最大手牌数下的扇形排布。</summary>
         private static void FillHand(BattleScreen battle, int count)
         {
+            if (battle == null)
+            {
+                return;
+            }
+
             var session = battle.DebugSession;
             if (session == null)
             {
                 return;
             }
 
-            session.DebugSetMana(10);
+            session.Player.Energy = 10;
             for (int i = 0; i < count + 6 && session.Player.Hand.Count < count; i++)
             {
-                session.Draw(session.Player, 1, false);
+                session.Draw(session.Player, 1);
             }
 
             session.Player.Shield = 5;
-            session.Player.AddBuff(BuffKind.DmgFlatUp, 3, 2);
-            session.Player.AddBuff(BuffKind.HealFlatUp, 2, 3);
-            session.Player.AddHook(HookTiming.EndTurn, new System.Collections.Generic.List<CardOp>
-            {
-                new CardOp { Kind = "dmg", A = 2 }
-            }, 3, "流血");
+            session.Player.SetStatus(StatusKind.Strength, 3);
+            session.Player.SetStatus(StatusKind.Regen, 2);
             session.Enemy.Shield = 6;
-            session.Enemy.AddBuff(BuffKind.DmgFlatDown, 2, 2);
+            session.Enemy.SetStatus(StatusKind.Weak, 2);
             battle.DebugRefresh();
         }
 
-        private static BattleSession WinBattle(GameApp app)
+        /// <summary>在指定类型的节点上直接结算一次胜利。</summary>
+        private static BattleSession WinBattle(GameApp app, NodeKind kind)
         {
+            EnterKind(app, kind);
             var session = app.Director.CreateBattle(777);
             session.Enemy.Hp = 0;
             session.CheckEnd();
-            var facts = BattleFacts.Capture(session, 0);
-            app.Director.SettleVictory(facts);
+            app.Director.SettleVictory(session);
             app.PersistMeta();
             return session;
         }
 
         private static BattleSession LoseBattle(GameApp app)
         {
+            EnterKind(app, NodeKind.Battle);
             var session = app.Director.CreateBattle(778);
             session.Player.Hp = 0;
             session.CheckEnd();
-            app.Director.SettleDefeat(BattleFacts.Capture(session, 12));
+            app.Director.SettleDefeat(session);
             app.PersistMeta();
             return session;
         }
 
         private static void EnsureRun(GameApp app)
         {
-            if (app.Director.DeckIds.Count == 0)
-            {
-                app.Director.StartNewRun();
-            }
+            app.Director.EnsureRun();
         }
     }
 }
