@@ -33,10 +33,7 @@ namespace Slime.Game
 
         private void render()
         {
-            for (int i = body.childCount - 1; i >= 0; i--)
-            {
-                Object.Destroy(body.GetChild(i).gameObject);
-            }
+            Ui.ClearChildren(body);
 
             if (!opened)
             {

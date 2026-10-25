@@ -57,6 +57,26 @@ namespace Slime.Game
             return rt;
         }
 
+        /// <summary>
+        /// 清空一个容器的全部子节点。节点屏每次重绘前都要调它。
+        /// 这里先 SetParent(null) 再 Destroy：Destroy 要到帧末才真正移除，
+        /// 不先脱离父级的话，旧的按钮和文字会和新的一起参与本帧布局与点击判定。
+        /// </summary>
+        public static void ClearChildren(RectTransform parent)
+        {
+            if (parent == null)
+            {
+                return;
+            }
+
+            for (int i = parent.childCount - 1; i >= 0; i--)
+            {
+                var child = parent.GetChild(i);
+                child.SetParent(null, false);
+                UnityEngine.Object.Destroy(child.gameObject);
+            }
+        }
+
         public static Image Panel(string name, Transform parent, Sprite sprite, Color color)
         {
             var rt = Node(name, parent);

@@ -32,10 +32,7 @@ namespace Slime.Game
 
         private void Show(Tab tab)
         {
-            for (int i = body.childCount - 1; i >= 0; i--)
-            {
-                Object.Destroy(body.GetChild(i).gameObject);
-            }
+            Ui.ClearChildren(body);
 
             var tabBar = Ui.Node("TabBar", body);
             Ui.Fixed(tabBar, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(700f, 66f));

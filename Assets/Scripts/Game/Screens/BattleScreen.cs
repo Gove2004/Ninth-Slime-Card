@@ -453,10 +453,7 @@ namespace Slime.Game
 
         private void RebuildMana()
         {
-            for (int i = manaRow.childCount - 1; i >= 0; i--)
-            {
-                Object.Destroy(manaRow.GetChild(i).gameObject);
-            }
+            Ui.ClearChildren(manaRow);
 
             var p = session.Player;
 
@@ -1232,10 +1229,7 @@ namespace Slime.Game
 
         private void RebuildStatus(RectTransform row, BattleUnit unit, bool onEnemy)
         {
-            for (int i = row.childCount - 1; i >= 0; i--)
-            {
-                Object.Destroy(row.GetChild(i).gameObject);
-            }
+            Ui.ClearChildren(row);
 
             float x = 0f;
             float y = 0f;
@@ -1291,10 +1285,7 @@ namespace Slime.Game
 
         private void RebuildBuffs(RectTransform row, BattleUnit unit)
         {
-            for (int i = row.childCount - 1; i >= 0; i--)
-            {
-                Object.Destroy(row.GetChild(i).gameObject);
-            }
+            Ui.ClearChildren(row);
 
             var items = new List<KeyValuePair<string, Color>>();
 

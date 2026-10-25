@@ -28,10 +28,7 @@ namespace Slime.Game
 
         private void Render()
         {
-            for (int i = body.childCount - 1; i >= 0; i--)
-            {
-                Object.Destroy(body.GetChild(i).gameObject);
-            }
+            Ui.ClearChildren(body);
 
             var director = App.Director;
             int heal = Mathf.Max(16, director.HpMax * 2 / 5);
@@ -85,10 +82,7 @@ namespace Slime.Game
         /// <summary>列出可升级的牌，点一张就升它。</summary>
         private void ShowUpgradePicker()
         {
-            for (int i = body.childCount - 1; i >= 0; i--)
-            {
-                Object.Destroy(body.GetChild(i).gameObject);
-            }
+            Ui.ClearChildren(body);
 
             var director = App.Director;
 
