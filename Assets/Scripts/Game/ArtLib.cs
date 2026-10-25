@@ -11,7 +11,7 @@ namespace Slime.Game
     {
         private static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
 
-        /// <summary>卡面插画（159 张，名称与 cards.csv 完全对齐）。</summary>
+        /// <summary>卡面插画，名称与 cards.csv 对齐。缺图时返回 null，由调用方回退到程序化卡面。</summary>
         public static Sprite Card(string cardName)
         {
             if (string.IsNullOrEmpty(cardName))
@@ -22,9 +22,22 @@ namespace Slime.Game
             return Load("Art/Cards/Card_" + cardName);
         }
 
+        /// <summary>
+        /// 怪物立绘，按 EnemyDef.Sprite 取 Art/Monsters 下的同名图。
+        /// 缺少某只怪的美术时返回 null，调用方回退到程序化史莱姆。
+        /// </summary>
+        public static Sprite Monster(string spriteName)
+        {
+            if (string.IsNullOrEmpty(spriteName))
+            {
+                return null;
+            }
+
+            return Load("Art/Monsters/" + spriteName);
+        }
+
         public static Sprite BgMain { get { return Load("Art/Bg/bg_main"); } }
         public static Sprite Hero { get { return Load("Art/Char/hero"); } }
-        public static Sprite Enemy { get { return Load("Art/Char/enemy"); } }
         public static Sprite Mana { get { return Load("Art/Icon/mana"); } }
         public static Sprite Blood { get { return Load("Art/Icon/blood"); } }
         public static Sprite Trophy { get { return Load("Art/Icon/trophy"); } }

@@ -184,12 +184,15 @@ namespace Slime.Game
                 new Vector2(StageX, PortraitY - 4f), new Vector2(330f, 330f));
 
             enemyPortrait = Ui.Panel("EnemyPortrait", Root, null, Color.white);
-            Sprite art = ArtLib.Enemy;
-            // 素材怒眼朝左，摆在右侧正好怒视玩家
-            enemyPortrait.sprite = art != null ? art : SpriteForge.Slime(320, accent, Theme.BgDeep, info.Seed, true, SlimeFace.Fierce);
+            // 先按 EnemyDef.Sprite 找这只怪自己的立绘；没有就回退到按种子生成的史莱姆，
+            // 至少确保 30 只怪在视觉上彼此不同。绝不共用一张通用敌人图。
+            Sprite art = ArtLib.Monster(info.Sprite);
+            enemyPortrait.sprite = art != null
+                ? art
+                : SpriteForge.Slime(320, accent, Theme.BgDeep, info.Seed, true, SlimeFace.Fierce);
             enemyPortrait.preserveAspect = true;
-            // 每位宗师染上自己的系列色，八关的形象才拉得开
-            enemyPortrait.color = art != null ? Color.Lerp(Color.white, accent, 0.35f) : Color.white;
+            // 真美术保持原色；程序化立绘本身已经按谱系上色，不再二次染色
+            enemyPortrait.color = Color.white;
             Ui.Fixed(enemyPortrait.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(StageX, PortraitY), new Vector2(PortraitSize, PortraitSize));
 

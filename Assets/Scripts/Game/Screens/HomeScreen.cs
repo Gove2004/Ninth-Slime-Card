@@ -215,12 +215,11 @@ namespace Slime.Game
             Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0f, -158f), new Vector2(360f, 360f));
 
             var portrait = Ui.Panel("Enemy", card.transform, null, Color.white);
-            Sprite foeArt = ArtLib.Enemy;
+            Sprite foeArt = ArtLib.Monster(info.Sprite);
             if (foeArt != null)
             {
                 portrait.sprite = foeArt;
                 portrait.preserveAspect = true;
-                portrait.color = Color.Lerp(Color.white, accent, 0.35f);
             }
             else
             {

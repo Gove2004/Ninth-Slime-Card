@@ -29,7 +29,8 @@ namespace Slime.Game
                 Theme.WithAlpha(Color.white, victory ? 0.32f : 0.20f));
             Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 0.71f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(860f, 860f));
 
-            Sprite art = victory ? ArtLib.Hero : ArtLib.Enemy;
+            var lastFoe = App.Director.LastEnemy;
+            Sprite art = victory ? ArtLib.Hero : ArtLib.Monster(lastFoe != null ? lastFoe.Sprite : null);
             var slime = Ui.Panel("Slime", Root, art, Color.white);
             slime.preserveAspect = true;
             if (art == null)
