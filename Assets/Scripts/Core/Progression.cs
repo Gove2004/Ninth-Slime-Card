@@ -24,6 +24,8 @@ namespace Slime.Core
         public int RunHpMax;
         public int RunGold;
         public int RunNodeId;
+        /// <summary>本章地图的生成种子。必须持久化，否则读档后 NodeId 会指向另一张地图上的节点。</summary>
+        public int RunMapSeed;
         public readonly List<int> RunDeck = new List<int>();
 
         public readonly HashSet<int> DiscoveredCards = new HashSet<int>();
@@ -75,6 +77,7 @@ namespace Slime.Core
             sb.Append("runhpmax=").Append(RunHpMax).Append('\n');
             sb.Append("rungold=").Append(RunGold).Append('\n');
             sb.Append("runnode=").Append(RunNodeId).Append('\n');
+            sb.Append("runmapseed=").Append(RunMapSeed).Append('\n');
             sb.Append("rundeck=").Append(string.Join(",", RunDeck.ConvertAll(i => i.ToString()).ToArray())).Append('\n');
 
             sb.Append("cards=");
@@ -145,6 +148,7 @@ namespace Slime.Core
                     case "runhpmax": meta.RunHpMax = ParseInt(value, 0); break;
                     case "rungold": meta.RunGold = ParseInt(value, 0); break;
                     case "runnode": meta.RunNodeId = ParseInt(value, 0); break;
+                    case "runmapseed": meta.RunMapSeed = ParseInt(value, 0); break;
                     case "rundeck":
                         meta.RunDeck.Clear();
                         foreach (var piece in Split(value))

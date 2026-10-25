@@ -300,6 +300,52 @@ namespace Slime.Game
 
         #region 覆盖层
 
+        /// <summary>
+        /// 通用二次确认框。用于不可撤回的操作（放弃本局、清空存档）。
+        /// 遮罩会吃掉点击，避免误触到下面的按钮。
+        /// </summary>
+        public void ShowConfirm(string message, string confirmCaption, string cancelCaption, Action onConfirm)
+        {
+            var shade = Ui.Solid("ConfirmShade", OverlayLayer, new Color(0f, 0f, 0f, 0.72f), true);
+            shade.rectTransform.SetAsLastSibling();
+
+            var panel = Ui.Rounded("ConfirmPanel", shade.transform, Theme.RadiusL,
+                Theme.WithAlpha(Theme.Panel, 0.99f), Theme.WithAlpha(Theme.Danger, 0.7f), 2);
+            Ui.Fixed(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(880f, 340f));
+            Tween.PopIn(panel.rectTransform, 0f, 0.9f);
+
+            var text = Ui.Label("Message", panel.transform, message, Theme.H3,
+                Theme.Text, TextAlignmentOptions.Center);
+            text.enableWordWrapping = true;
+            Ui.Fixed(text.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 46f), new Vector2(780f, 110f));
+
+            var close = new Action(() => UnityEngine.Object.Destroy(shade.gameObject));
+
+            var confirm = Ui.TextButton("Confirm", panel.transform, confirmCaption, Theme.H3,
+                Theme.Danger, Theme.Text, () =>
+                {
+                    Audio.PlaySfx("ui");
+                    close();
+                    if (onConfirm != null)
+                    {
+                        onConfirm();
+                    }
+                });
+            Ui.Fixed(confirm.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(-200f, 36f), new Vector2(340f, 76f));
+
+            var cancel = Ui.TextButton("Cancel", panel.transform, cancelCaption, Theme.H3,
+                Theme.PanelRaised, Theme.TextDim, () =>
+                {
+                    Audio.PlaySfx("ui");
+                    close();
+                });
+            Ui.Fixed(cancel.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(200f, 36f), new Vector2(340f, 76f));
+        }
+
         public void Toast(string message)
         {
             if (string.IsNullOrEmpty(message))

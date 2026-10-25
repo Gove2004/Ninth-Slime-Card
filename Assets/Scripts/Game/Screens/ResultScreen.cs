@@ -5,18 +5,19 @@ using UnityEngine.UI;
 
 namespace Slime.Game
 {
-    /// <summary>结算屏：冒险终止 / 通关时显示本局战报与累计数据。</summary>
+    /// <summary>
+    /// 结算屏，只在两种时刻出现：通关，或冒险终止。
+    /// 单场胜利与章节推进都由地图流程接管，不会走到这里。
+    /// </summary>
     public sealed class ResultScreen : Screen
     {
         private readonly bool victory;
-        private readonly bool cleared;
         private readonly BattleSession session;
 
         public ResultScreen(bool victory, BattleSession battle)
         {
             this.victory = victory;
             session = battle;
-            cleared = GameApp.I != null && GameApp.I.Director.Phase == RunPhase.Victory;
         }
 
         protected override void Build()
@@ -42,17 +43,15 @@ namespace Slime.Game
             Ui.Fixed(slime.rectTransform, new Vector2(0.5f, 0.71f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300f, 300f));
             Tween.PopIn(slime.rectTransform, 0f, 0.7f);
 
-            var title = Ui.Label("Title", Root, cleared ? "通关！" : (victory ? "本关告捷" : "牌局终止"), Theme.H1, accent, TextAlignmentOptions.Center);
+            var title = Ui.Label("Title", Root, victory ? "通 关" : "牌 局 终 止", Theme.H1, accent, TextAlignmentOptions.Center);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 27f), new Vector2(1400f, 72f));
             title.rectTransform.localScale = Vector3.one * 0.86f;
             Tween.Scale(title.rectTransform, 0.86f, 1f, 0.34f, Easing.OutBack, null, 0.08f);
 
             var sub = Ui.Label("Sub", Root,
-                cleared
+                victory
                     ? "四章全部打通——你走到了深渊的尽头。"
-                    : (victory
-                        ? "击败了这位守关者，牌组已经补强。"
-                        : "这趟冒险到此为止。已解锁的卡牌与成就都留着。"),
+                    : "这趟冒险到此为止。已解锁的卡牌与成就都留着。",
                 Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(sub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -37f), new Vector2(1500f, 36f));
             Tween.FadeIn(sub, 0.3f, 0.16f, 0f, 1f);

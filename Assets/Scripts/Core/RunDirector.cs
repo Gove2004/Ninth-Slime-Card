@@ -33,6 +33,8 @@ namespace Slime.Core
 
         public int Chapter = 1;
         public ChapterMap Map;
+        /// <summary>本章地图的生成种子，随存档一起保存，用于读档后复现同一张地图。</summary>
+        public int MapSeed;
         /// <summary>当前所在节点 id（未进入任何节点时为 0）。</summary>
         public int CurrentNodeId;
         /// <summary>已经访问过、可以继续前进的节点集合。</summary>
@@ -110,6 +112,28 @@ namespace Slime.Core
             SyncRun();
         }
 
+        /// <summary>
+        /// 主动放弃本局：清掉局内进度，但保留已解锁的卡牌与成就。
+        /// 不清 RunDeck 的话，玩家下次点「继续冒险」会被送回刚刚放弃的那张地图。
+        /// </summary>
+        public void AbandonRun()
+        {
+            Deck.Clear();
+            Meta.RunDeck.Clear();
+            Meta.RunChapter = 1;
+            Meta.RunHp = 0;
+            Meta.RunHpMax = 0;
+            Meta.RunGold = 0;
+            Meta.RunNodeId = 0;
+            Meta.RunMapSeed = 0;
+            CurrentNodeId = 0;
+            MapSeed = 0;
+            Reachable.Clear();
+            Map = null;
+            Phase = RunPhase.Map;
+            RunJustEnded = false;
+        }
+
         public void EnsureRun()
         {
             if (Deck.Count > 0)
@@ -133,8 +157,18 @@ namespace Slime.Core
                     }
                 }
 
-                BuildChapterMap();
-                CurrentNodeId = Meta.RunNodeId;
+                BuildChapterMap(Meta.RunMapSeed);
+
+                // 旧存档没有地图种子，读出来是 0 → 会重建一张全新的地图，
+                // 原来的 NodeId 在上面可能根本不存在，那样 Reachable 会是空的，
+                // 玩家就卡在一张走不动的地图上。找不到就退回起点，损失一层进度但能继续玩。
+                var resume = Meta.RunNodeId != 0 ? Map.Get(Meta.RunNodeId) : null;
+                CurrentNodeId = resume != null ? resume.Id : 0;
+                if (resume != null)
+                {
+                    resume.Visited = true;
+                }
+
                 RebuildReachable();
                 DiscoverDeck();
                 Phase = RunPhase.Map;
@@ -152,6 +186,7 @@ namespace Slime.Core
             Meta.RunHpMax = HpMax;
             Meta.RunGold = Gold;
             Meta.RunNodeId = CurrentNodeId;
+            Meta.RunMapSeed = MapSeed;
             Meta.RunDeck.Clear();
             for (int i = 0; i < Deck.Count; i++)
             {
@@ -169,7 +204,22 @@ namespace Slime.Core
 
         private void BuildChapterMap()
         {
-            Map = MapGenerator.Generate(Chapter, (int)(rng.Next() + Chapter * 977));
+            BuildChapterMap(0);
+        }
+
+        /// <summary>
+        /// 生成当前章节的地图。seed 为 0 时随机取一个新种子并记下来——种子必须持久化，
+        /// 否则读档后 CurrentNodeId 会指向另一张地图上的节点（地图每次启动都不同）。
+        /// </summary>
+        private void BuildChapterMap(int seed)
+        {
+            if (seed == 0)
+            {
+                seed = (int)(rng.Next() + Chapter * 977);
+            }
+
+            MapSeed = seed;
+            Map = MapGenerator.Generate(Chapter, seed);
 
             CurrentNodeId = 0;
             Reachable.Clear();
@@ -511,7 +561,19 @@ namespace Slime.Core
 
             Phase = RunPhase.Defeat;
             RunJustEnded = true;
-            SyncRun();
+
+            // 阵亡即本局结束，清掉局内存档。
+            // 留着的话主页还会显示「继续冒险」，玩家点进去会带着 1 点生命
+            // 站在刚才把自己打死的那一层——等于白送一次跳过这场战斗的机会。
+            // 成就、解锁的卡牌与奖杯属于跨局进度，全部保留。
+            Deck.Clear();
+            Meta.RunDeck.Clear();
+            Meta.RunChapter = 1;
+            Meta.RunHp = 0;
+            Meta.RunHpMax = 0;
+            Meta.RunGold = 0;
+            Meta.RunNodeId = 0;
+            Meta.RunMapSeed = 0;
         }
 
         private void Accumulate(BattleFacts facts)

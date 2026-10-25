@@ -43,10 +43,38 @@ namespace Slime.Game
                 return;
             }
 
-            BuildHeader(director.ChapterName, director.ChapterSubtitle, "放弃本局");
+            BuildHeader(director.ChapterName, director.ChapterSubtitle, null);
+            BuildAbandonButton();
             BuildStatusRail();
             BuildMap();
             RefreshNodes();
+        }
+
+        /// <summary>
+        /// 放弃本局。刻意不用 BuildHeader 的返回按钮：那个走 App.Pop()，
+        /// 而地图是 Replace 进来的，栈里只有它自己——Pop 会把栈清空直接黑屏。
+        /// </summary>
+        private void BuildAbandonButton()
+        {
+            var back = Ui.TextButton("Abandon", Root, "放弃本局", Theme.Body,
+                Theme.PanelRaised, Theme.TextDim, ConfirmAbandon);
+            Ui.Fixed(back.GetComponent<RectTransform>(), new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-SideMargin - 24f, -TopMargin + 48f), new Vector2(180f, 60f));
+        }
+
+        private void ConfirmAbandon()
+        {
+            App.Audio.PlaySfx("ui");
+            App.ShowConfirm("放弃本局？本局的牌组与进度都会清空。", "放 弃", "继 续 冒 险", () =>
+            {
+                App.Director.AbandonRun();
+                App.PersistMeta();
+                App.Fade(0f, 1f, Theme.Fast, () =>
+                {
+                    App.Replace(new HomeScreen());
+                    App.Fade(1f, 0f, Theme.Normal, null);
+                });
+            });
         }
 
         // ---------------------------------------------------------------- 右侧状态

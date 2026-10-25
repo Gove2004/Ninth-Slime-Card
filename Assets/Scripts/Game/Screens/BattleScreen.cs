@@ -1413,6 +1413,14 @@ namespace Slime.Game
                     // 地图流程：回地图界面选奖励，而不是弹独立结算屏
                     app.Replace(new RewardScreen(session));
                 }
+                else if (director.Phase == RunPhase.Map)
+                {
+                    // 击败章节 Boss 后进入下一章。这里必须直接回地图：
+                    // 若走结算屏，玩家只能选「再来一局」（会清空当前进度）或「返回主页」，
+                    // 等于逼着人多点两下才能继续，还很容易误点把这一局丢掉。
+                    app.Toast("第 " + director.Chapter + " 章　" + director.ChapterName);
+                    app.Replace(new MapScreen());
+                }
                 else
                 {
                     app.Replace(new ResultScreen(true, session));
