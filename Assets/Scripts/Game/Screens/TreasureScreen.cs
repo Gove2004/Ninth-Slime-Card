@@ -11,7 +11,7 @@ namespace Slime.Game
     /// </summary>
     public sealed class TreasureScreen : NodeScreen
     {
-        private const float CardScale = 1.25f;
+        private const float CardScale = 1.12f;
 
         private RectTransform body;
         private CardDef card;
@@ -48,6 +48,7 @@ namespace Slime.Game
 
         private void buildChest()
         {
+            // 图标用中心锚点放在上方，按钮用底锚点压在最下，两者不再撞在一起
             var icon = Ui.Panel("Chest", body,
                 SpriteForge.Circle(200, Theme.WithAlpha(Theme.Gold, 0.16f), Theme.WithAlpha(Theme.Gold, 0.7f), 3), Color.white);
             Ui.Fixed(icon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -59,10 +60,10 @@ namespace Slime.Game
 
             var hint = Ui.Label("Hint", body, "打开它会直接得到一张卡牌，不占奖励次数。",
                 Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 150f), new Vector2(900f, 30f));
+            Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -70f), new Vector2(900f, 30f));
 
-            var open = ActionButton(body, "打 开 宝 箱", new Vector2(0f, 60f), new Vector2(440f, 88f), Theme.Gold);
+            var open = ActionButton(body, "打 开 宝 箱", new Vector2(0f, 20f), new Vector2(440f, 88f), Theme.Gold);
             open.GetComponentInChildren<TextMeshProUGUI>().color = Theme.BgDeep;
             open.onClick.AddListener(onOpen);
         }
@@ -104,23 +105,27 @@ namespace Slime.Game
                 return;
             }
 
+            // body 高 520，卡片按 1.0 缩放是 312 高：底边留 120 给按钮，顶边不压住顶部文案
+            const float CardY = 112f;
+            const float ButtonY = 20f;
+
             var view = CardView.Create(body, card, v => onTake());
-            view.SetPosition(new Vector2(0f, 40f), 0f, CardScale);
+            view.SetPosition(new Vector2(0f, CardY), 0f, CardScale);
             view.Root.localScale = Vector3.one * (CardScale * 0.8f);
             Tween.Scale(view.Root, CardScale * 0.8f, CardScale, 0.34f, Easing.OutBack);
 
             if (taken)
             {
                 view.SetDimmed(true);
-                var done = ActionButton(body, "继 续 前 行", new Vector2(0f, -230f), new Vector2(420f, 76f), Theme.AccentDeep);
+                var done = ActionButton(body, "继 续 前 行", new Vector2(0f, ButtonY), new Vector2(420f, 76f), Theme.AccentDeep);
                 done.onClick.AddListener(Leave);
                 return;
             }
 
-            var take = ActionButton(body, "收 入 牌 组", new Vector2(-230f, -235f), new Vector2(400f, 74f), Theme.AccentDeep);
+            var take = ActionButton(body, "收 入 牌 组", new Vector2(-230f, ButtonY), new Vector2(400f, 74f), Theme.AccentDeep);
             take.onClick.AddListener(onTake);
 
-            var skip = ActionButton(body, "不 要", new Vector2(230f, -235f), new Vector2(400f, 74f), Theme.PanelRaised);
+            var skip = ActionButton(body, "不 要", new Vector2(230f, ButtonY), new Vector2(400f, 74f), Theme.PanelRaised);
             skip.GetComponentInChildren<TextMeshProUGUI>().color = Theme.TextDim;
             skip.onClick.AddListener(() =>
             {

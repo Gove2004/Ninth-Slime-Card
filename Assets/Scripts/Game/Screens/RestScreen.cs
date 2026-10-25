@@ -92,8 +92,9 @@ namespace Slime.Game
 
             RectTransform content;
             var scroll = Ui.VerticalScroll("List", body, out content);
+            // 滚动区底部必须让开「跳过」按钮（占 24..84），否则最后两行被按钮压住点不到
             Ui.Fixed(scroll.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -20f), new Vector2(940f, 400f));
+                new Vector2(0f, 26f), new Vector2(940f, 356f));
 
             for (int i = 0; i < director.Deck.Count; i++)
             {

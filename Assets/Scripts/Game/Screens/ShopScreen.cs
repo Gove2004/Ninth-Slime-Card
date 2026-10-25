@@ -146,12 +146,12 @@ namespace Slime.Game
                 removeUsed ? Theme.TextFaint : Theme.Gold, onRemoveClicked);
             removeCaption = removeButton.GetComponentInChildren<TextMeshProUGUI>();
             Ui.Fixed(removeButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(-240f, 26f), new Vector2(440f, 74f));
+                new Vector2(-240f, 20f), new Vector2(440f, 74f));
 
             var leave = Ui.TextButton("Leave", body, "离 开 商 店", Theme.H3,
                 Theme.AccentDeep, Theme.Text, Leave);
             Ui.Fixed(leave.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(240f, 26f), new Vector2(440f, 74f));
+                new Vector2(240f, 20f), new Vector2(440f, 74f));
 
             refreshAffordability();
         }
@@ -170,25 +170,30 @@ namespace Slime.Game
             float step = CardView.W * CardScale + CardGap;
             float left = -(offers.Count - 1) * 0.5f * step;
 
+            // body 高 520。四张卡按 0.86 缩放是 268 高：
+            // 底边留 150 给价格牌与按钮，顶边不压住金币行。
+            const float CardY = 150f;
+
             for (int i = 0; i < offers.Count; i++)
             {
                 int index = i;
                 var offer = offers[i];
 
                 var view = CardView.Create(body, offer.Def, v => onBuy(index));
-                view.SetPosition(new Vector2(left + step * i, 46f), 0f, CardScale);
+                view.SetPosition(new Vector2(left + step * i, CardY), 0f, CardScale);
                 views.Add(view);
 
                 var rt = view.Root;
                 rt.localScale = Vector3.one * (CardScale * 0.82f);
                 Tween.Scale(rt, CardScale * 0.82f, CardScale, 0.3f, Easing.OutBack, null, 0.05f * i);
 
-                // 价格牌挂在卡下沿，卖掉的改成「已售出」
-                float priceY = 46f - CardView.H * CardScale * 0.5f - 24f;
+                // 价格牌挂在卡下沿。卡片是底锚定的，价格牌同样用底锚点，
+                // 否则两套坐标系会在卡面上撞到一起。
+                float priceY = CardY - 44f;
                 var tag = Ui.Rounded("Price", body, Theme.RadiusS,
                     Theme.WithAlpha(Theme.PanelSunken, 0.95f),
                     Theme.WithAlpha(offer.Sold ? Theme.TextFaint : Theme.Gold, 0.7f), 1);
-                Ui.Fixed(tag.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Ui.Fixed(tag.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                     new Vector2(left + step * i, priceY), new Vector2(150f, 40f));
 
                 var priceText = Ui.Label("T", tag.transform,
