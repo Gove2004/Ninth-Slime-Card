@@ -229,6 +229,8 @@ namespace Slime.Game
             Save = SaveService.Current;
             Meta = SaveService.ToMeta(Save);
             Cards = ContentService.LoadCards();
+            // 角色分析要知道整个卡池里有哪些兑现手段，才能判断「这张攒层牌值不值得拿」
+            CardRoles.PoolSource = Cards;
             Achievements = ContentService.LoadAchievements();
             Audio = new AudioService(gameObject);
             Tap = new TapService();

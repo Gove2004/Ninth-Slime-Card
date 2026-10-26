@@ -25,7 +25,21 @@ namespace Slime.Game
         private TextMeshProUGUI stageLine;
 
         private readonly List<CardView> choices = new List<CardView>();
+        private readonly List<GameObject> hintNodes = new List<GameObject>();
         private GameObject skipButton;
+
+        /// <summary>
+        /// 调试用：固定候选，好验收特定卡面的提示文案。
+        /// 奖励候选是随机的，靠反复跳转碰运气验证不了任何一种提示。真机包里恒为 null。
+        /// </summary>
+        public static List<CardDef> ForcedChoices;
+
+        /// <summary>
+        /// 调试用：临时替换「当前牌组」来算配套提示。
+        /// 想看「兑现牌缺铺垫」就得让牌组为空，但真清空会毁掉正在进行的存档局，
+        /// 所以只覆盖分析用的那份视图。真机包里恒为 null。
+        /// </summary>
+        public static List<CardDef> ForcedDeck;
 
         private int round;
 
@@ -116,7 +130,9 @@ namespace Slime.Game
                 return;
             }
 
-            var list = App.Director.BuildRewardChoices(3);
+            var list = ForcedChoices != null && round == 0
+                ? new List<CardDef>(ForcedChoices)
+                : App.Director.BuildRewardChoices(3);
             if (list.Count == 0)
             {
                 Advance();
@@ -158,6 +174,8 @@ namespace Slime.Game
 
                     rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp((i - 1) * 6f, 0f, k));
                 }, Easing.OutCubic, null, 0.06f * i);
+
+                BuildRoleHint(content, def, left + step * i, 0.06f * i);
             }
 
             var skip = Ui.TextButton("Skip", content, TotalRounds > 1 ? "放弃剩余奖励" : "跳 过", Theme.Body,
@@ -165,6 +183,78 @@ namespace Slime.Game
             Ui.Fixed(skip.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 26f), new Vector2(300f, 62f));
             skipButton = skip.gameObject;
+        }
+
+        /// <summary>
+        /// 卡片下方那两行：这张牌在链里是什么角色、和当前牌组配不配。
+        ///
+        /// 抽卡的这一刻是玩家真正做构筑决策的时候。卡面只写「做什么」，
+        /// 而「引爆冻结」这类牌的价值完全取决于手上有没有冻结 ——
+        /// 不在这里说清楚，玩家就得靠记住 144 张卡来推断，那不可能。
+        /// </summary>
+        private void BuildRoleHint(RectTransform parent, CardDef def, float x, float delay)
+        {
+            var role = CardRoles.Role(def);
+            Color roleColor = role == CardRole.Payoff ? Theme.Gold
+                : role == CardRole.Setup ? Theme.Mana
+                : role == CardRole.Both ? Theme.Accent
+                : role == CardRole.Conditional ? Theme.SeriesThunder
+                : Theme.TextFaint;
+
+            var tag = Ui.Rounded("Role" + def.Id, parent, Theme.RadiusS,
+                Theme.WithAlpha(Theme.PanelSunken, 0.92f), Theme.WithAlpha(roleColor, 0.55f), 1);
+            Ui.Fixed(tag.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(x, 200f), new Vector2(104f, 30f));
+            hintNodes.Add(tag.gameObject);
+
+            var label = Ui.Label("T", tag.transform, CardRoles.RoleName(role), Theme.Caption,
+                role == CardRole.Plain ? Theme.TextFaint : Theme.Lighten(roleColor, 0.3f),
+                TextAlignmentOptions.Center);
+            Ui.Stretch(label.rectTransform, 4f, 2f, 4f, 2f);
+
+            string fit = CardRoles.Fit(def, DeckDefs());
+            if (string.IsNullOrEmpty(fit))
+            {
+                return;
+            }
+
+            // 只有「兑现牌但没有铺垫」才是真的打不出来，值得用警告色。
+            // 反过来「攒了层没人兑现」并不亏 —— 中毒照样掉血、护盾照样挡伤，
+            // 用红色说它不行，玩家会误以为这张牌是废的。
+            bool blocked = role == CardRole.Payoff && fit.Contains("打不出来");
+            var hint = Ui.Label("Fit" + def.Id, parent, fit, Theme.Caption,
+                blocked ? Theme.Danger : Theme.TextFaint, TextAlignmentOptions.Top);
+            hint.enableWordWrapping = true;
+
+            // 高度按实际字数算：提示可能一到两行，给死高度会把第二行裁掉
+            float hintH = Ui.MeasureTextHeight(fit, 276f, Theme.Caption) + 4f;
+            Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(x, 156f), new Vector2(276f, hintH));
+
+            hint.alpha = 0f;
+            Tween.FadeIn(hint, 0.32f, 0.4f + delay, 0f, 1f);
+            hintNodes.Add(hint.gameObject);
+        }
+
+        /// <summary>当前牌组里的卡牌定义（角色分析要按 def 比对，不是按实例）。</summary>
+        private List<CardDef> DeckDefs()
+        {
+            if (ForcedDeck != null)
+            {
+                return ForcedDeck;
+            }
+
+            var list = new List<CardDef>();
+            var deck = App.Director.Deck;
+            for (int i = 0; i < deck.Count; i++)
+            {
+                if (deck[i] != null && deck[i].Def != null)
+                {
+                    list.Add(deck[i].Def);
+                }
+            }
+
+            return list;
         }
 
         private void ClearChoices()
@@ -175,6 +265,18 @@ namespace Slime.Game
             }
 
             choices.Clear();
+
+            // 角色提示是独立节点，不挂在 CardView 下，得自己收。
+            // 漏掉这一步，第二轮奖励会把第一轮的三行提示留在原地。
+            for (int i = hintNodes.Count - 1; i >= 0; i--)
+            {
+                if (hintNodes[i] != null)
+                {
+                    Object.Destroy(hintNodes[i]);
+                }
+            }
+
+            hintNodes.Clear();
 
             if (skipButton != null)
             {

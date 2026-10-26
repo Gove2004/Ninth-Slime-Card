@@ -415,6 +415,20 @@ namespace Slime.Game
             Ui.Fixed(name.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(22f, -12f), new Vector2(240f, 30f));
 
+            // 玩家卡池里没有这几个状态，混在增益列表里会让人白找一轮。
+            // 靠右对齐：词条名长短不一，跟着名字排会忽左忽右。
+            if (entry.EnemyOnly)
+            {
+                var badge = Ui.Rounded("EnemyOnly", row.transform, Theme.RadiusS,
+                    Theme.WithAlpha(Theme.PanelRaised, 0.9f), Theme.WithAlpha(Theme.Danger, 0.55f), 1);
+                Ui.Fixed(badge.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                    new Vector2(-22f, -14f), new Vector2(112f, 26f));
+
+                var badgeText = Ui.Label("T", badge.transform, "敌方专用", Theme.Caption,
+                    Theme.Danger, TextAlignmentOptions.Center);
+                Ui.Stretch(badgeText.rectTransform, 4f, 1f, 4f, 1f);
+            }
+
             // 宽度必须显式算出来：行是固定宽度的，用负 sizeDelta 配错 pivot 会让
             // 文本区宽度变成负数，TMP 会把每个字单独折成一行。
             var text = Ui.Label("Text", row.transform, entry.Text, Theme.Caption,

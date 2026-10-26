@@ -63,6 +63,18 @@ namespace Slime.Game
             Ui.Fixed(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(40f, -56f), new Vector2(600f, 46f));
 
+            if (entry.EnemyOnly)
+            {
+                var badge = Ui.Rounded("EnemyOnly", panel.transform, Theme.RadiusS,
+                    Theme.WithAlpha(Theme.PanelSunken, 0.95f), Theme.WithAlpha(Theme.Danger, 0.6f), 1);
+                Ui.Fixed(badge.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                    new Vector2(40f + 600f, -62f), new Vector2(132f, 30f));
+
+                var badgeText = Ui.Label("T", badge.transform, "敌方专用", Theme.Caption,
+                    Theme.Danger, TextAlignmentOptions.Center);
+                Ui.Stretch(badgeText.rectTransform, 4f, 2f, 4f, 2f);
+            }
+
             // 宽度必须显式给：Ui.Fixed 会把 anchorMax 覆写成 anchor，
             // 想靠 anchorMax=(1,1) 撑满宽度会得到 0 宽，TMP 随即把每个字单独折行。
             var text = Ui.Label("Text", panel.transform, entry.Text, Theme.Body,

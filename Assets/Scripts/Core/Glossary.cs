@@ -23,6 +23,14 @@ namespace Slime.Core
 
         /// <summary>关联的状态（没有则 None）。战斗界面要按状态色标色时用得上。</summary>
         public StatusKind Status = StatusKind.None;
+
+        /// <summary>
+        /// 玩家拿不到、只有敌人会用的机制。
+        ///
+        /// 图鉴里这几种和玩家的增益并列排着，玩家会以为自己也该去凑 ——
+        /// 尤其是「再生」这种看起来像治疗手段的。标出来省得白找。
+        /// </summary>
+        public bool EnemyOnly;
     }
 
     /// <summary>
@@ -94,7 +102,7 @@ namespace Slime.Core
             new GlossaryEntry
             {
                 Key = "再生", Name = "再生", Group = GlossaryGroup.Buff, Status = StatusKind.Regen,
-                Text = "回合结束回复等量生命，然后层数 -1。"
+                Text = "回合结束回复等量生命，然后层数 -1。", EnemyOnly = true
             },
             new GlossaryEntry
             {
@@ -136,7 +144,7 @@ namespace Slime.Core
             new GlossaryEntry
             {
                 Key = "脆化", Name = "脆化", Group = GlossaryGroup.Debuff, Status = StatusKind.Frail,
-                Text = "获得的护盾 -25%，每回合 -1。"
+                Text = "获得的护盾 -25%，每回合 -1。", EnemyOnly = true
             },
             new GlossaryEntry
             {
@@ -146,12 +154,12 @@ namespace Slime.Core
             new GlossaryEntry
             {
                 Key = "狂暴", Name = "狂暴", Group = GlossaryGroup.Buff, Status = StatusKind.Enrage,
-                Text = "敌方专用：每层攻击 +2，永久。"
+                Text = "每层攻击 +2，永久。", EnemyOnly = true
             },
             new GlossaryEntry
             {
                 Key = "回灵", Name = "回灵", Group = GlossaryGroup.Buff, Status = StatusKind.RegenAura,
-                Text = "敌方专用：回合开始回复等量生命，每回合 -1。"
+                Text = "回合开始回复等量生命，每回合 -1。", EnemyOnly = true
             },
 
             // ---------------------------------------------------------- 兑现

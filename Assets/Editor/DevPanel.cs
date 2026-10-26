@@ -199,6 +199,24 @@ namespace Slime.DevTools
                     app.Replace(new SettingsScreen());
                     break;
 
+                case "reward-preview":
+                    EnsureRun(app);
+                    {
+                        // 固定候选 + 空牌组，专门验收「兑现牌缺铺垫」那条红色警告。
+                        // 冰川要冻结、圣裁要护盾，空牌组里两张都该报打不出来。
+                        // 牌组只覆盖分析视图，不动真实存档局。
+                        var picked = new List<CardDef>();
+                        AddByName(app, picked, "冰川");
+                        AddByName(app, picked, "圣裁");
+                        AddByName(app, picked, "斩击");
+                        RewardScreen.ForcedChoices = picked;
+                        RewardScreen.ForcedDeck = new List<CardDef>();
+
+                        var session = WinBattle(app, NodeKind.Battle);
+                        app.Replace(new RewardScreen(session));
+                    }
+                    break;
+
                 case "audio":
                     return AudioCheck();
 
@@ -1088,6 +1106,18 @@ namespace Slime.DevTools
         private static void EnsureRun(GameApp app)
         {
             app.Director.EnsureRun();
+        }
+
+        private static void AddByName(GameApp app, List<CardDef> into, string name)
+        {
+            for (int i = 0; i < app.Cards.All.Count; i++)
+            {
+                if (app.Cards.All[i].Name == name)
+                {
+                    into.Add(app.Cards.All[i]);
+                    return;
+                }
+            }
         }
     }
 }
