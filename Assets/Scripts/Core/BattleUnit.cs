@@ -104,6 +104,7 @@ namespace Slime.Core
         public int CardsPlayedThisTurn;
         public int AttacksPlayedThisTurn;
         public int SkillsPlayedThisTurn;
+        public int SpellsPlayedThisTurn;
         public int DamageTakenThisTurn;
         public int DamageDealtThisTurn;
         public bool TookDamageThisTurn;
@@ -274,6 +275,7 @@ namespace Slime.Core
             CardsPlayedThisTurn = 0;
             AttacksPlayedThisTurn = 0;
             SkillsPlayedThisTurn = 0;
+            SpellsPlayedThisTurn = 0;
             DamageTakenThisTurn = 0;
             DamageDealtThisTurn = 0;
             TookDamageThisTurn = false;

@@ -100,7 +100,7 @@ namespace Slime.Core
             int actions = Math.Max(1, def.ActionsPerTurn);
             for (int i = 0; i < actions; i++)
             {
-                var move = Pick(self, turn);
+                var move = Pick(self, turn, Queue);
                 Queue.Enqueue(ToIntent(move));
             }
 
@@ -115,7 +115,7 @@ namespace Slime.Core
                     Queue.Enqueue(ToIntent(forced));
                     for (int i = 1; i < actions; i++)
                     {
-                        Queue.Enqueue(ToIntent(Pick(self, turn)));
+                        Queue.Enqueue(ToIntent(Pick(self, turn, Queue)));
                     }
                 }
             }
@@ -149,10 +149,26 @@ namespace Slime.Core
             return pool.Count == 0 ? null : pool[rng.Range(0, pool.Count)];
         }
 
-        private EnemyMove Pick(BattleUnit self, int turn)
+        /// <summary>
+        /// 按权重抽一招。<paramref name="chosen"/> 是本回合已经排好的动作，
+        /// 用来排除「同一回合重复同一招」——否则双动 Boss 会抽到「龙鳞 + 龙鳞」
+        /// 连加两层盾，或者「龙鳞 + 龙焰」既挡住玩家输出又照打，两种都是
+        /// 玩家无法用任何决策应对的纯随机惩罚。
+        /// </summary>
+        private EnemyMove Pick(BattleUnit self, int turn, Queue<EnemyIntent> chosen)
         {
             var candidates = new List<EnemyMove>();
             int totalWeight = 0;
+
+            // 本回合已经点过的招式标签，同一招不再重复
+            var used = new List<string>();
+            if (chosen != null)
+            {
+                foreach (var intent in chosen)
+                {
+                    used.Add(intent.Label);
+                }
+            }
 
             for (int i = 0; i < def.Moves.Count; i++)
             {
@@ -161,6 +177,16 @@ namespace Slime.Core
                 {
                     continue;
                 }
+
+                if (used.Contains(move.Label))
+                {
+                    continue;
+                }
+
+                // 注意：这里刻意不排除「防御 + 攻击」同回合。曾经试过，
+                // 结果龙王因为没有别的招可用，退化成每回合双攻击，
+                // 胜率反而从 28% 掉到 10%。多动怪的强度要靠数值与招式设计调，
+                // 不能靠 AI 层面的硬规则去堵——堵错方向会制造更糟的退化行为。
 
                 // 生命门槛
                 if (move.OnlyBelowHpPct > 0)

@@ -269,6 +269,10 @@ namespace Slime.Core
             {
                 self.SkillsPlayedThisTurn++;
             }
+            else if (def.Kind == CardKind.Spell)
+            {
+                self.SpellsPlayedThisTurn++;
+            }
 
             Emit(EventKind.Play, def.Name, card.Cost, !self.IsPlayer);
 
@@ -823,6 +827,17 @@ namespace Slime.Core
                     Emit(EventKind.Status, self.Name + " 净化了所有状态", 0, !self.IsPlayer);
                     break;
 
+                // ---- 兑现类：把已经堆上去的层数换成伤害 ----
+                // 这一类是「流派」的黏合剂。没有它，施加中毒/灼烧/冻结的牌只是
+                // 一堆平行的数值选项，玩家永远攒不出 combo。
+                case "detonate":
+                    Detonate(self, foe, op.StatusKind, op.A);
+                    break;
+
+                case "consume_shield":
+                    ConsumeShieldForDamage(self, foe, op.A);
+                    break;
+
                 default:
                     // 未知 op 静默忽略，避免旧数据炸掉整场战斗
                     break;
@@ -871,6 +886,21 @@ namespace Slime.Core
 
                 case Condition.EnemyPoisoned:
                     return foe != null && foe.GetStatus(StatusKind.Poison) > 0;
+
+                case Condition.EnemyVulnerable:
+                    return foe != null && foe.GetStatus(StatusKind.Vulnerable) > 0;
+
+                case Condition.EnemyBurning:
+                    return foe != null && foe.GetStatus(StatusKind.Burn) > 0;
+
+                case Condition.EnemyFrozen:
+                    return foe != null && foe.GetStatus(StatusKind.Freeze) > 0;
+
+                case Condition.EnemyLowHp:
+                    return foe != null && foe.Hp * 10 <= foe.HpMax * 3;
+
+                case Condition.SpellPlayed:
+                    return self.SpellsPlayedThisTurn > 0;
 
                 case Condition.HasStatus:
                     return self.GetStatus((StatusKind)op.CondValue) > 0;
@@ -1056,6 +1086,55 @@ namespace Slime.Core
             }
 
             Emit(EventKind.Energy, "+" + amount + " 能量", amount, !unit.IsPlayer);
+        }
+
+        /// <summary>
+        /// 引爆：清空目标身上的指定状态，按「层数 × 每层伤害」结算一次伤害。
+        /// 走 LoseHp 而不是 DealDamage —— 引爆不该再被护盾/易伤二次放大，
+        /// 否则一堆叠层 + 一发引爆就能越过整场战斗的数值设计。
+        /// </summary>
+        private void Detonate(BattleUnit self, BattleUnit foe, StatusKind kind, int perStack)
+        {
+            if (foe == null || kind == StatusKind.None || perStack <= 0)
+            {
+                return;
+            }
+
+            int stacks = foe.GetStatus(kind);
+            if (stacks <= 0)
+            {
+                Emit(EventKind.Status, foe.Name + " 身上没有" + Statuses.DisplayName(kind) + "，引爆落空", 0, !foe.IsPlayer);
+                return;
+            }
+
+            int dmg = stacks * perStack;
+            foe.AddStatus(kind, -stacks);
+            Emit(EventKind.Status, "引爆 " + stacks + " 层" + Statuses.DisplayName(kind), stacks, !foe.IsPlayer);
+            LoseHp(foe, dmg);
+        }
+
+        /// <summary>
+        /// 把当前护盾转换成伤害。护盾清零（打完就没得挡），
+        /// 每点护盾折算 <paramref name="perPoint"/> 点伤害。
+        /// </summary>
+        private void ConsumeShieldForDamage(BattleUnit self, BattleUnit foe, int perPoint)
+        {
+            if (self == null || foe == null || perPoint <= 0)
+            {
+                return;
+            }
+
+            int shield = self.Shield;
+            if (shield <= 0)
+            {
+                Emit(EventKind.Status, self.Name + " 没有护盾可转化为伤害", 0, !self.IsPlayer);
+                return;
+            }
+
+            self.Shield = 0;
+            int dmg = shield * perPoint;
+            Emit(EventKind.Status, "倾泻 " + shield + " 点护盾", shield, !self.IsPlayer);
+            LoseHp(foe, dmg);
         }
 
         private void ApplyStatus(BattleUnit source, BattleUnit target, StatusKind kind, int stacks)

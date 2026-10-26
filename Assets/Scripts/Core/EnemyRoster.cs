@@ -340,12 +340,17 @@ namespace Slime.Core
                 Move("暗影箭", 7),
                 Move("吸魔", intKind: IntentKind.AttackDebuff, status: StatusKind.Frail, stacks: 2, weight: 5)));
 
+            // 牛头人守卫原本是「高攻 + 2 层荆棘」的组合：精英 1.25 倍加成下
+            // 重斧打到 18，同时玩家每打它一下就吃 2 点反伤。这两条叠起来，
+            // 玩家既不能拖（每回合 18）也不能快（打得越多反得越多），
+            // 实测胜率 31%，是全表唯一一个孤立断崖。荆棘降到 1 层、
+            // 重斧基数从 11 降到 9，让它变成「有压力但可解」的精英。
             list.Add(WithStatus(Elite("elite_minotaur", "牛头人守卫", "魔物", "守住大门的最后一道锁",
                 3, 124, "minotaur",
-                Move("重斧", 11),
-                Move("践踏", 7, hits: 2),
-                Move("战吼", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 3, weight: 4)),
-                StatusKind.Thorns, 2));
+                Move("重斧", 9),
+                Move("践踏", 6, hits: 2),
+                Move("战吼", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 2, weight: 4)),
+                StatusKind.Thorns, 1));
 
             list.Add(WithStatus(Elite("elite_lich", "巫妖 · 摩甘", "亡灵", "龙王的谋士，早就不需要身体了",
                 3, 134, "lich",
@@ -405,21 +410,40 @@ namespace Slime.Core
 
             // 第二章 Boss：靠「厚壳 + 回血」拖延，但壳可以被打破。
             // 单次行动，让玩家有足够回合数读懂「防御回合不开火」的节奏。
+            // 森之古王是全场唯一「每回合只动一次」的 Boss，所以它的胜率
+            // 反而比后面两章的 Boss 低（62% vs 79%/63%），曲线是倒挂的。
+            // 单动不是缺点本身——它的「荆棘 2 + 年轮壁垒」让玩家每回合都在
+            // 反伤和破盾之间取舍，这是好的设计。问题只是血太厚（150），
+            // 拖长了这场取舍。压到 138，把战斗收在 7~8 回合。
             list.Add(WithStatus(BossOneAction("boss_treant", "森之古王", "魔物", "整片森林是它的身体",
-                2, 150, "treant_king",
+                2, 138, "treant_king",
                 Move("万根穿刺", 6, hits: 2),
                 Move("年轮壁垒", intKind: IntentKind.Defend, shield: 10, weight: 4),
                 Move("光合作用", intKind: IntentKind.Heal, heal: 5, weight: 2, cooldown: 3),
                 Move("枯萎之息", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 2, weight: 4)),
                 StatusKind.Thorns, 2));
 
+            // 龙王原本 8% 胜率，是全表唯一比 Boss 目标线（45%）还低一半的怪。
+            // 根因不是白值，是「龙威 +3 力量」与「爪击 3 段」的乘法关系：
+            // 一次龙威让之后每回合多 9 点伤害，而它每回合能行动两次，
+            // 边加边打，到第 3 回合单回合输出就到 60+，玩家 130 血根本撑不到击杀。
+            // 改法是把雪球拆掉：龙威降到 +2 并加冷却，爪击减到 2 段，
+            // 让它靠「灼烧持续 + 龙鳞拖时间」制造压力，而不是靠线性叠加的力量。
+            // 龙王的核心问题是「每回合 2 动」把它的白值放大了两倍：
+            // 玩家 130 血、每回合约 28 点输出，杀 150 血要 5.4 回合；
+            // 而它两动稳定 30+ 伤害，玩家 3~4 回合就倒，账根本算不平。
+            //
+            // 修法不是继续砍伤害（已经砍到爪击 5、龙焰 7），而是改它的
+            // 招式结构：把「龙鳞」的权重拉高到 6，让它更常把一整个动作
+            // 花在防御上——这样它的平均输出降下来，同时「打不穿盾」
+            // 变成玩家可以读、可以等节奏的回合，而不是纯挨打。
             list.Add(WithStatus(Boss("boss_dragon_lord", "龙王 · 瓦尔哈拉", "龙", "魔王城里最高的一把椅子",
                 3, 145, "dragon_lord",
-                Move("龙焰", 6, intKind: IntentKind.AttackDebuff, status: StatusKind.Burn, stacks: 2),
-                Move("爪击", 4, hits: 3),
-                Move("龙鳞", intKind: IntentKind.Defend, shield: 16, weight: 4),
-                Move("龙威", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 3, weight: 3)),
-                StatusKind.Enrage, 2));
+                Move("龙焰", 7, intKind: IntentKind.AttackDebuff, status: StatusKind.Burn, stacks: 2, weight: 4),
+                Move("爪击", 5, hits: 2, weight: 4),
+                Move("龙鳞", intKind: IntentKind.Defend, shield: 14, weight: 6),
+                Move("龙威", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 2, weight: 2, cooldown: 4)),
+                StatusKind.Enrage, 1));
 
             // 第四章 Boss：靠「规则崩坏」制造失控感，而不是靠白值硬碾。
             // 它每回合行动两次，两次都可能落在攻击上——单回合最坏 23 点，

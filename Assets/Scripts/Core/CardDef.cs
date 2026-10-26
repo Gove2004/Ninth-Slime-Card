@@ -32,6 +32,11 @@ namespace Slime.Core
         HasShield,       // 自身有护盾
         EnemyHasShield,  // 敌方有护盾
         EnemyPoisoned,   // 敌方中毒
+        EnemyVulnerable, // 敌方易伤
+        EnemyBurning,    // 敌方灼烧
+        EnemyFrozen,     // 敌方冻结
+        EnemyLowHp,      // 敌方生命 <= 30%
+        SpellPlayed,     // 本回合已打出过咒文
         HasStatus,       // 自身拥有指定状态（参数为层数门槛）
         HandCount,       // 手牌数 >= A
         EnergyZero,      // 能量已耗尽
@@ -157,9 +162,16 @@ namespace Slime.Core
 
             if (op.Kind == "if")
             {
-                string condSpec = all.Length > 1 ? all[1] : "always";
-                string thenSpec = all.Length > 2 ? all[2] : string.Empty;
-                string elseSpec = all.Length > 3 ? all[3] : string.Empty;
+                // DSL 形如 if:cond|then|else，其中 cond 写在 head 里（冒号之后），
+                // then / else 是后面的管道段，各自用 + 连接多条。
+                //
+                // 这里曾经写成 all[1] 当条件、all[2] 当 then —— 结果条件永远是
+                // ParseCondition("sstatus:str:v1") → Always，而真正被执行的
+                // 是 else 分支。12 张条件牌全部名存实亡：处刑永远只打一段，
+                // 血怒永远只抽牌，反手永远是普通伤害。
+                string condSpec = seg.Length > 1 ? head.Substring(head.IndexOf(':') + 1) : "always";
+                string thenSpec = all.Length > 1 ? all[1] : string.Empty;
+                string elseSpec = all.Length > 2 ? all[2] : string.Empty;
 
                 op.Cond = ParseCondition(condSpec, out op.CondValue);
                 op.Then = ParseSeq(thenSpec, v1, v2, v3);
@@ -167,7 +179,8 @@ namespace Slime.Core
                 return op;
             }
 
-            if (op.Kind == "status" || op.Kind == "estatus" || op.Kind == "sstatus")
+            if (op.Kind == "status" || op.Kind == "estatus" || op.Kind == "sstatus"
+                || op.Kind == "detonate")
             {
                 if (seg.Length > 1)
                 {
@@ -269,6 +282,11 @@ namespace Slime.Core
                 case "hasshield": return Condition.HasShield;
                 case "enemyhasshield": return Condition.EnemyHasShield;
                 case "enemypoisoned": return Condition.EnemyPoisoned;
+                case "enemyvuln": case "enemyvulnerable": return Condition.EnemyVulnerable;
+                case "enemyburn": case "enemyburning": return Condition.EnemyBurning;
+                case "enemyfreeze": case "enemyfrozen": return Condition.EnemyFrozen;
+                case "enemylowhp": case "targetlowhp": return Condition.EnemyLowHp;
+                case "spellplayed": case "playedspell": return Condition.SpellPlayed;
                 case "hasstatus": return Condition.HasStatus;
                 case "hand": case "handcount": return Condition.HandCount;
                 case "energyzero": case "outofenergy": return Condition.EnergyZero;

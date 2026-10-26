@@ -232,6 +232,11 @@ namespace Slime.Core
         /// <summary>
         /// 奖励池：按章节开放稀有度，避免前期就拿到终结牌。
         /// 自由混池——不按职业筛，只按稀有度与系列分布。
+        ///
+        /// 注意：这里曾经用 <c>def.Kind != CardKind.Power</c> 把能力牌整批排除，
+        /// 结果 15 张能力牌虽然实现了每回合生效，玩家却永远抽不到——
+        /// 稀有度门槛（能力牌全是 1~2 稀有）本身已经足够限制出场时机，
+        /// 再按种类排除只会让一整个卡牌类别变成死内容。
         /// </summary>
         public static List<CardDef> RewardPool(CardDatabase db, int chapter, bool elite)
         {
@@ -240,7 +245,7 @@ namespace Slime.Core
             for (int i = 0; i < db.All.Count; i++)
             {
                 var def = db.All[i];
-                if (def.Rarity <= maxRarity && def.Kind != CardKind.Power)
+                if (def.Rarity <= maxRarity)
                 {
                     pool.Add(def);
                 }
