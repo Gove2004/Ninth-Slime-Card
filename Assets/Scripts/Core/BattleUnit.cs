@@ -60,6 +60,23 @@ namespace Slime.Core
     }
 
     /// <summary>
+    /// 已生效的能力牌。数值在打出那一刻定死（含当时的升级等级），
+    /// 之后这张牌被移出牌组也不会影响已经在场上的效果。
+    /// </summary>
+    public sealed class PowerRuntime
+    {
+        public CardDef Def;
+
+        /// <summary>打出时那张牌的实例。每回合重放时要靠它取 v1/v2/v3 与升级等级。</summary>
+        public CardInstance Src;
+
+        /// <summary>每回合开始时重复执行的效果。空表示只在打出时结算一次。</summary>
+        public List<EffectOp> PerTurn = new List<EffectOp>();
+
+        public string Name { get { return Def != null ? Def.Name : "能力"; } }
+    }
+
+    /// <summary>
     /// 战斗单位。玩家与敌人共用同一套生命/护盾/状态/牌堆模型。
     /// 状态是唯一的力量来源——旧版分散在 Buff/Hook/Pending* 的机制已收敛到这里。
     /// </summary>
@@ -107,6 +124,13 @@ namespace Slime.Core
 
         /// <summary>敌人 AI 的本回合意图（玩家不显示）。</summary>
         public EnemyIntent Intent;
+
+        /// <summary>
+        /// 已生效的「能力」牌（卡牌种类 Power）。打出后整场留在场上，
+        /// 每回合开始/结束时按各自效果触发。存卡牌定义而不是卡牌实例，
+        /// 因为能力牌的数值在打出时就已定死，后续升级不该回头改它。
+        /// </summary>
+        public readonly List<PowerRuntime> Powers = new List<PowerRuntime>();
 
         public bool IsDead { get { return Hp <= 0; } }
 
@@ -193,6 +217,11 @@ namespace Slime.Core
                     case StatusKind.Barrier:
                         value = 0;
                         break;
+                    case StatusKind.TempStrength:
+                        // 临时力量是「能力牌每回合重新发一次」的额度，回合结束必须整段清掉，
+                        // 按层递减的话攒几回合就成了永久力量。
+                        value = 0;
+                        break;
                     default:
                         value -= 1;
                         break;
@@ -204,10 +233,14 @@ namespace Slime.Core
 
         // ---------------------------------------------------------- 派生数值
 
-        /// <summary>攻击加成：力量 +（敌方的狂暴 ×2）。</summary>
+        /// <summary>攻击加成：力量 + 临时力量 +（敌方的狂暴 ×2）。</summary>
         public int AttackBonus
         {
-            get { return GetStatus(StatusKind.Strength) + GetStatus(StatusKind.Enrage) * 2; }
+            get
+            {
+                return GetStatus(StatusKind.Strength) + GetStatus(StatusKind.TempStrength)
+                    + GetStatus(StatusKind.Enrage) * 2;
+            }
         }
 
         /// <summary>护盾加成：敏捷。</summary>
@@ -283,6 +316,37 @@ namespace Slime.Core
         public int Hits = 1;
         public StatusKind AppliesStatus = StatusKind.None;
         public int StatusStacks;
+
+        /// <summary>
+        /// 实际会打出的伤害（已含攻击方力量）。规划意图时攻击方还没有新力量时就不算，
+        /// 但展示给玩家时必须用这个——玩家看到「攻击 6」结果掉 11 血，比不显示更糟。
+        /// </summary>
+        public int EffectiveDamage(BattleUnit attacker)
+        {
+            if (Kind != IntentKind.Attack && Kind != IntentKind.AttackDebuff)
+            {
+                return Value;
+            }
+
+            int bonus = attacker != null ? attacker.AttackBonus : 0;
+            return Math.Max(1, Value + bonus);
+        }
+
+        public string Describe(BattleUnit attacker)
+        {
+            if (Kind == IntentKind.Attack)
+            {
+                int dmg = EffectiveDamage(attacker);
+                return Hits > 1 ? Label + " " + dmg + "×" + Hits : Label + " " + dmg;
+            }
+
+            if (Kind == IntentKind.AttackDebuff)
+            {
+                return Label + " " + EffectiveDamage(attacker) + " + " + Statuses.DisplayName(AppliesStatus);
+            }
+
+            return Describe();
+        }
 
         public string Describe()
         {

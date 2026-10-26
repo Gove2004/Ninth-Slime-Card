@@ -1317,6 +1317,19 @@ namespace Slime.Game
                     Statuses.DisplayName(pair.Key) + "  " + pair.Value, Theme.Gold));
             }
 
+            // 已生效的能力牌。没有这一行，玩家打出「每回合抽 1 张」之后
+            // 场上完全看不到它，只能靠数手牌猜效果有没有在跑。
+            for (int i = 0; i < unit.Powers.Count; i++)
+            {
+                var power = unit.Powers[i];
+                if (power.Def == null)
+                {
+                    continue;
+                }
+
+                items.Add(new KeyValuePair<string, Color>(power.Def.Name, Theme.Mana));
+            }
+
             // 流式排布：从左缘起依次摆，超出 380 就换行
             float x = 0f;
             float y = 0f;
@@ -1493,6 +1506,11 @@ namespace Slime.Game
                         break;
                     case EventKind.Draw:
                         GameApp.I.Audio.PlaySfx("draw");
+                        break;
+                    case EventKind.Discard:
+                        // 回合结束整手牌会进弃牌堆。不给提示的话，
+                        // 玩家只会看到手牌「凭空消失」，以为牌被吞了。
+                        UpdateLog(e.Text);
                         break;
                     case EventKind.Play:
                         GameApp.I.Audio.PlaySfx("play");

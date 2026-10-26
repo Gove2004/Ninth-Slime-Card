@@ -150,12 +150,7 @@ namespace Slime.Game
                 meta.Unlocked.Clear();
                 meta.Counters.Clear();
                 meta.Flags.Clear();
-                meta.RunDeck.Clear();
-                meta.RunChapter = 1;
-                meta.RunHp = 0;
-                meta.RunHpMax = 0;
-                meta.RunGold = 0;
-                meta.RunNodeId = 0;
+                meta.ClearRun();
                 App.Director.StartNewRun();
                 App.PersistMeta();
                 UnityEngine.Object.Destroy(dialog.gameObject);

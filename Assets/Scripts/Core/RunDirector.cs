@@ -119,13 +119,7 @@ namespace Slime.Core
         public void AbandonRun()
         {
             Deck.Clear();
-            Meta.RunDeck.Clear();
-            Meta.RunChapter = 1;
-            Meta.RunHp = 0;
-            Meta.RunHpMax = 0;
-            Meta.RunGold = 0;
-            Meta.RunNodeId = 0;
-            Meta.RunMapSeed = 0;
+            Meta.ClearRun();
             CurrentNodeId = 0;
             MapSeed = 0;
             Reachable.Clear();
@@ -153,7 +147,14 @@ namespace Slime.Core
                     var def = Cards.Get(Meta.RunDeck[i]);
                     if (def != null)
                     {
-                        Deck.Add(CardInstance.Wrap(def));
+                        var card = CardInstance.Wrap(def);
+                        // 旧存档没有等级行，长度对不上时按未升级处理
+                        if (i < Meta.RunDeckLevels.Count)
+                        {
+                            card.Level = Math.Max(0, Meta.RunDeckLevels[i]);
+                        }
+
+                        Deck.Add(card);
                     }
                 }
 
@@ -188,9 +189,11 @@ namespace Slime.Core
             Meta.RunNodeId = CurrentNodeId;
             Meta.RunMapSeed = MapSeed;
             Meta.RunDeck.Clear();
+            Meta.RunDeckLevels.Clear();
             for (int i = 0; i < Deck.Count; i++)
             {
                 Meta.RunDeck.Add(Deck[i].Def.Id);
+                Meta.RunDeckLevels.Add(Deck[i].Level);
             }
         }
 
@@ -567,13 +570,7 @@ namespace Slime.Core
             // 站在刚才把自己打死的那一层——等于白送一次跳过这场战斗的机会。
             // 成就、解锁的卡牌与奖杯属于跨局进度，全部保留。
             Deck.Clear();
-            Meta.RunDeck.Clear();
-            Meta.RunChapter = 1;
-            Meta.RunHp = 0;
-            Meta.RunHpMax = 0;
-            Meta.RunGold = 0;
-            Meta.RunNodeId = 0;
-            Meta.RunMapSeed = 0;
+            Meta.ClearRun();
         }
 
         private void Accumulate(BattleFacts facts)

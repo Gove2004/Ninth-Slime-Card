@@ -68,10 +68,19 @@ namespace Slime.Core
         /// 定这条曲线的硬约束是「Boss 战可解」：玩家护甲与回复有限，
         /// 承伤回合数 = 玩家血量 / 敌方每回合输出，必须大于击杀所需回合数。
         /// 所以单段伤害压得比卡面低，靠「多段 + 状态」制造压力而不是靠白值堆死。
+        ///
+        /// 章节系数必须跟上玩家血量：生命上限是 100/115/130/150，
+        /// 如果伤害只按「+1/章」线性走，第四章的敌人对玩家的相对威胁会比第一章还低——
+        /// 全局数值曲线就是反的，越往后越安全。
         /// </summary>
         public static int ScaleDamage(int baseDamage, int chapter, int floor, bool elite)
         {
-            int value = baseDamage * 4 / 5 + (ClampChapter(chapter) - 1) + floor / 5;
+            int ch = ClampChapter(chapter);
+            // 100/115/130/150：与 PlayerHpForChapter 同向。
+            // 关键是「按百分比长」而不是「+1/章」——后者四章下来只涨 3 点，
+            // 而玩家血量涨了 50，敌人相对威胁反而在下降，全局曲线是反的。
+            int pct = 100 + (ch - 1) * 17;
+            int value = baseDamage * pct / 100 + floor / 5;
             if (elite)
             {
                 value = value * 5 / 4;
@@ -370,12 +379,15 @@ namespace Slime.Core
                 Move("绝望", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 3, weight: 3)),
                 StatusKind.Strength, 2));
 
+            // 第四章精英里最硬的一只：20 点护盾的「空间壁垒」每回合都可能来一次，
+            // 等于白送两回合血。护盾压到 14、湮灭 16→14，
+            // 让它的难点落在「磨」上而不是「一波打死」。
             list.Add(WithStatus(Elite("elite_void_titan", "虚空巨像", "魔物", "深渊自己站起来的样子",
                 4, 158, "void_titan",
                 Move("崩界拳", 11),
                 Move("虚空回响", 6, hits: 3),
-                Move("空间壁垒", intKind: IntentKind.Defend, shield: 20, weight: 5),
-                Move("湮灭", 16, weight: 4, cooldown: 3)),
+                Move("空间壁垒", intKind: IntentKind.Defend, shield: 14, weight: 4),
+                Move("湮灭", 14, weight: 4, cooldown: 3)),
                 StatusKind.Barrier, 4));
 
             // ==================== Boss ====================
@@ -409,12 +421,17 @@ namespace Slime.Core
                 Move("龙威", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 3, weight: 3)),
                 StatusKind.Enrage, 2));
 
+            // 第四章 Boss：靠「规则崩坏」制造失控感，而不是靠白值硬碾。
+            // 它每回合行动两次，两次都可能落在攻击上——单回合最坏 23 点，
+            // 而玩家此时每回合输出约 28 点、血 150。双方都在 5 回合内完成击杀，
+            // 谁先一步全看抽牌运气，这种「擦肩而过」的胜负没有可玩性。
+            // 血量从 178 压到 160，把玩家的输出窗口从 5 回合扩到 6 回合。
             list.Add(WithStatus(Boss("boss_chaos_seed", "混沌之种", "魔物", "规则在这里失效，包括你自己的",
-                4, 178, "chaos_seed",
-                Move("混沌冲击", 6, hits: 2),
-                Move("规则崩坏", intKind: IntentKind.Debuff, status: StatusKind.Blind, stacks: 2, weight: 5),
-                Move("虚空吞噬", 10, weight: 3, cooldown: 3),
-                Move("重构", intKind: IntentKind.Heal, heal: 10, weight: 3)),
+                4, 160, "chaos_seed",
+                Move("混沌冲击", 4, hits: 2),
+                Move("规则崩坏", intKind: IntentKind.Debuff, status: StatusKind.Blind, stacks: 2, weight: 6),
+                Move("虚空吞噬", 7, weight: 3, cooldown: 3),
+                Move("重构", intKind: IntentKind.Heal, heal: 8, weight: 4)),
                 StatusKind.Enrage, 3));
 
             cache = new Dictionary<string, EnemyDef>();

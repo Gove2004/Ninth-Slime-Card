@@ -28,6 +28,13 @@ namespace Slime.Core
         public int RunMapSeed;
         public readonly List<int> RunDeck = new List<int>();
 
+        /// <summary>
+        /// 与 RunDeck 一一对应的升级等级。必须和牌组一起存：篝火升级过的牌
+        /// 如果读档后回到 0 级，玩家会以为自己白花了一次篝火。
+        /// 旧存档没有这一行，读出来是空列表，按全 0 级处理。
+        /// </summary>
+        public readonly List<int> RunDeckLevels = new List<int>();
+
         public readonly HashSet<int> DiscoveredCards = new HashSet<int>();
         public readonly HashSet<string> Unlocked = new HashSet<string>();
         public readonly Dictionary<string, long> Counters = new Dictionary<string, long>();
@@ -59,6 +66,23 @@ namespace Slime.Core
             DiscoveredCards.Add(cardId);
         }
 
+        /// <summary>
+        /// 清空局内续档。放弃本局、阵亡、清档三处都要调，逐字段手写容易漏掉新加的字段
+        /// （漏了 RunMapSeed 就会带着旧地图读档，漏了 RunDeckLevels 会让升级白升）。
+        /// 跨局进度（奖杯、图鉴、成就、统计）不在这里，调用方自行保留。
+        /// </summary>
+        public void ClearRun()
+        {
+            RunDeck.Clear();
+            RunDeckLevels.Clear();
+            RunChapter = 1;
+            RunHp = 0;
+            RunHpMax = 0;
+            RunGold = 0;
+            RunNodeId = 0;
+            RunMapSeed = 0;
+        }
+
         // ---------------------------------------------------------- 序列化
 
         public string Serialize()
@@ -79,6 +103,7 @@ namespace Slime.Core
             sb.Append("runnode=").Append(RunNodeId).Append('\n');
             sb.Append("runmapseed=").Append(RunMapSeed).Append('\n');
             sb.Append("rundeck=").Append(string.Join(",", RunDeck.ConvertAll(i => i.ToString()).ToArray())).Append('\n');
+            sb.Append("rundecklv=").Append(string.Join(",", RunDeckLevels.ConvertAll(i => i.ToString()).ToArray())).Append('\n');
 
             sb.Append("cards=");
             bool first = true;
@@ -157,6 +182,19 @@ namespace Slime.Core
                             if (int.TryParse(piece, out id))
                             {
                                 meta.RunDeck.Add(id);
+                            }
+                        }
+
+                        break;
+
+                    case "rundecklv":
+                        meta.RunDeckLevels.Clear();
+                        foreach (var piece in Split(value))
+                        {
+                            int level;
+                            if (int.TryParse(piece, out level))
+                            {
+                                meta.RunDeckLevels.Add(level);
                             }
                         }
 

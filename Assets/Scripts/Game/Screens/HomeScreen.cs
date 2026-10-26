@@ -468,8 +468,7 @@ namespace Slime.Game
                 App.Meta.Unlocked.Clear();
                 App.Meta.Counters.Clear();
                 App.Meta.Flags.Clear();
-                App.Meta.RunDeck.Clear();
-                App.Meta.RunChapter = 1;
+                App.Meta.ClearRun();
                 App.Director.StartNewRun();
                 App.PersistMeta();
                 Object.Destroy(dialog.gameObject);

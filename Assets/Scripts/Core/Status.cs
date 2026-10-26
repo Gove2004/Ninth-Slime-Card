@@ -13,6 +13,7 @@ namespace Slime.Core
 
         // ---- 增益 ----
         Strength,    // 力量：每层攻击 +1（永久，不衰减）
+        TempStrength,// 临时力量：每层攻击 +1，回合结束清零（能力牌每回合重新给）
         Dexterity,   // 敏捷：每层获得护盾 +1（永久）
         Regen,       // 再生：回合结束恢复等量生命，每回合 -1
         Thorns,      // 荆棘：受到攻击时反弹等量伤害（永久）
@@ -42,6 +43,7 @@ namespace Slime.Core
             switch (kind)
             {
                 case StatusKind.Strength: return "力量";
+                case StatusKind.TempStrength: return "临时力量";
                 case StatusKind.Dexterity: return "敏捷";
                 case StatusKind.Regen: return "再生";
                 case StatusKind.Thorns: return "荆棘";
@@ -66,6 +68,7 @@ namespace Slime.Core
             switch (kind)
             {
                 case StatusKind.Strength:
+                case StatusKind.TempStrength:
                 case StatusKind.Dexterity:
                 case StatusKind.Regen:
                 case StatusKind.Thorns:
@@ -85,6 +88,7 @@ namespace Slime.Core
             switch (kind)
             {
                 case StatusKind.Strength:
+                case StatusKind.TempStrength:
                 case StatusKind.Dexterity:
                 case StatusKind.Thorns:
                 case StatusKind.Focus:
@@ -100,6 +104,7 @@ namespace Slime.Core
             switch (kind)
             {
                 case StatusKind.Strength: return "力量 +" + stacks + "（攻击 +" + stacks + "）";
+                case StatusKind.TempStrength: return "临时力量 +" + stacks + "（攻击 +" + stacks + "，回合结束消失）";
                 case StatusKind.Dexterity: return "敏捷 +" + stacks + "（护盾 +" + stacks + "）";
                 case StatusKind.Regen: return "再生 " + stacks + "（回合结束 +" + stacks + " 生命）";
                 case StatusKind.Thorns: return "荆棘 " + stacks + "（反弹 " + stacks + " 伤害）";
@@ -122,7 +127,7 @@ namespace Slime.Core
         /// <summary>所有可被卡牌施加的状态，顺序即 UI 显示顺序。</summary>
         public static readonly StatusKind[] All =
         {
-            StatusKind.Strength, StatusKind.Dexterity, StatusKind.Focus, StatusKind.Thorns,
+            StatusKind.Strength, StatusKind.TempStrength, StatusKind.Dexterity, StatusKind.Focus, StatusKind.Thorns,
             StatusKind.Regen, StatusKind.Barrier,
             StatusKind.Poison, StatusKind.Burn, StatusKind.Freeze, StatusKind.Stun,
             StatusKind.Weak, StatusKind.Vulnerable, StatusKind.Frail, StatusKind.Blind,
@@ -135,6 +140,7 @@ namespace Slime.Core
             switch ((id ?? string.Empty).Trim().ToLowerInvariant())
             {
                 case "str": case "strength": return StatusKind.Strength;
+                case "tstr": case "tempstr": return StatusKind.TempStrength;
                 case "dex": case "dexterity": return StatusKind.Dexterity;
                 case "regen": return StatusKind.Regen;
                 case "thorns": case "thorn": return StatusKind.Thorns;

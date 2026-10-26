@@ -58,11 +58,23 @@ namespace Slime.Core
         public List<EffectOp> Then;
         public List<EffectOp> Else;
 
+        /// <summary>
+        /// 每回合触发（DSL 里的 turn: 前缀）。只有能力牌会用：
+        /// 带这个标记的 op 在打出时不结算，改为每回合开始时重复执行。
+        /// </summary>
+        public bool PerTurn;
+
         /// <summary>状态载荷（kind == "status"）。</summary>
         public StatusKind StatusKind = StatusKind.None;
 
         /// <summary>倍率（kind == "mul"）。</summary>
         public bool IsIf { get { return Kind == "if"; } }
+
+        /// <summary>浅拷贝。拆分「立即结算」与「每回合结算」时用，避免改到共享的解析结果。</summary>
+        public EffectOp ShallowClone()
+        {
+            return (EffectOp)MemberwiseClone();
+        }
     }
 
     /// <summary>效果脚本解析器。纯字符串处理，无引擎依赖。</summary>
@@ -127,7 +139,21 @@ namespace Slime.Core
             var head = all[0];
             var seg = head.Split(':');
 
+            // turn: 前缀 = 「每回合开始时重复一次」，只对能力牌有意义。
+            // 剥掉前缀后照常解析，这样 turn:draw:1 与 draw:1 用的是同一套实现。
+            bool perTurn = seg[0].Trim().Equals("turn", StringComparison.OrdinalIgnoreCase);
+            if (perTurn)
+            {
+                head = head.Substring(head.IndexOf(':') + 1);
+                seg = head.Split(':');
+                if (seg.Length == 0 || seg[0].Trim().Length == 0)
+                {
+                    return null;
+                }
+            }
+
             var op = new EffectOp { Kind = seg[0].Trim().ToLowerInvariant() };
+            op.PerTurn = perTurn;
 
             if (op.Kind == "if")
             {

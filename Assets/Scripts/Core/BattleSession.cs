@@ -188,7 +188,7 @@ namespace Slime.Core
             Player.ResetTurnStats();
             Enemy.ResetTurnStats();
 
-            TickStartOfTurn(Player);
+            TickStartOfTurn(Player, Enemy);
             if (CheckEnd())
             {
                 return;
@@ -203,6 +203,14 @@ namespace Slime.Core
             int drawCount = rules.DrawPerTurn - Player.GetStatus(StatusKind.Blind);
             Draw(Player, Math.Max(0, drawCount));
             RefreshPlayerEnergy();
+
+            // 能力牌在本回合的抽牌与能量之后结算：turn:energy 与 turn:draw
+            // 才能在本回合就生效，而不是等下一回合。
+            TickPowers(Player, Enemy);
+            if (CheckEnd())
+            {
+                return;
+            }
 
             PlanEnemyIntent();
             Emit(EventKind.Info, "第 " + TurnNumber + " 回合 · 你的行动", 0, false);
@@ -264,7 +272,18 @@ namespace Slime.Core
 
             Emit(EventKind.Play, def.Name, card.Cost, !self.IsPlayer);
 
-            ResolveOps(self, foe, def.Ops, card);
+            // 能力牌拆成两半：带 turn: 前缀的 op 登记下来每回合重放，
+            // 其余（加力量、加护盾这类一次性效果）照常当场结算。
+            var instantOps = new List<EffectOp>();
+            var perTurnOps = new List<EffectOp>();
+            SplitOps(def.Ops, instantOps, perTurnOps);
+
+            if (perTurnOps.Count > 0)
+            {
+                self.Powers.Add(new PowerRuntime { Def = def, Src = card, PerTurn = perTurnOps });
+            }
+
+            ResolveOps(self, foe, instantOps, card);
 
             // 能力牌（Power）打出后整场生效，不进弃牌堆
             bool exhaust = card.Exhaust || def.Exhaust || def.Kind == CardKind.Power;
@@ -291,8 +310,11 @@ namespace Slime.Core
                 BestTurnDamage = thisTurn;
             }
 
-            // 手牌超过上限的部分弃掉
-            DiscardExcess(Player);
+            // 回合结束弃掉整手牌。只裁到上限是不够的：
+            // 那样手牌会一路涨到 10 张就再也不降，从第 3 回合起「每回合抽 5 张」
+            // 抽到的牌全被上限吞掉，抽牌类的能力牌直接变成废牌；
+            // 而且玩家可以囤一整手好牌，之后每回合只挑最强的几张打，难度曲线就没了。
+            DiscardHand(Player);
 
             TickEndOfTurn(Player);
             if (CheckEnd())
@@ -315,7 +337,13 @@ namespace Slime.Core
             Phase = BattlePhase.EnemyTurn;
             Enemy.ResetTurnStats();
 
-            TickStartOfTurn(Enemy);
+            TickStartOfTurn(Enemy, Player);
+            if (CheckEnd())
+            {
+                return;
+            }
+
+            TickPowers(Enemy, Player);
             if (CheckEnd())
             {
                 return;
@@ -412,11 +440,14 @@ namespace Slime.Core
                 return;
             }
 
-            Emit(EventKind.EnemyIntent, Enemy.Name + " · " + intent.Describe(), intent.Value, true);
+            Emit(EventKind.EnemyIntent, Enemy.Name + " · " + intent.Describe(Enemy), intent.EffectiveDamage(Enemy), true);
 
             switch (intent.Kind)
             {
                 case IntentKind.Attack:
+                    // 力量必须在这里加进去。敌人攒「力量」的招式（低吼、战吼、龙威……）
+                    // 本来就是为了让后面的攻击变疼，不加的话那些招式等于空过一回合。
+                    int strike = intent.EffectiveDamage(Enemy);
                     for (int i = 0; i < intent.Hits; i++)
                     {
                         if (CheckEnd())
@@ -424,7 +455,7 @@ namespace Slime.Core
                             return;
                         }
 
-                        DealDamage(Enemy, Player, intent.Value, true);
+                        DealDamage(Enemy, Player, strike, true);
                     }
 
                     break;
@@ -471,7 +502,7 @@ namespace Slime.Core
             brain.Plan(Enemy, Player, TurnNumber, IsElite, IsBoss);
             if (brain.Queue.Count > 0)
             {
-                Emit(EventKind.EnemyIntent, "敌方意图：" + brain.Queue.Peek().Describe(), brain.Queue.Peek().Value, true);
+                Emit(EventKind.EnemyIntent, "敌方意图：" + brain.Queue.Peek().Describe(Enemy), brain.Queue.Peek().EffectiveDamage(Enemy), true);
             }
         }
 
@@ -483,7 +514,7 @@ namespace Slime.Core
 
         // ------------------------------------------------------------ 回合钩子
 
-        private void TickStartOfTurn(BattleUnit unit)
+        private void TickStartOfTurn(BattleUnit unit, BattleUnit foe)
         {
             // 控制免疫只覆盖「刚醒来的那一回合」，这里先清掉
             if (unit.ControlImmunity > 0)
@@ -590,6 +621,84 @@ namespace Slime.Core
                 }
 
                 Exec(self, foe, ops[i], src);
+            }
+        }
+
+        /// <summary>
+        /// 把一条效果链拆成「打出时结算」与「每回合重放」两份。
+        /// 条件块不能整个丢进任一边：turn:if:lowhp|heal:v1 这种写法里，
+        /// 条件本身要留到每回合执行时才判断，而 if 里可能同时混着两类 op，
+        /// 所以遇到 if 就递归拆开，再各自拼回一个带原条件的副本。
+        /// </summary>
+        private static void SplitOps(List<EffectOp> ops, List<EffectOp> instant, List<EffectOp> perTurn)
+        {
+            if (ops == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < ops.Count; i++)
+            {
+                var op = ops[i];
+                if (op == null)
+                {
+                    continue;
+                }
+
+                if (op.PerTurn)
+                {
+                    perTurn.Add(op);
+                    continue;
+                }
+
+                if (!op.IsIf)
+                {
+                    instant.Add(op);
+                    continue;
+                }
+
+                var thenInstant = new List<EffectOp>();
+                var thenTurn = new List<EffectOp>();
+                var elseInstant = new List<EffectOp>();
+                var elseTurn = new List<EffectOp>();
+                SplitOps(op.Then, thenInstant, thenTurn);
+                SplitOps(op.Else, elseInstant, elseTurn);
+
+                if (thenInstant.Count > 0 || elseInstant.Count > 0)
+                {
+                    instant.Add(RebuildIf(op, thenInstant, elseInstant));
+                }
+
+                if (thenTurn.Count > 0 || elseTurn.Count > 0)
+                {
+                    perTurn.Add(RebuildIf(op, thenTurn, elseTurn));
+                }
+            }
+        }
+
+        private static EffectOp RebuildIf(EffectOp src, List<EffectOp> then, List<EffectOp> els)
+        {
+            var copy = src.ShallowClone();
+            copy.Then = then;
+            copy.Else = els.Count > 0 ? els : null;
+            return copy;
+        }
+
+        /// <summary>回合开始时重放所有能力牌。</summary>
+        private void TickPowers(BattleUnit unit, BattleUnit foe)
+        {
+            for (int i = 0; i < unit.Powers.Count; i++)
+            {
+                var power = unit.Powers[i];
+                for (int j = 0; j < power.PerTurn.Count; j++)
+                {
+                    if (Phase == BattlePhase.Ended)
+                    {
+                        return;
+                    }
+
+                    Exec(unit, foe, power.PerTurn[j], power.Src);
+                }
             }
         }
 
@@ -1021,16 +1130,22 @@ namespace Slime.Core
             Emit(EventKind.Draw, "弃牌堆洗回", unit.DrawPile.Count, !unit.IsPlayer);
         }
 
-        private void DiscardExcess(BattleUnit unit)
+        /// <summary>回合结束把整手牌弃掉（尖塔式）。</summary>
+        private void DiscardHand(BattleUnit unit)
         {
-            while (unit.Hand.Count > rules.HandLimit)
+            if (unit.Hand.Count == 0)
             {
-                int last = unit.Hand.Count - 1;
-                var card = unit.Hand[last];
-                unit.Hand.RemoveAt(last);
-                unit.DiscardPile.Add(card);
-                Emit(EventKind.Discard, "弃掉 " + card.Name, 1, !unit.IsPlayer);
+                return;
             }
+
+            int count = unit.Hand.Count;
+            for (int i = 0; i < count; i++)
+            {
+                unit.DiscardPile.Add(unit.Hand[i]);
+            }
+
+            unit.Hand.Clear();
+            Emit(EventKind.Discard, "弃掉 " + count + " 张手牌", count, !unit.IsPlayer);
         }
 
         private void DiscardRandom(BattleUnit unit, int count)
