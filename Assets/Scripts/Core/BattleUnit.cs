@@ -73,6 +73,18 @@ namespace Slime.Core
         /// <summary>每回合开始时重复执行的效果。空表示只在打出时结算一次。</summary>
         public List<EffectOp> PerTurn = new List<EffectOp>();
 
+        /// <summary>
+        /// 每打出一张牌后重复执行的效果。用于「本回合每出一张牌就抽一张」这类
+        /// 需要在回合中途反复触发的牌 —— PerTurn 只在回合开始跑一次，表达不了。
+        /// </summary>
+        public List<EffectOp> OnPlay = new List<EffectOp>();
+
+        /// <summary>
+        /// true 表示这个 onplay 效果只在本回合有效（技能牌打出的临时效果），
+        /// 回合结束随其它一次性状态一起清掉。能力牌则为整场。
+        /// </summary>
+        public bool ExpireEndOfTurn;
+
         public string Name { get { return Def != null ? Def.Name : "能力"; } }
     }
 

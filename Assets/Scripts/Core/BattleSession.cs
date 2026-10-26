@@ -23,7 +23,14 @@ namespace Slime.Core
         Status = 7,
         Debuff = 8,
         Discard = 9,
-        EnemyIntent = 10
+        EnemyIntent = 10,
+
+        /// <summary>
+        /// 兑现时刻：把攒了几回合的层数/护盾一次性换成伤害。
+        /// 单独一个类型，是因为它必须被强烈地表现出来 —— 玩家如果看不到
+        /// 「6 层冻结炸了 36 点」，就不会明白自己刚才那一手为什么强。
+        /// </summary>
+        Payoff = 11
     }
 
     /// <summary>一条战斗播报。视图层消费它做飘字、震屏与提示。</summary>
@@ -280,14 +287,30 @@ namespace Slime.Core
             // 其余（加力量、加护盾这类一次性效果）照常当场结算。
             var instantOps = new List<EffectOp>();
             var perTurnOps = new List<EffectOp>();
-            SplitOps(def.Ops, instantOps, perTurnOps);
+            var onPlayOps = new List<EffectOp>();
+            SplitOps(def.Ops, instantOps, perTurnOps, onPlayOps);
 
             if (perTurnOps.Count > 0)
             {
                 self.Powers.Add(new PowerRuntime { Def = def, Src = card, PerTurn = perTurnOps });
             }
 
+            if (onPlayOps.Count > 0)
+            {
+                self.Powers.Add(new PowerRuntime
+                {
+                    Def = def,
+                    Src = card,
+                    OnPlay = onPlayOps,
+                    ExpireEndOfTurn = def.Kind != CardKind.Power
+                });
+            }
+
             ResolveOps(self, foe, instantOps, card);
+
+            // 本回合有效的 onplay 效果要在出牌后立即触发一次 —— 打出这张牌的
+            // 动作本身就是「打出一张牌」，不触发的话第一张永远白给。
+            TickOnPlay(self, foe);
 
             // 能力牌（Power）打出后整场生效，不进弃牌堆
             bool exhaust = card.Exhaust || def.Exhaust || def.Kind == CardKind.Power;
@@ -319,6 +342,7 @@ namespace Slime.Core
             // 抽到的牌全被上限吞掉，抽牌类的能力牌直接变成废牌；
             // 而且玩家可以囤一整手好牌，之后每回合只挑最强的几张打，难度曲线就没了。
             DiscardHand(Player);
+            ExpireOnPlayPowers(Player);
 
             TickEndOfTurn(Player);
             if (CheckEnd())
@@ -634,7 +658,8 @@ namespace Slime.Core
         /// 条件本身要留到每回合执行时才判断，而 if 里可能同时混着两类 op，
         /// 所以遇到 if 就递归拆开，再各自拼回一个带原条件的副本。
         /// </summary>
-        private static void SplitOps(List<EffectOp> ops, List<EffectOp> instant, List<EffectOp> perTurn)
+        private static void SplitOps(List<EffectOp> ops, List<EffectOp> instant, List<EffectOp> perTurn,
+            List<EffectOp> onPlay = null)
         {
             if (ops == null)
             {
@@ -655,6 +680,16 @@ namespace Slime.Core
                     continue;
                 }
 
+                if (op.OnPlay)
+                {
+                    if (onPlay != null)
+                    {
+                        onPlay.Add(op);
+                    }
+
+                    continue;
+                }
+
                 if (!op.IsIf)
                 {
                     instant.Add(op);
@@ -663,10 +698,12 @@ namespace Slime.Core
 
                 var thenInstant = new List<EffectOp>();
                 var thenTurn = new List<EffectOp>();
+                var thenPlay = new List<EffectOp>();
                 var elseInstant = new List<EffectOp>();
                 var elseTurn = new List<EffectOp>();
-                SplitOps(op.Then, thenInstant, thenTurn);
-                SplitOps(op.Else, elseInstant, elseTurn);
+                var elsePlay = new List<EffectOp>();
+                SplitOps(op.Then, thenInstant, thenTurn, thenPlay);
+                SplitOps(op.Else, elseInstant, elseTurn, elsePlay);
 
                 if (thenInstant.Count > 0 || elseInstant.Count > 0)
                 {
@@ -676,6 +713,11 @@ namespace Slime.Core
                 if (thenTurn.Count > 0 || elseTurn.Count > 0)
                 {
                     perTurn.Add(RebuildIf(op, thenTurn, elseTurn));
+                }
+
+                if (onPlay != null && (thenPlay.Count > 0 || elsePlay.Count > 0))
+                {
+                    onPlay.Add(RebuildIf(op, thenPlay, elsePlay));
                 }
             }
         }
@@ -702,6 +744,39 @@ namespace Slime.Core
                     }
 
                     Exec(unit, foe, power.PerTurn[j], power.Src);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 出牌后的触发点。每打出一张牌跑一次，让「本回合每出一张牌就抽一张」
+        /// 这类效果真正跟着出牌节奏走，而不是只在回合开始跑一次。
+        /// </summary>
+        private void TickOnPlay(BattleUnit unit, BattleUnit foe)
+        {
+            for (int i = 0; i < unit.Powers.Count; i++)
+            {
+                var power = unit.Powers[i];
+                for (int j = 0; j < power.OnPlay.Count; j++)
+                {
+                    if (Phase == BattlePhase.Ended)
+                    {
+                        return;
+                    }
+
+                    Exec(unit, foe, power.OnPlay[j], power.Src);
+                }
+            }
+        }
+
+        /// <summary>清掉只在本回合有效的 onplay 效果（技能牌打出的临时钩子）。</summary>
+        private static void ExpireOnPlayPowers(BattleUnit unit)
+        {
+            for (int i = unit.Powers.Count - 1; i >= 0; i--)
+            {
+                if (unit.Powers[i].ExpireEndOfTurn)
+                {
+                    unit.Powers.RemoveAt(i);
                 }
             }
         }
@@ -739,6 +814,21 @@ namespace Slime.Core
             {
                 case "dmg":
                     DealDamage(self, foe, op.A + AttackBonusFor(self, src), src != null && src.Def.Kind == CardKind.Attack);
+                    break;
+
+                // 穿心：无视护盾，直接打生命。走 DealDamage 的 ignoreShield 分支
+                // 而不是 LoseHp，是为了仍吃到力量/专注/虚弱/易伤的修正 ——
+                // 它是一记攻击，只是绕开了盾。
+                case "pierce":
+                    DealDamage(self, foe, op.A + AttackBonusFor(self, src),
+                        src != null && src.Def.Kind == CardKind.Attack, ignoreShield: true);
+                    break;
+
+                // 斩铁：这一击对护盾双倍，溢出部分按原值进生命。
+                // 结算时先把目标当前护盾记下来，伤害过盾时按两倍扣。
+                case "shieldbreak":
+                    DealDamage(self, foe, op.A + AttackBonusFor(self, src),
+                        src != null && src.Def.Kind == CardKind.Attack, shieldDamageMultiplier: 2);
                     break;
 
                 case "vdmg":
@@ -810,8 +900,17 @@ namespace Slime.Core
                     break;
 
                 case "multiply":
-                    // 重复上一张牌的伤害一次（配合 if 使用）
-                    DealDamage(self, foe, op.A + AttackBonusFor(self, src), src != null && src.Def.Kind == CardKind.Attack);
+                    // 剑舞：重复「本回合已出牌数」次。
+                    // 注意计数在 PlayInternal 里已经 ++ 过，所以这里要把自己减掉，
+                    // 否则 3 费牌打出第 1 张就成了 2 段，和卡面「本回合已出牌数」不符。
+                    {
+                        int repeats = Math.Max(1, self.CardsPlayedThisTurn - 1);
+                        for (int i = 0; i < repeats && !foe.IsDead; i++)
+                        {
+                            DealDamage(self, foe, op.A + AttackBonusFor(self, src),
+                                src != null && src.Def.Kind == CardKind.Attack);
+                        }
+                    }
                     break;
 
                 case "exhaust_hand":
@@ -927,7 +1026,8 @@ namespace Slime.Core
 
         // ------------------------------------------------------------ 数值管线
 
-        public void DealDamage(BattleUnit source, BattleUnit target, int raw, bool isAttack)
+        public void DealDamage(BattleUnit source, BattleUnit target, int raw, bool isAttack,
+            bool ignoreShield = false, int shieldDamageMultiplier = 1)
         {
             if (raw <= 0 || target == null || Phase == BattlePhase.Ended)
             {
@@ -953,7 +1053,7 @@ namespace Slime.Core
                 amount = 1;
             }
 
-            int applied = TakeDamage(target, amount);
+            int applied = TakeDamage(target, amount, ignoreShield, shieldDamageMultiplier);
             source.DamageDealtTotal += applied;
             source.DamageDealtThisTurn += applied;
 
@@ -975,7 +1075,8 @@ namespace Slime.Core
         }
 
         /// <summary>伤害结算：结界 → 护盾 → 生命。</summary>
-        private int TakeDamage(BattleUnit target, int amount)
+        private int TakeDamage(BattleUnit target, int amount, bool ignoreShield = false,
+            int shieldDamageMultiplier = 1)
         {
             if (amount <= 0)
             {
@@ -996,11 +1097,20 @@ namespace Slime.Core
             }
 
             int absorbed = 0;
-            if (target.Shield > 0)
+            if (!ignoreShield && target.Shield > 0)
             {
-                absorbed = Math.Min(target.Shield, amount);
-                target.Shield -= absorbed;
-                amount -= absorbed;
+                // 破盾类攻击：每 1 点伤害打掉 2 点护盾。
+                // 按「护盾被扣多少」反推「消耗掉多少伤害」，而不是直接把伤害翻倍 ——
+                // 后者会让 1 点残余护盾也把整发攻击翻倍，溢出到生命上。
+                int maxDestroy = amount * shieldDamageMultiplier;
+                int destroyed = Math.Min(target.Shield, maxDestroy);
+                absorbed = destroyed;
+                target.Shield -= destroyed;
+                amount -= (destroyed + shieldDamageMultiplier - 1) / shieldDamageMultiplier;
+                if (amount < 0)
+                {
+                    amount = 0;
+                }
             }
 
             int hpLoss = 0;
@@ -1109,7 +1219,7 @@ namespace Slime.Core
 
             int dmg = stacks * perStack;
             foe.AddStatus(kind, -stacks);
-            Emit(EventKind.Status, "引爆 " + stacks + " 层" + Statuses.DisplayName(kind), stacks, !foe.IsPlayer);
+            Emit(EventKind.Payoff, "引爆 " + stacks + " 层" + Statuses.DisplayName(kind), stacks, !foe.IsPlayer);
             LoseHp(foe, dmg);
         }
 
@@ -1133,7 +1243,7 @@ namespace Slime.Core
 
             self.Shield = 0;
             int dmg = shield * perPoint;
-            Emit(EventKind.Status, "倾泻 " + shield + " 点护盾", shield, !self.IsPlayer);
+            Emit(EventKind.Payoff, "倾泻 " + shield + " 点护盾", shield, !self.IsPlayer);
             LoseHp(foe, dmg);
         }
 

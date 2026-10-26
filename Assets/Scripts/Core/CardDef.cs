@@ -69,6 +69,12 @@ namespace Slime.Core
         /// </summary>
         public bool PerTurn;
 
+        /// <summary>
+        /// 出牌后触发（DSL 里的 onplay: 前缀）。带这个标记的 op 在打出时不结算，
+        /// 改为「本回合内每打出一张牌后」重复执行，回合结束失效。
+        /// </summary>
+        public bool OnPlay;
+
         /// <summary>状态载荷（kind == "status"）。</summary>
         public StatusKind StatusKind = StatusKind.None;
 
@@ -157,8 +163,23 @@ namespace Slime.Core
                 }
             }
 
+            // onplay: 前缀 = 「本回合内每打出一张牌就重复一次」。
+            // 与 turn: 的区别是触发时机：turn: 在回合开始跑一次，
+            // onplay: 在每次出牌后跑，用来表达「每出一张就抽一张」这类回合中途的持续效果。
+            bool onPlay = seg[0].Trim().Equals("onplay", StringComparison.OrdinalIgnoreCase);
+            if (onPlay)
+            {
+                head = head.Substring(head.IndexOf(':') + 1);
+                seg = head.Split(':');
+                if (seg.Length == 0 || seg[0].Trim().Length == 0)
+                {
+                    return null;
+                }
+            }
+
             var op = new EffectOp { Kind = seg[0].Trim().ToLowerInvariant() };
             op.PerTurn = perTurn;
+            op.OnPlay = onPlay;
 
             if (op.Kind == "if")
             {
@@ -170,6 +191,13 @@ namespace Slime.Core
                 // 是 else 分支。12 张条件牌全部名存实亡：处刑永远只打一段，
                 // 血怒永远只抽牌，反手永远是普通伤害。
                 string condSpec = seg.Length > 1 ? head.Substring(head.IndexOf(':') + 1) : "always";
+
+                // 条件参数也要支持 v1/v2/v3，否则「手牌 ≥ [数值2] 张」这种
+                // 升级后门槛下降的写法，描述会变而判定值永远是写死的那个数。
+                condSpec = condSpec.Replace("v1", v1.ToString())
+                    .Replace("v2", v2.ToString())
+                    .Replace("v3", v3.ToString());
+
                 string thenSpec = all.Length > 1 ? all[1] : string.Empty;
                 string elseSpec = all.Length > 2 ? all[2] : string.Empty;
 

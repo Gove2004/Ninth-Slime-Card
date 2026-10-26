@@ -1520,6 +1520,20 @@ namespace Slime.Game
                         SpawnFloat(e.Text, Theme.SeriesDark, at + new Vector2(0f, 64f), 1.0f);
                         GameApp.I.Audio.PlaySfx("venom");
                         break;
+                    case EventKind.Status:
+                        // 状态变化不走飘字 —— 敌人每回合施加状态也发这个事件，
+                        // 飘字会和伤害数字挤在一起互相盖住。写进日志即可。
+                        UpdateLog(e.Text);
+                        break;
+                    case EventKind.Payoff:
+                        // 兑现时刻：攒了半天的层数/护盾一次换成了伤害，
+                        // 这是玩家理解自己构筑强度的唯一机会，必须给足反馈。
+                        SpawnFloat(e.Text, Theme.SeriesLight, at + new Vector2(0f, 96f), 1.5f);
+                        Flash(e.OnEnemy);
+                        GameApp.I.Audio.PlaySfx("mana");
+                        Tween.Shake(Root, e.OnEnemy ? 9f : 5f, 0.34f);
+                        UpdateLog(e.Text);
+                        break;
                 }
             }
         }
