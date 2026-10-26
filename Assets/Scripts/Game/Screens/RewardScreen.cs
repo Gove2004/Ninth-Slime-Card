@@ -48,31 +48,33 @@ namespace Slime.Game
                 (defeated != null ? defeated.Name : "对手") + " 已被击败",
                 string.Empty);
 
+            // 页头占 40..136（顶部边距 + 96 高），下面这几行必须排在 136 之后，
+            // 否则会直接压在页头标题上——之前 -96 就落在页头内部，看起来像两行字叠在一起。
             stageLine = Ui.Label("StageLine", Root,
                 director.ChapterName
                 + "  ·  第 " + (director.Floor + 1) + " 层"
                 + "  ·  生命 " + director.Hp + " / " + director.HpMax,
                 Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
             Ui.Fixed(stageLine.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -96f), new Vector2(1400f, 26f));
+                new Vector2(0f, -150f), new Vector2(1400f, 26f));
             Tween.FadeIn(stageLine, 0.3f, 0.05f, 0f, 1f);
 
             headline = Ui.Label("Headline", Root, string.Empty, Theme.H2, Theme.Gold, TextAlignmentOptions.Center);
             Ui.Fixed(headline.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -134f), new Vector2(1600f, 46f));
+                new Vector2(0f, -188f), new Vector2(1600f, 46f));
 
             subtitle = Ui.Label("Subtitle", Root, BuildSummary(), Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -178f), new Vector2(1600f, 32f));
+                new Vector2(0f, -246f), new Vector2(1600f, 32f));
             Tween.FadeIn(subtitle, 0.3f, 0.12f, 0f, 1f);
 
             content = Ui.Node("Content", Root);
-            Ui.Stretch(content, 0f, 210f, 0f, 120f);
+            Ui.Stretch(content, 0f, 264f, 0f, 120f);
 
             deckInfo = Ui.Label("DeckInfo", Root, string.Empty, Theme.Caption,
                 Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(deckInfo.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 30f), new Vector2(1200f, 28f));
+                new Vector2(0f, 16f), new Vector2(1200f, 28f));
 
             RefreshDeckInfo();
             Render();

@@ -53,7 +53,8 @@ namespace Slime.Game
                 SpriteForge.Circle(200, Theme.WithAlpha(Theme.Gold, 0.16f), Theme.WithAlpha(Theme.Gold, 0.7f), 3), Color.white);
             Ui.Fixed(icon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 60f), new Vector2(200f, 200f));
-            Tween.PopInScaled(icon.rectTransform, 200f, 0f, 1f);
+            // 第二参是缩放倍率，不是尺寸：传 200 会把图标放大两百倍糊满整屏
+            Tween.PopInScaled(icon.rectTransform, 1f, 0f, 0.86f);
 
             var glyph = Ui.Label("Glyph", icon.transform, "箱", Theme.H1, Theme.Gold, TextAlignmentOptions.Center);
             Ui.Stretch(glyph.rectTransform, 0f, 0f, 0f, 0f);

@@ -139,10 +139,10 @@ namespace Slime.Game
 
             string[] lines =
             {
-                "三幕九关廿七战：每关先锋、中坚、宗师三场，打穿第三场才算过关。",
+                "四章 · 每章 12 层：层间岔路自选，走到章末打掉 Boss 进下一章。",
                 "按住卡牌拖到屏幕中段的出牌区，松手才会打出。",
-                "每场胜利三选一补强；关底宗师战连选两轮。",
-                "牌组上限 30 张，满了改为「替换」——换掉弱牌，越打越精。"
+                "战斗、宝箱、篝火、商店、事件五类节点，路线自己挑。",
+                "牌组上限 40 张，满了改为「替换」——换掉弱牌，越打越精。"
             };
 
             for (int i = 0; i < lines.Length; i++)
@@ -240,11 +240,11 @@ namespace Slime.Game
             Ui.Stretch(levelLabel.rectTransform, 0f, 1f, 0f, 1f);
 
             var title = Ui.Label("Title", card.transform, director.ChapterSubtitle, Theme.H2, Theme.Text, TextAlignmentOptions.Center);
-            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(640f, 48f));
+            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -270f), new Vector2(640f, 48f));
 
             var subtitle = Ui.Label("Sub", card.transform, "下一个对手 · " + info.Name,
                 Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -328f), new Vector2(640f, 30f));
+            Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -318f), new Vector2(640f, 30f));
 
             // 三项关键状态：生命是跨节点保留的稀缺资源，牌组是构筑成果
             var stats = Ui.Label("Stats", card.transform,
@@ -252,7 +252,7 @@ namespace Slime.Game
                 + "   ·   金币 " + director.Gold
                 + "   ·   牌组 " + director.DeckCount + " 张",
                 Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(stats.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -362f), new Vector2(660f, 26f));
+            Ui.Fixed(stats.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -348f), new Vector2(660f, 26f));
             Tween.FadeIn(stats, 0.3f, 0.18f, 0f, 1f);
 
             // 生命条：一眼看出这局还能撑多久

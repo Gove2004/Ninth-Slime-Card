@@ -177,13 +177,17 @@ namespace Slime.Game
             var bg = Ui.Solid("BgFill", BackgroundLayer, Theme.BgDeep);
             bg.raycastTarget = false;
 
-            // 真·背景图（月夜城堡剪影）。拉伸铺满，剪影风格允许轻微纵横比偏差。
+            // 真·背景图（月夜城堡剪影）。原图 1440×645（2.23:1），屏幕是 16:9（1.78:1）。
+            // 直接 Stretch 铺满会把纵向拉伸 1.67 倍、横向 1.33 倍，月亮从正圆变成椭圆。
+            // 改为「按高度等比放大、横向溢出」，裁掉两侧多余的空白，形状才不走样。
             Sprite bgArt = ArtLib.BgMain;
             if (bgArt != null)
             {
                 var art = Ui.Panel("BgArt", BackgroundLayer, bgArt, new Color(0.86f, 0.9f, 0.92f, 1f));
                 art.raycastTarget = false;
-                Ui.Stretch(art.rectTransform, 0f, 0f, 0f, 0f);
+                float artW = 1080f * 1440f / 645f;
+                Ui.Fixed(art.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(artW, 1080f));
 
                 // 上下压暗渐变，保证 UI 文字可读
                 var shadeTop = Ui.Panel("BgShadeTop", BackgroundLayer, SpriteForge.Glow(64, Theme.BgDeep), Theme.WithAlpha(Color.white, 0.55f));
@@ -195,11 +199,13 @@ namespace Slime.Game
                 Ui.Fixed(shadeBottom.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 140f), new Vector2(2200f, 640f));
             }
 
-            // 氛围补光：一团对角柔光，让剪影夜景不至于死板。
+            // 氛围补光：一团斜向柔光，让剪影夜景不至于死板。
+            // 尺寸必须是横向拉长的椭圆——正圆放在 16:9 屏幕上只会露出一个边缘清晰的圆盘，
+            // 看起来像贴了张圆形贴纸，而不是打在背景上的光。
             var glowA = Ui.Panel("GlowA", BackgroundLayer,
                 SpriteForge.Glow(256, Theme.Accent), Theme.WithAlpha(Color.white, 0.10f));
             Ui.Fixed(glowA.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(140f, -120f), new Vector2(1300f, 1300f));
+                new Vector2(240f, -40f), new Vector2(2200f, 1500f));
 
             var vignette = Ui.Panel("Vignette", BackgroundLayer, SpriteForge.Vignette(512, Theme.BgDeep), Color.white);
             vignette.raycastTarget = false;

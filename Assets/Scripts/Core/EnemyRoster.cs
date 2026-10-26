@@ -25,28 +25,36 @@ namespace Slime.Core
 
         // ---------------------------------------------------------- 数值缩放
 
-        /// <summary>第 N 章的玩家生命上限。逐章提升，给玩家更多容错。</summary>
+        /// <summary>
+        /// 第 N 章的玩家生命上限。
+        ///
+        /// 这个数不是「一场战斗能挨几下」，而是「一整章能挨几下」：
+        /// 一章要打 7~9 场、每场掉 8~15 血，中间还有两三处篝火回 60%。
+        /// 按 80 血算，一章净损耗上限约 80 + 2×48 = 176，而实际损耗常在 150 以上，
+        /// 也就是稍微走错就必死。抬到 100 起，留出让玩家犯错的空间。
+        /// </summary>
         public static int PlayerHpForChapter(int chapter)
         {
             switch (ClampChapter(chapter))
             {
-                case 1: return 80;
-                case 2: return 95;
-                case 3: return 110;
-                default: return 125;
+                case 1: return 100;
+                case 2: return 115;
+                case 3: return 130;
+                default: return 150;
             }
         }
 
         /// <summary>
-        /// 普通怪物的生命随章节与层数成长。
-        /// 层数加成压在 floor/2 —— 加满 floor 会让后半章每场都拖到 4 回合以上，
-        /// 玩家一回合只出手 3 点能量，回合数就是挨打次数，也就是血量损耗。
+        /// 怪物生命。baseHp 就是「该章节一场普通战应有的血量」，已含章节差异，
+        /// 这里只按层数做小幅递进（同章后段略硬）。
+        ///
+        /// 定这条曲线的依据是玩家的每回合输出：能量 3→4→5→6 配合牌组从 10 张长到 40 张，
+        /// 每回合能打掉的血量逐章抬升。血量必须跟着抬，否则普通战会退化成两回合速通，
+        /// 玩家的血量永远满格，篝火与商店就都失去意义了。
         /// </summary>
         public static int ScaleHp(int baseHp, int chapter, int floor, bool elite)
         {
-            int chapterBonus = (ClampChapter(chapter) - 1) * 4;
-            int floorBonus = floor / 2;
-            int hp = baseHp + chapterBonus + floorBonus;
+            int hp = baseHp + floor / 2;
             if (elite)
             {
                 hp = hp * 5 / 4;
@@ -216,41 +224,41 @@ namespace Slime.Core
 
             // ==================== 第一章：草原与洞窟 ====================
             list.Add(Make("slime_blue", "蓝色史莱姆", "史莱姆", "最常见的小怪，一碰就碎",
-                1, 22, "slime_blue",
-                Move("撞击", 5)));
+                1, 52, "slime_blue",
+                Move("撞击", 4)));
 
             list.Add(Make("slime_red", "红色史莱姆", "史莱姆", "比蓝色的更烫手",
-                1, 20, "slime_red",
-                Move("热撞", 6),
+                1, 48, "slime_red",
+                Move("热撞", 5),
                 Move("粘液", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 1, weight: 4)));
 
             list.Add(Make("slime_metal", "金属史莱姆", "史莱姆", "皮糙肉厚，掉落经验极高",
-                1, 34, "slime_metal",
-                Move("硬撞", 4)));
+                1, 74, "slime_metal",
+                Move("硬撞", 3)));
 
             list.Add(Make("bat_cave", "洞窟蝙蝠", "野兽", "成群出现，专挑眼睛",
-                1, 18, "bat",
-                Move("撕咬", 4, hits: 2)));
+                1, 44, "bat",
+                Move("撕咬", 3, hits: 2)));
 
             list.Add(Make("wolf_grey", "灰狼", "野兽", "饥饿使它的咬合力翻倍",
-                1, 26, "wolf",
-                Move("撕咬", 7),
+                1, 60, "wolf",
+                Move("撕咬", 6),
                 Move("低吼", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 2, weight: 3)));
 
             list.Add(Make("goblin", "哥布林", "人形", "会偷东西，也会喊帮手",
-                1, 24, "goblin",
-                Move("短刀", 6),
-                Move("投石", 4, intKind: IntentKind.AttackDebuff, status: StatusKind.Vulnerable, stacks: 1, weight: 5)));
+                1, 56, "goblin",
+                Move("短刀", 5),
+                Move("投石", 3, intKind: IntentKind.AttackDebuff, status: StatusKind.Vulnerable, stacks: 1, weight: 5)));
 
             list.Add(WithStatus(Elite("elite_slime_king_small", "史莱姆王（幼体）", "史莱姆", "分裂前的小王，已有些许神性",
-                1, 55, "slime_king",
+                1, 58, "slime_king",
                 Move("吞噬", 9),
                 Move("分裂再生", intKind: IntentKind.Heal, heal: 8, weight: 4),
                 Move("黏液喷射", intKind: IntentKind.Debuff, status: StatusKind.Frail, stacks: 2, weight: 4)),
                 StatusKind.Regen, 2));
 
             list.Add(WithStatus(Elite("elite_goblin_chief", "哥布林首领", "人形", "戴着捡来的王冠，手下有十几个",
-                1, 48, "goblin_chief",
+                1, 55, "goblin_chief",
                 Move("铁锤", 10),
                 Move("呼朋引伴", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 2, weight: 5),
                 Move("抢掠", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 2, weight: 4)),
@@ -258,42 +266,42 @@ namespace Slime.Core
 
             // ==================== 第二章：森林与洞窟深处 ====================
             list.Add(Make("c2_mushroom", "毒蘑菇", "魔物", "孢子一散，整片林子都在咳",
-                2, 30, "mushroom",
+                2, 88, "mushroom",
                 Move("孢子", intKind: IntentKind.Debuff, status: StatusKind.Poison, stacks: 3, weight: 8),
-                Move("菌盖冲撞", 6)));
+                Move("菌盖冲撞", 5)));
 
             list.Add(Make("c2_spider", "洞穴蜘蛛", "野兽", "结网者，动作极快",
-                2, 28, "spider",
-                Move("毒牙", 5, intKind: IntentKind.AttackDebuff, status: StatusKind.Poison, stacks: 2),
+                2, 82, "spider",
+                Move("毒牙", 4, intKind: IntentKind.AttackDebuff, status: StatusKind.Poison, stacks: 2),
                 Move("结网", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 2, weight: 4)));
 
             list.Add(Make("c2_skeleton", "骷髅兵", "亡灵", "骨头架子，打不散",
-                2, 32, "skeleton",
-                Move("骨剑", 7),
+                2, 94, "skeleton",
+                Move("骨剑", 6),
                 Move("重组", intKind: IntentKind.Defend, shield: 8, weight: 4)));
 
             list.Add(Make("c2_ghost", "游魂", "亡灵", "穿墙而过，实体攻击对它效果有限",
-                2, 26, "ghost",
-                Move("吸取生命", 6, intKind: IntentKind.AttackDebuff, status: StatusKind.Weak, stacks: 1),
+                2, 76, "ghost",
+                Move("吸取生命", 5, intKind: IntentKind.AttackDebuff, status: StatusKind.Weak, stacks: 1),
                 Move("恐惧", intKind: IntentKind.Debuff, status: StatusKind.Blind, stacks: 2, weight: 5)));
 
             list.Add(Make("c2_golem_moss", "苔石傀儡", "魔物", "走得慢，但每一拳都很重",
-                2, 48, "golem",
-                Move("岩石拳", 9),
+                2, 118, "golem",
+                Move("岩石拳", 7),
                 Move("硬化", intKind: IntentKind.Defend, shield: 10, weight: 5)));
 
             // 古树人的威胁来自「回血 + 荆棘」的叠加——两者同时生效时，
             // 玩家每回合的净输出会被吃掉一大截，战斗拖长到玩家先被磨死。
             // 现在把回血挂上长冷却，让它是「偶尔喘口气」而不是「每回合都在回」。
             list.Add(WithStatus(Elite("elite_treant", "古树人", "魔物", "林子的守卫，根须能贯穿大地",
-                2, 58, "treant",
-                Move("根须缠绕", 7, intKind: IntentKind.AttackDebuff, status: StatusKind.Freeze, stacks: 1),
-                Move("光合作用", intKind: IntentKind.Heal, heal: 6, weight: 2, cooldown: 3),
-                Move("树皮护体", intKind: IntentKind.Defend, shield: 10, weight: 4)),
+                2, 78, "treant",
+                Move("根须缠绕", 10, intKind: IntentKind.AttackDebuff, status: StatusKind.Freeze, stacks: 1),
+                Move("光合作用", intKind: IntentKind.Heal, heal: 4, weight: 1, cooldown: 4),
+                Move("树皮护体", intKind: IntentKind.Defend, shield: 8, weight: 3)),
                 StatusKind.Thorns, 2));
 
             list.Add(WithStatus(Elite("elite_spider_queen", "蛛后 · 阿拉克涅", "野兽", "洞窟深处织网的祖母",
-                2, 68, "spider_queen",
+                2, 108, "spider_queen",
                 Move("毒牙连刺", 6, hits: 2, intKind: IntentKind.AttackDebuff, status: StatusKind.Poison, stacks: 2),
                 Move("结网", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 2, weight: 5),
                 Move("产卵", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 2, weight: 3)),
@@ -301,37 +309,37 @@ namespace Slime.Core
 
             // ==================== 第三章：魔王城 ====================
             list.Add(Make("c3_dark_knight", "黑暗骑士", "人形", "曾经是勇者，如今只剩盔甲里的怨念",
-                3, 52, "dark_knight",
-                Move("魔剑", 10),
-                Move("诅咒斩", 7, intKind: IntentKind.AttackDebuff, status: StatusKind.Vulnerable, stacks: 2, weight: 6)));
+                3, 138, "dark_knight",
+                Move("魔剑", 8),
+                Move("诅咒斩", 6, intKind: IntentKind.AttackDebuff, status: StatusKind.Vulnerable, stacks: 2, weight: 6)));
 
             // 石化凝视原本直接给 1 层眩晕 = 玩家整回合不能动。
             // 普通怪不该有「剥夺一个回合」的能力——玩家没有任何反制手段，
             // 抽到就是纯粹的运气损失。改为冻结：只削一层，代价可控。
             list.Add(Make("c3_basilisk", "石化蜥蜴", "野兽", "被它盯上就会僵硬",
-                3, 44, "basilisk",
+                3, 118, "basilisk",
                 Move("石化凝视", intKind: IntentKind.Debuff, status: StatusKind.Freeze, stacks: 1, weight: 3, cooldown: 3),
-                Move("毒尾", 8, intKind: IntentKind.AttackDebuff, status: StatusKind.Poison, stacks: 2)));
+                Move("毒尾", 6, intKind: IntentKind.AttackDebuff, status: StatusKind.Poison, stacks: 2)));
 
             list.Add(Make("c3_bomb_creeper", "炸弹岩", "魔物", "越靠近越危险",
-                3, 38, "bomb",
+                3, 104, "bomb",
                 Move("蓄爆", intKind: IntentKind.Buff, status: StatusKind.Enrage, stacks: 3, weight: 6),
-                Move("自爆", 16, cooldown: 3)));
+                Move("自爆", 13, cooldown: 3)));
 
             list.Add(Make("c3_wraith", "怨灵法师", "亡灵", "念咒的时候，整间屋子都冷了",
-                3, 40, "wraith",
-                Move("暗影箭", 9),
+                3, 110, "wraith",
+                Move("暗影箭", 7),
                 Move("吸魔", intKind: IntentKind.AttackDebuff, status: StatusKind.Frail, stacks: 2, weight: 5)));
 
             list.Add(WithStatus(Elite("elite_minotaur", "牛头人守卫", "魔物", "守住大门的最后一道锁",
-                3, 100, "minotaur",
-                Move("重斧", 13),
-                Move("践踏", 8, hits: 2),
+                3, 124, "minotaur",
+                Move("重斧", 11),
+                Move("践踏", 7, hits: 2),
                 Move("战吼", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 3, weight: 4)),
-                StatusKind.Thorns, 4));
+                StatusKind.Thorns, 2));
 
             list.Add(WithStatus(Elite("elite_lich", "巫妖 · 摩甘", "亡灵", "龙王的谋士，早就不需要身体了",
-                3, 88, "lich",
+                3, 134, "lich",
                 Move("死亡一指", 12, intKind: IntentKind.AttackDebuff, status: StatusKind.Frail, stacks: 2),
                 Move("亡灵召唤", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 3, weight: 5),
                 Move("灵魂汲取", intKind: IntentKind.Heal, heal: 12, weight: 4),
@@ -340,35 +348,35 @@ namespace Slime.Core
 
             // ==================== 第四章：混沌深渊 ====================
             list.Add(Make("c4_chaos_blob", "混沌黏块", "史莱姆", "没有固定形状，也没有固定弱点",
-                4, 60, "chaos_blob",
-                Move("不定形撞击", 11),
+                4, 176, "chaos_blob",
+                Move("不定形撞击", 9),
                 Move("随机变形", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 2, weight: 5)));
 
             list.Add(Make("c4_void_servant", "虚空仆从", "亡灵", "从深渊缝隙里爬出来",
-                4, 55, "void_servant",
-                Move("虚空爪", 12),
+                4, 162, "void_servant",
+                Move("虚空爪", 9),
                 Move("侵蚀", intKind: IntentKind.Debuff, status: StatusKind.Burn, stacks: 4, weight: 5)));
 
             list.Add(Make("c4_abyss_wyrm", "深渊蠕虫", "龙", "龙与虫的界线在它身上模糊了",
-                4, 70, "abyss_wyrm",
-                Move("尾扫", 9, hits: 2),
-                Move("腐化吐息", 6, intKind: IntentKind.AttackDebuff, status: StatusKind.Poison, stacks: 4, weight: 5)));
+                4, 185, "abyss_wyrm",
+                Move("尾扫", 7, hits: 2),
+                Move("腐化吐息", 5, intKind: IntentKind.AttackDebuff, status: StatusKind.Poison, stacks: 3, weight: 5)));
 
             list.Add(WithStatus(Elite("elite_fallen_hero", "堕落勇者", "人形", "他走到过这里，然后留下了",
-                4, 115, "fallen_hero",
-                Move("圣剑", 14),
-                Move("勇者之怒", 9, hits: 2),
+                4, 158, "fallen_hero",
+                Move("圣剑", 12),
+                Move("勇者之怒", 7, hits: 2),
                 Move("祈祷", intKind: IntentKind.Heal, heal: 12, weight: 3),
                 Move("绝望", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 3, weight: 3)),
                 StatusKind.Strength, 2));
 
             list.Add(WithStatus(Elite("elite_void_titan", "虚空巨像", "魔物", "深渊自己站起来的样子",
-                4, 130, "void_titan",
-                Move("崩界拳", 15),
-                Move("虚空回响", 8, hits: 3),
+                4, 158, "void_titan",
+                Move("崩界拳", 11),
+                Move("虚空回响", 6, hits: 3),
                 Move("空间壁垒", intKind: IntentKind.Defend, shield: 20, weight: 5),
-                Move("湮灭", 22, weight: 4, cooldown: 3)),
-                StatusKind.Barrier, 15));
+                Move("湮灭", 16, weight: 4, cooldown: 3)),
+                StatusKind.Barrier, 4));
 
             // ==================== Boss ====================
             // Boss 的可解性约束：玩家承伤回合数 = 当前生命 / 敌方每回合输出，
@@ -377,35 +385,35 @@ namespace Slime.Core
             //
             // 第一章 Boss 是教学关：单次行动、无回复、伤害低，让新玩家第一次就能摸到章节推进的手感。
             list.Add(WithStatus(BossOneAction("boss_king_slime", "史莱姆之王", "史莱姆", "草原上的王，身体里吞过整个村子",
-                1, 75, "king_slime",
-                Move("王者重压", 8),
-                Move("群史莱姆来袭", 4, hits: 3),
+                1, 78, "king_slime",
+                Move("王者重压", 7),
+                Move("群史莱姆来袭", 3, hits: 3),
                 Move("王冠威压", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 2, weight: 3)),
                 StatusKind.Enrage, 1));
 
             // 第二章 Boss：靠「厚壳 + 回血」拖延，但壳可以被打破。
             // 单次行动，让玩家有足够回合数读懂「防御回合不开火」的节奏。
             list.Add(WithStatus(BossOneAction("boss_treant", "森之古王", "魔物", "整片森林是它的身体",
-                2, 90, "treant_king",
+                2, 150, "treant_king",
                 Move("万根穿刺", 6, hits: 2),
-                Move("年轮壁垒", intKind: IntentKind.Defend, shield: 12, weight: 5),
-                Move("光合作用", intKind: IntentKind.Heal, heal: 6, weight: 3, cooldown: 2),
+                Move("年轮壁垒", intKind: IntentKind.Defend, shield: 10, weight: 4),
+                Move("光合作用", intKind: IntentKind.Heal, heal: 5, weight: 2, cooldown: 3),
                 Move("枯萎之息", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 2, weight: 4)),
                 StatusKind.Thorns, 2));
 
             list.Add(WithStatus(Boss("boss_dragon_lord", "龙王 · 瓦尔哈拉", "龙", "魔王城里最高的一把椅子",
-                3, 115, "dragon_lord",
-                Move("龙焰", 7, intKind: IntentKind.AttackDebuff, status: StatusKind.Burn, stacks: 3),
-                Move("爪击", 5, hits: 3),
+                3, 145, "dragon_lord",
+                Move("龙焰", 6, intKind: IntentKind.AttackDebuff, status: StatusKind.Burn, stacks: 2),
+                Move("爪击", 4, hits: 3),
                 Move("龙鳞", intKind: IntentKind.Defend, shield: 16, weight: 4),
                 Move("龙威", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 3, weight: 3)),
                 StatusKind.Enrage, 2));
 
             list.Add(WithStatus(Boss("boss_chaos_seed", "混沌之种", "魔物", "规则在这里失效，包括你自己的",
-                4, 135, "chaos_seed",
-                Move("混沌冲击", 7, hits: 2),
+                4, 178, "chaos_seed",
+                Move("混沌冲击", 6, hits: 2),
                 Move("规则崩坏", intKind: IntentKind.Debuff, status: StatusKind.Blind, stacks: 2, weight: 5),
-                Move("虚空吞噬", 12, weight: 3, cooldown: 3),
+                Move("虚空吞噬", 10, weight: 3, cooldown: 3),
                 Move("重构", intKind: IntentKind.Heal, heal: 10, weight: 3)),
                 StatusKind.Enrage, 3));
 

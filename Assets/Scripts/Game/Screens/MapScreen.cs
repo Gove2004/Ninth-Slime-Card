@@ -12,13 +12,17 @@ namespace Slime.Game
     /// </summary>
     public sealed class MapScreen : Screen
     {
-        private const float MapLeft = -700f;
-        private const float MapRight = 300f;
-        private const float MapBottom = -420f;
-        private const float MapTop = 340f;
+        // 地图区必须吃满页头以下的可用高度（1080 - 40 顶 - 96 页头 - 40 底 = 904），
+        // 12 层才有足够行距；区域一缩，节点就会纵向互相蹭到。
+        // 横向也整体右移 80：背景图的月亮落在屏幕中偏左，Boss 节点又固定在正中，
+        // 两者叠在一起时深色圆点压在浅色月面上，字形几乎看不清。右移让开即可。
+        private const float MapLeft = -620f;
+        private const float MapRight = 380f;
+        private const float MapBottom = -470f;
+        private const float MapTop = 400f;
 
         private const float PanelX = 660f;
-        private const float NodeSize = 82f;
+        private const float NodeSize = 58f;
 
         private readonly Dictionary<int, Image> nodeViews = new Dictionary<int, Image>();
         private readonly Dictionary<int, TextMeshProUGUI> nodeGlyphs = new Dictionary<int, TextMeshProUGUI>();
@@ -176,10 +180,11 @@ namespace Slime.Game
             float height = MapTop - MapBottom;
             Vector2 center = new Vector2((MapLeft + MapRight) * 0.5f, (MapBottom + MapTop) * 0.5f);
 
-            // 底图：一条向上收窄的光带，暗示推进方向
+            // 底图：一条向上收窄的光带，暗示推进方向。
+            // 用横向拉长的椭圆而不是正圆——正圆在 16:9 屏上会露出清晰的圆形边界。
             var backdrop = Ui.Panel("Backdrop", Root, SpriteForge.Glow(512, Theme.WithAlpha(Theme.Accent, 0.16f)), Color.white);
             Ui.Fixed(backdrop.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                center, new Vector2(width * 1.2f, height * 1.1f));
+                center, new Vector2(width * 1.6f, height * 1.25f));
 
             var mapRoot = Ui.Node("Map", Root);
             Ui.Fixed(mapRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), center, new Vector2(width, height));
@@ -222,14 +227,20 @@ namespace Slime.Game
                 Vector2 pos = NodePos(node, width, height);
                 Color color = KindColor(node.Kind);
 
+                // Boss 比普通节点大一档：它是整章的终点，视觉上必须能一眼认出。
+                float size = node.Kind == NodeKind.Boss ? NodeSize * 1.35f : NodeSize;
+
                 var img = Ui.Panel("Node" + node.Id, mapRoot,
                     SpriteForge.Circle(96, Theme.Darken(color, 0.55f), Theme.Lighten(color, 0.25f), 3), Color.white);
                 img.raycastTarget = true;
-                Ui.Fixed(img.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(NodeSize, NodeSize));
+                Ui.Fixed(img.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(size, size));
 
+                // 字形要显式给成节点尺寸：Ui.Label 新建的 RectTransform 是零尺寸，
+                // 只靠 Stretch 撑不开，文字会溢出到圆外。
                 var glyph = Ui.Label("Glyph", img.transform, NodeKinds.Glyph(node.Kind),
-                    Theme.H3, Theme.Text, TextAlignmentOptions.Center);
-                Ui.Stretch(glyph.rectTransform, 0f, 0f, 0f, 0f);
+                    Theme.H4, Theme.Text, TextAlignmentOptions.Center);
+                Ui.Fixed(glyph.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(size, size));
 
                 var btn = img.gameObject.AddComponent<Button>();
                 btn.targetGraphic = img;
@@ -280,8 +291,9 @@ namespace Slime.Game
                         btn.interactable = true;
                     }
 
-                    // 可达节点轻轻放大一下，把注意力引过去
-                    Tween.PopInScaled(img.rectTransform, NodeSize, 0f, 0.94f);
+                    // 可达节点轻轻放大一下，把注意力引过去。第二个参数是缩放倍率不是尺寸——
+                    // 传 NodeSize 会让节点被放大几十倍，铺满整屏。
+                    Tween.PopInScaled(img.rectTransform, 1.06f, 0f, 0.94f);
                 }
                 else if (node.Visited)
                 {
@@ -295,9 +307,12 @@ namespace Slime.Game
                 }
                 else
                 {
-                    img.sprite = SpriteForge.Circle(96, Theme.WithAlpha(Theme.Darken(color, 0.82f), 0.75f),
-                        Theme.WithAlpha(Theme.Border, 0.5f), 2);
-                    img.color = new Color(1f, 1f, 1f, 0.45f);
+                    // 未到达节点必须看得见：整张地图要一眼看出「往后能走到哪」。
+                    // 底色按节点类型着色并压暗，但保留足够实度，不能透明到只剩字形。
+                    // 外层 0.9 的不透明度是硬下限——再低就会和背景里的城堡剪影糊在一起。
+                    img.sprite = SpriteForge.Circle(96, Theme.WithAlpha(Theme.Darken(color, 0.45f), 1f),
+                        Theme.WithAlpha(Theme.Lighten(color, 0.15f), 0.9f), 2);
+                    img.color = new Color(1f, 1f, 1f, 0.9f);
                     var btn = img.GetComponent<Button>();
                     if (btn != null)
                     {
@@ -308,7 +323,9 @@ namespace Slime.Game
                 TextMeshProUGUI glyph;
                 if (nodeGlyphs.TryGetValue(node.Id, out glyph))
                 {
-                    glyph.color = reachable ? Theme.Text : Theme.WithAlpha(Theme.Text, 0.35f);
+                    glyph.color = reachable
+                        ? Theme.Text
+                        : Theme.WithAlpha(Theme.Text, node.Visited ? 0.85f : 0.72f);
                 }
             }
         }

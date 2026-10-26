@@ -203,9 +203,54 @@ namespace Slime.Core
 
             EnsureElite(floors_, floors, rng);
             Connect(map, floors_, rng);
+            EnsureSupplyOnPaths(map, floors_, floors, rng);
             AssignY(map, floors);
 
             return map;
+        }
+
+        /// <summary>
+        /// 保证每条通往 Boss 的路线都够补给。
+        ///
+        /// 篝火只是「地图上有」不够用：它可能挂在一条玩家根本不会走的支路上，
+        /// 于是整章打下来一次都补不到血，七八场战斗的损耗累积到最后一层必死。
+        /// 这里从起点正向推一遍「哪些层在任何路线上都必经」，把中段每隔几层的
+        /// 必经节点改成篝火，让补给点落在玩家一定会经过的地方。
+        /// </summary>
+        private static void EnsureSupplyOnPaths(ChapterMap map, List<List<MapNode>> layers, int floors, DeterministicRng rng)
+        {
+            // 倒数第二层已经整层是篝火，Boss 层不参与，两端都跳过
+            int from = 2;
+            int to = floors - 3;
+            if (to - from < 4)
+            {
+                return;
+            }
+
+            // 每章三处中途补给。一章 12 层要打七八场，每场掉 10~20 血，
+            // 两处补给（各补 45%）刚好被损耗吃掉，第三处才开始有净收益。
+            int[] targets = { from, from + (to - from) / 2, to };
+            for (int t = 0; t < targets.Length; t++)
+            {
+                int floor = targets[t];
+                if (floor < 0 || floor >= layers.Count)
+                {
+                    continue;
+                }
+
+                var layer = layers[floor];
+                if (layer.Count == 0)
+                {
+                    continue;
+                }
+
+                // 优先改「整层唯一」的节点——那必然是必经点；否则挑中间那个
+                int index = layer.Count == 1 ? 0 : rng.Range(0, layer.Count);
+                if (layer[index].Kind == NodeKind.Battle)
+                {
+                    layer[index].Kind = NodeKind.Rest;
+                }
+            }
         }
 
         private static MapNode NewNode(ref int nextId, ChapterMap map, NodeKind kind, int floor, int slot, int count)

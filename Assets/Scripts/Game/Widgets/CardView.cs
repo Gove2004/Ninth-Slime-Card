@@ -117,13 +117,15 @@ namespace Slime.Game
 
             // 用实例文本而不是模板文本：牌升级后卡面数值必须跟着变，
             // 否则锻造完看上去跟没升一样。
+            // 描述区从 56 加高到 62 并上移 4：56 高装两行中文会顶到卡名下沿，
+            // 自动缩字号又把它压成 10px，看起来就是一团糊。
             descLabel = Ui.Label("Desc", Root, Wrap(inst.DisplayText, series), 15,
                 Theme.WithAlpha(Theme.Text, 0.92f), TextAlignmentOptions.Top);
-            Ui.Fixed(descLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(W - 26f, 56f));
-            descLabel.lineSpacing = 2f;
+            Ui.Fixed(descLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(W - 26f, 62f));
+            descLabel.lineSpacing = 1f;
             // 长描述自动缩字号，避免溢出卡面
             descLabel.enableAutoSizing = true;
-            descLabel.fontSizeMin = 10f;
+            descLabel.fontSizeMin = 11f;
             descLabel.fontSizeMax = 15f;
 
             // 费用徽章（左上）：六边宝石压在插画上，加深色外圈拉开层次

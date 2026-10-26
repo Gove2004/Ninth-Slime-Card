@@ -194,8 +194,12 @@ namespace Slime.Core
     /// <summary>起始牌组与奖励规则。</summary>
     public static class DeckRules
     {
-        /// <summary>初始牌组：5 斩击 + 4 格挡 + 1 火球（10 张，够循环起来）。</summary>
-        public static readonly int[] StarterDeck = { 1, 1, 1, 1, 1, 2, 2, 2, 2, 3 };
+        /// <summary>
+        /// 初始牌组：5 斩击 + 4 格挡 + 1 火球（10 张）。
+        /// 必须留防御牌——全是攻击牌的话，玩家从第一场战斗起就没有「打还是挡」的选择，
+        /// 格挡机制整章都用不上，后面再给盾牌也建立不起节奏感。
+        /// </summary>
+        public static readonly int[] StarterDeck = { 1, 1, 1, 1, 1, 129, 129, 129, 129, 33 };
 
         /// <summary>牌组上限，超过后奖励转为「换牌」。</summary>
         public const int DeckCap = 40;

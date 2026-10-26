@@ -31,10 +31,16 @@ namespace Slime.Game
             Ui.ClearChildren(body);
 
             var director = App.Director;
-            int heal = Mathf.Max(16, director.HpMax * 2 / 5);
+            // 必须问 Director 要实际数值：这里写死公式的话，调平衡时界面上的
+            // 「回复 N」会和真正回的血对不上，玩家看到的就是假信息。
+            int heal = director.RestHealPreview;
+            // 满血时回血毫无收益，显示「+57」只会误导玩家以为还有得赚。
+            int actual = Mathf.Min(heal, director.HpMax - director.Hp);
+            bool full = actual <= 0;
 
             var hpInfo = Ui.Label("HpInfo", body,
-                "当前生命 " + director.Hp + " / " + director.HpMax + (resolved ? "" : "　·　休息可回复 " + heal),
+                "当前生命 " + director.Hp + " / " + director.HpMax +
+                (resolved ? "" : full ? "　·　生命已满" : "　·　休息可回复 " + actual),
                 Theme.H3, Theme.Hp, TextAlignmentOptions.Center);
             Ui.Fixed(hpInfo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -10f), new Vector2(900f, 40f));
@@ -47,8 +53,9 @@ namespace Slime.Game
                 return;
             }
 
-            var restBtn = Ui.TextButton("Rest", body, "休 息（+" + heal + " 生命）", Theme.H3,
-                Theme.AccentDeep, Theme.Text, OnRest);
+            var restBtn = Ui.TextButton("Rest", body, full ? "休 息（生命已满）" : "休 息（+" + actual + " 生命）",
+                Theme.H3, Theme.AccentDeep, Theme.Text, OnRest);
+            restBtn.interactable = !full;
             Ui.Fixed(restBtn.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(-260f, -10f), new Vector2(440f, 90f));
 

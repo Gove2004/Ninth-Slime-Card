@@ -18,9 +18,14 @@ namespace Slime.Game
         // 画布按 1920x1080 设计，实际安全范围 x∈[-920,920]、y∈[-500,500]。
         // 手牌锚在屏幕下沿（CardView.SetPosition 用 bottom-center 锚点），
         // 因此这里的 y 是"底边探出屏幕多少"——正数留白、负数代表整体露在画面内。
-        private const float HandBottom = 6f;
-        private const float HandMaxWidth = 820f;
-        private const float HandScale = 0.9f;
+        // 卡高 312×0.82≈256。底边探出 6px 时，卡面底部的描述行会一起被切掉——
+        // 描述恰恰是玩家决定打哪张牌的唯一依据，必须完整落在画面内，所以底边留 34。
+        private const float HandBottom = 34f;
+        private const float HandMaxWidth = 980f;
+        // 卡面 216×312，0.82 缩放后 177×256。5 张满排需要 5×183=915 < 980，
+        // 所以常见手牌数下牌与牌之间完全不重叠，描述文字才读得清。
+        // 之前 0.9 缩放 + 172 间距，每张被压掉 22px，正好吃掉右半边的描述。
+        private const float HandScale = 0.82f;
         private const float HandCenterX = 0f;
         private const float HandHoverLift = 16f;   // 指针悬停时抬高多少
 
@@ -1184,8 +1189,13 @@ namespace Slime.Game
                 return;
             }
 
-            // 手牌锚在屏幕下沿：spacing 决定总宽度，卡与卡之间大幅叠压才像"扇形手牌"
-            float spacing = n <= 5 ? 172f : Mathf.Min(172f, HandMaxWidth / (n - 1f));
+            // 手牌锚在屏幕下沿：spacing 决定总宽度。
+            // 卡宽 216×0.9=194，间距必须 >=194 才不会盖住相邻卡面——一旦小于这个数，
+            // 每张牌右侧的描述文字就会被下一张压掉，五张手牌时整排全是糊的。
+            // 5 张以内给满间距（4×200=800 < 820 可用宽度），更多时才逐步收窄叠压。
+            const float cardWidth = 216f * HandScale;
+            float full = cardWidth + 6f;
+            float spacing = n <= 5 ? full : Mathf.Min(full, HandMaxWidth / (n - 1f));
             float total = spacing * (n - 1);
             float left = HandCenterX - total * 0.5f;
 
