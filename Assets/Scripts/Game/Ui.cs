@@ -220,6 +220,23 @@ namespace Slime.Game
             return rt;
         }
 
+        /// <summary>
+        /// 估算一段中文在给定宽度下要占多高。用来给自适应高度的行/面板留空间，
+        /// 不追求像素级准确，但必须偏大 —— 估小了文字会被裁掉或压住下方控件。
+        /// 汉字实际占宽约为字号的 1.1 倍（含标点与字间距），按 1.0 估会少排一整行。
+        /// </summary>
+        public static float MeasureTextHeight(string text, float width, int fontSize)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return fontSize;
+            }
+
+            float perLine = Mathf.Max(1f, Mathf.Floor(width / (fontSize * 1.1f)));
+            int lines = Mathf.CeilToInt(text.Length / perLine);
+            return lines * (fontSize + 6f);
+        }
+
         public static VerticalLayoutGroup Column(RectTransform rt, int spacing, RectOffset padding)
         {
             var layout = rt.gameObject.AddComponent<VerticalLayoutGroup>();

@@ -1246,7 +1246,7 @@ namespace Slime.Game
 
             if (unit.Shield > 0)
             {
-                MakeChip(row, "护盾 " + unit.Shield, Theme.Shield, ref x, y);
+                MakeChip(row, "护盾 " + unit.Shield, Theme.Shield, ref x, y, StatusKind.None);
             }
 
             // 状态统一按层数计量，增益与减益分色显示
@@ -1259,7 +1259,7 @@ namespace Slime.Game
 
                 bool isBuff = Statuses.IsBuff(pair.Key);
                 Color color = isBuff ? Theme.Gold : Theme.Danger;
-                MakeChip(row, Statuses.DisplayName(pair.Key) + " " + pair.Value, color, ref x, y);
+                MakeChip(row, Statuses.DisplayName(pair.Key) + " " + pair.Value, color, ref x, y, pair.Key);
             }
 
             // 居中排布
@@ -1278,17 +1278,40 @@ namespace Slime.Game
             }
         }
 
-        private static void MakeChip(RectTransform row, string text, Color color, ref float x, float y)
+        /// <summary>
+        /// 状态标记。可点开机制说明 —— 「中毒 6」本身不告诉你它什么时候掉血、
+        /// 会不会被护盾挡住，而那正是决定「现在引爆还是再攒一轮」的关键。
+        /// </summary>
+        private void MakeChip(RectTransform row, string text, Color color, ref float x, float y, StatusKind kind)
         {
             int width = Mathf.Clamp(22 + text.Length * 15, 76, 300);
             var chip = Ui.Rounded("Chip", row, 10,
-                Theme.WithAlpha(Theme.Darken(color, 0.66f), 0.92f), Theme.WithAlpha(color, 0.7f), 1);
+                Theme.WithAlpha(Theme.Darken(color, 0.66f), 0.92f), Theme.WithAlpha(color, 0.7f), 1, true);
             // 锚在父节点中心，x 先按累加宽度摆放，最后统一左移一半做整体居中
             Ui.Fixed(chip.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(x + width * 0.5f, y), new Vector2(width, 32f));
 
             var label = Ui.Label("ChipText", chip.transform, text, Theme.Caption, Theme.Lighten(color, 0.35f), TextAlignmentOptions.Center);
             Ui.Stretch(label.rectTransform, 8f, 1f, 8f, 1f);
+
+            // 没有对应词条时不挂点击，避免点出空面板
+            var entry = kind == StatusKind.None ? Glossary.ByName("护盾") : Glossary.ForStatus(kind);
+            if (entry != null)
+            {
+                var btn = chip.gameObject.AddComponent<Button>();
+                btn.targetGraphic = chip;
+                var colors = btn.colors;
+                colors.normalColor = Color.white;
+                colors.highlightedColor = new Color(1.18f, 1.18f, 1.18f, 1f);
+                colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+                colors.fadeDuration = 0.08f;
+                btn.colors = colors;
+                btn.onClick.AddListener(() =>
+                {
+                    App.Audio.PlaySfx("ui");
+                    MechanicPopup.Show(Root, entry);
+                });
+            }
 
             x += width + 8f;
         }

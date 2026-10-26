@@ -603,11 +603,11 @@ namespace Slime.Core
 
             var kind = unit.HasStatus(StatusKind.Stun) ? StatusKind.Stun : StatusKind.Freeze;
             Emit(EventKind.Debuff, unit.Name + " 被" + Statuses.DisplayName(kind) + "，跳过本回合", 0, !unit.IsPlayer);
-            if (kind == StatusKind.Freeze)
-            {
-                unit.AddStatus(StatusKind.Freeze, -1);
-            }
-            else
+
+            // 这里不再手动扣冻结层数：本回合结束的 DecayStatuses 已经会 -1。
+            // 两处都扣的话，2 层冻结和 1 层完全等价（跳过时 -1、结束时再 -1 就归零），
+            // 卡面写着「冻结 2 回合」实际只锁 1 回合，多给的层数白费。
+            if (kind == StatusKind.Stun)
             {
                 unit.SetStatus(StatusKind.Stun, 0);
             }

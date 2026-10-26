@@ -6,13 +6,14 @@ using UnityEngine.UI;
 
 namespace Slime.Game
 {
-    /// <summary>档案屏：卡牌图鉴（按八系列分组）+ 成就档案（用奖杯兑换）。</summary>
+    /// <summary>档案屏：卡牌图鉴（按八系列分组）+ 机制说明 + 成就档案（用奖杯兑换）。</summary>
     public sealed class CodexScreen : Screen
     {
         public enum Tab
         {
             Cards = 0,
-            Achievements = 1
+            Mechanics = 1,
+            Achievements = 2
         }
 
         private readonly Tab initialTab;
@@ -25,7 +26,7 @@ namespace Slime.Game
 
         protected override void Build()
         {
-            BuildHeader("档案室", "八系列牌池与成就记录", "返回");
+            BuildHeader("档案室", "八系列牌池、机制说明与成就记录", "返回");
             body = BuildBody(142f);
             Show(initialTab);
         }
@@ -35,7 +36,7 @@ namespace Slime.Game
             Ui.ClearChildren(body);
 
             var tabBar = Ui.Node("TabBar", body);
-            Ui.Fixed(tabBar, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(700f, 66f));
+            Ui.Fixed(tabBar, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(1020f, 66f));
 
             var row = Ui.Row(tabBar, 12, new RectOffset(0, 0, 0, 0));
             row.childForceExpandWidth = true;
@@ -44,21 +45,48 @@ namespace Slime.Game
                 "卡牌图鉴  " + App.Meta.DiscoveredCards.Count + " / " + App.Cards.Count,
                 Theme.Body, tab == Tab.Cards ? Theme.AccentDeep : Theme.Panel,
                 tab == Tab.Cards ? Theme.Text : Theme.TextDim, () => Show(Tab.Cards));
-            Ui.FixedSize(cards.gameObject, 340f, 62f);
+            Ui.FixedSize(cards.gameObject, 320f, 62f);
+
+            var mech = Ui.TextButton("TabMech", tabBar, "机制说明",
+                Theme.Body, tab == Tab.Mechanics ? Theme.AccentDeep : Theme.Panel,
+                tab == Tab.Mechanics ? Theme.Text : Theme.TextDim, () => Show(Tab.Mechanics));
+            Ui.FixedSize(mech.gameObject, 320f, 62f);
 
             int totalAchievements = App.Achievements != null ? App.Achievements.All.Count : 0;
             var achi = Ui.TextButton("TabAchi", tabBar,
                 "成就档案  " + App.Meta.Unlocked.Count + " / " + totalAchievements,
                 Theme.Body, tab == Tab.Achievements ? Theme.AccentDeep : Theme.Panel,
                 tab == Tab.Achievements ? Theme.Text : Theme.TextDim, () => Show(Tab.Achievements));
-            Ui.FixedSize(achi.gameObject, 340f, 62f);
+            Ui.FixedSize(achi.gameObject, 320f, 62f);
+
+            // 提示条固定在标签栏下方，不随内容滚动：滚动区顶端要压在它之下，
+            // 否则长句会贴着标签按钮，读起来像是被裁掉了一截。
+            float contentTop = 100f;
+            if (tab == Tab.Mechanics)
+            {
+                var hint = Ui.Rounded("MechHint", body, Theme.RadiusM,
+                    Theme.WithAlpha(Theme.PanelSunken, 0.96f), Theme.WithAlpha(Theme.Mana, 0.32f), 1);
+                Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                    new Vector2(0f, -78f), new Vector2(1020f, 42f));
+
+                var hintText = Ui.Label("HintText", hint.transform,
+                    "卡面只写结果，不解释过程 —— 这一页说明每种机制实际怎么结算",
+                    Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
+                Ui.Stretch(hintText.rectTransform, 16f, 0f, 16f, 0f);
+
+                contentTop = 134f;
+            }
 
             var content = Ui.Node("Content", body);
-            Ui.Stretch(content, 0f, 78f, 0f, 0f);
+            Ui.Stretch(content, 0f, contentTop, 0f, 0f);
 
             if (tab == Tab.Cards)
             {
                 BuildCards(content);
+            }
+            else if (tab == Tab.Mechanics)
+            {
+                BuildMechanics(content);
             }
             else
             {
@@ -156,13 +184,33 @@ namespace Slime.Game
 
             var tile = Ui.Rounded("Tile" + def.Id, parent, Theme.RadiusS,
                 known ? Theme.WithAlpha(Theme.Darken(color, 0.70f), 0.95f) : Theme.PanelSunken,
-                known ? Theme.WithAlpha(color, 0.65f) : Theme.BorderSoft, 1);
+                known ? Theme.WithAlpha(color, 0.65f) : Theme.BorderSoft, 1, known);
             Ui.FixedSize(tile.gameObject, 282f, 116f);
 
+            // 已知的牌可以点开看完整说明与相关机制；未知的牌没有可看的内容，
+            // 保留不可点状态，否则点开是空面板，反而像坏掉了。
+            if (known)
+            {
+                var btn = tile.gameObject.AddComponent<Button>();
+                btn.targetGraphic = tile;
+                var colors = btn.colors;
+                colors.normalColor = Color.white;
+                colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f, 1f);
+                colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+                colors.fadeDuration = 0.08f;
+                btn.colors = colors;
+                btn.onClick.AddListener(() =>
+                {
+                    App.Audio.PlaySfx("ui");
+                    ShowCardDetail(def);
+                });
+            }
+
+            // 高度必须给实数：Ui.Fixed 设的是 sizeDelta，0 高度就是一条看不见的线。
             var bar = Ui.Panel("Bar", tile.transform,
                 SpriteForge.Panel(6, known ? color : Theme.TextFaint, Theme.Lighten(color, 0.2f), 1), Color.white);
             bar.type = Image.Type.Sliced;
-            Ui.Fixed(bar.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(2f, 0f), new Vector2(7f, 0f));
+            Ui.Fixed(bar.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(2f, 0f), new Vector2(7f, 112f));
 
             var cost = Ui.Label("Cost", tile.transform, def.Cost + " 费", Theme.Caption,
                 known ? Theme.Lighten(color, 0.35f) : Theme.TextFaint, TextAlignmentOptions.Left);
@@ -180,6 +228,202 @@ namespace Slime.Game
             var text = Ui.Label("Text", tile.transform, body, 14,
                 known ? Theme.TextDim : Theme.TextFaint, TextAlignmentOptions.TopLeft);
             Ui.Fixed(text.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -58f), new Vector2(250f, 50f));
+        }
+
+        /// <summary>
+        /// 单张牌的详情面板。
+        ///
+        /// 图鉴原本只复述卡面文字，玩家读完还是不知道「引爆」是什么、
+        /// 为什么该先攒冻结。这里把该卡涉及的机制一并列出，
+        /// 让「这张牌属于哪条链」在翻图鉴时就能看出来。
+        /// </summary>
+        /// <summary>仅供开发面板调用：直接弹出某张牌的详情，用于核对说明排版。</summary>
+        public void ShowDetail(CardDef def)
+        {
+            ShowCardDetail(def);
+        }
+
+        private void ShowCardDetail(CardDef def)
+        {
+            var overlay = Ui.Solid("CardOverlay", Root, new Color(0f, 0f, 0f, 0.78f), true);
+            overlay.rectTransform.SetAsLastSibling();
+            overlay.gameObject.AddComponent<Button>().onClick.AddListener(() => Object.Destroy(overlay.gameObject));
+
+            Color color = Theme.SeriesColor(def.Series);
+
+            var panel = Ui.Rounded("CardPanel", overlay.transform, Theme.RadiusL,
+                Theme.WithAlpha(Theme.Panel, 0.99f), Theme.WithAlpha(color, 0.85f), 2, true);
+            Ui.Fixed(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(1080f, 760f));
+            Tween.PopIn(panel.rectTransform, 0f, 0.9f);
+
+            // 点面板本身不该关闭，否则看说明时误触就没了
+            panel.gameObject.AddComponent<Button>().onClick.AddListener(() => { });
+
+            var stripe = Ui.Panel("Stripe", panel.transform, SpriteForge.Solid(), color);
+            Ui.Fixed(stripe.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(10f, 14f), new Vector2(6f, -14f));
+
+            var title = Ui.Label("Title", panel.transform, def.Name, Theme.H2, Theme.Text, TextAlignmentOptions.Left);
+            title.characterSpacing = 2f;
+            Ui.Fixed(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(40f, -34f), new Vector2(600f, 46f));
+
+            string meta = Series.DisplayName(def.Series) + " · " + KindName(def.Kind) + " · " + def.Cost + " 费";
+            var metaLabel = Ui.Label("Meta", panel.transform, meta, Theme.Caption,
+                Theme.Lighten(color, 0.3f), TextAlignmentOptions.Right);
+            Ui.Fixed(metaLabel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-34f, -40f), new Vector2(420f, 30f));
+
+            // 当前效果
+            var bodyBox = Ui.Rounded("Body", panel.transform, Theme.RadiusM,
+                Theme.PanelSunken, Theme.BorderSoft, 1);
+            Ui.Fixed(bodyBox.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -104f), new Vector2(1000f, 130f));
+
+            var bodyText = Ui.Label("BodyText", bodyBox.transform, def.Text(0), Theme.Body,
+                Theme.Text, TextAlignmentOptions.TopLeft);
+            bodyText.margin = new Vector4(22f, 16f, 22f, 12f);
+            Ui.Stretch(bodyText.rectTransform, 0f, 0f, 0f, 0f);
+
+            // 升级预览
+            string upText = def.Text(1);
+            string upCaption = upText == def.Text(0)
+                ? "升级：费用 " + def.Cost + " → " + Mathf.Max(0, def.Cost - 1)
+                : "升级后：" + upText;
+
+            var up = Ui.Label("Upgrade", panel.transform, upCaption, Theme.Caption,
+                Theme.Gold, TextAlignmentOptions.TopLeft);
+            up.margin = new Vector4(4f, 0f, 4f, 0f);
+            Ui.Fixed(up.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -246f), new Vector2(1000f, 52f));
+
+            // 相关机制
+            var mechTitle = Ui.Label("MechTitle", panel.transform, "相关机制", Theme.H4,
+                Theme.TextDim, TextAlignmentOptions.Left);
+            Ui.Fixed(mechTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -300f), new Vector2(1000f, 30f));
+
+            var entries = Glossary.Match(def.Raw);
+            if (entries.Count == 0)
+            {
+                var none = Ui.Label("NoMech", panel.transform, "这张牌不涉及特殊机制。", Theme.Caption,
+                    Theme.TextFaint, TextAlignmentOptions.Left);
+                Ui.Fixed(none.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                    new Vector2(0f, -336f), new Vector2(1000f, 30f));
+            }
+            else
+            {
+                // 滚动区顶边必须落在标题下沿之下：面板 760 高，标题占 300..330，
+                // 滚动区底距 96 + 高 320 → 顶边 416，留 86 的间隔给标题。
+                RectTransform listContent;
+                var scroll = Ui.VerticalScroll("MechList", panel.transform, out listContent);
+                Ui.Fixed(scroll.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                    new Vector2(0f, 96f), new Vector2(1000f, 320f));
+
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    BuildMechanicRow(listContent, entries[i], false);
+                }
+            }
+
+            var close = Ui.TextButton("Close", panel.transform, "关闭", Theme.Body,
+                Theme.PanelRaised, Theme.TextDim, () => Object.Destroy(overlay.gameObject));
+            Ui.Fixed(close.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 30f), new Vector2(240f, 56f));
+        }
+
+        private static string KindName(CardKind kind)
+        {
+            switch (kind)
+            {
+                case CardKind.Attack: return "攻击";
+                case CardKind.Skill: return "技能";
+                case CardKind.Spell: return "咒文";
+                case CardKind.Power: return "能力";
+                default: return string.Empty;
+            }
+        }
+
+        // ---------------------------------------------------------------- 机制说明
+
+        private void BuildMechanics(RectTransform parent)
+        {
+            var content = MakeScroll(parent);
+
+            var groups = new[]
+            {
+                GlossaryGroup.Rule, GlossaryGroup.Buff, GlossaryGroup.Debuff, GlossaryGroup.Payoff
+            };
+
+            for (int g = 0; g < groups.Length; g++)
+            {
+                var entries = Glossary.OfGroup(groups[g]);
+                if (entries.Count == 0)
+                {
+                    continue;
+                }
+
+                BuildMechanicHeader(content, groups[g]);
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    BuildMechanicRow(content, entries[i], true);
+                }
+            }
+
+            Ui.Node("Filler", content);
+        }
+
+        private void BuildMechanicHeader(RectTransform parent, GlossaryGroup group)
+        {
+            Color accent = group == GlossaryGroup.Debuff ? Theme.Danger
+                : group == GlossaryGroup.Payoff ? Theme.Gold
+                : group == GlossaryGroup.Buff ? Theme.Accent
+                : Theme.Mana;
+
+            var header = Ui.Rounded("MechGroup", parent, Theme.RadiusM,
+                Theme.WithAlpha(Theme.Darken(accent, 0.72f), 0.95f), Theme.WithAlpha(accent, 0.6f), 1);
+            Ui.FixedSize(header.gameObject, 1440f, 58f);
+
+            var name = Ui.Label("Name", header.transform, Glossary.GroupName(group), Theme.H4,
+                Theme.Lighten(accent, 0.35f), TextAlignmentOptions.Left);
+            name.margin = new Vector4(26f, 0f, 0f, 0f);
+            Ui.Stretch(name.rectTransform, 0f, 0f, 0f, 0f);
+        }
+
+        /// <summary>一条机制词条。图鉴里是可读的整行；卡牌详情里是紧凑行。</summary>
+        private void BuildMechanicRow(RectTransform parent, GlossaryEntry entry, bool full)
+        {
+            Color accent = entry.Group == GlossaryGroup.Debuff ? Theme.Danger
+                : entry.Group == GlossaryGroup.Payoff ? Theme.Gold
+                : entry.Group == GlossaryGroup.Buff ? Theme.Accent
+                : Theme.Mana;
+
+            float width = full ? 1440f : 976f;
+
+            // 说明长短差别很大（一句到三句），行高与文本区都跟着内容走，
+            // 否则短词条下方留一片空白、长词条被裁掉尾巴。
+            float textWidth = width - 44f;
+            float height = Ui.MeasureTextHeight(entry.Text, textWidth, Theme.Caption) + 56f;
+
+            var row = Ui.Rounded("Mech" + entry.Key, parent, Theme.RadiusM,
+                Theme.WithAlpha(Theme.PanelSunken, 1f), Theme.WithAlpha(accent, 0.35f), 1);
+            Ui.FixedSize(row.gameObject, width, height);
+
+            var stripe = Ui.Panel("Stripe", row.transform, SpriteForge.Solid(), Theme.WithAlpha(accent, 0.85f));
+            Ui.Fixed(stripe.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(2f, 4f), new Vector2(5f, height - 8f));
+
+            var name = Ui.Label("Name", row.transform, entry.Name, Theme.H4,
+                Theme.Lighten(accent, 0.4f), TextAlignmentOptions.Left);
+            Ui.Fixed(name.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(22f, -12f), new Vector2(240f, 30f));
+
+            // 宽度必须显式算出来：行是固定宽度的，用负 sizeDelta 配错 pivot 会让
+            // 文本区宽度变成负数，TMP 会把每个字单独折成一行。
+            var text = Ui.Label("Text", row.transform, entry.Text, Theme.Caption,
+                Theme.TextDim, TextAlignmentOptions.TopLeft);
+            text.enableWordWrapping = true;
+            Ui.Fixed(text.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(22f, -44f), new Vector2(textWidth, height - 50f));
+
+            row.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
         }
 
         // ---------------------------------------------------------------- 成就

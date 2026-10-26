@@ -78,6 +78,21 @@ namespace Slime.DevTools
                     }
                     break;
 
+                case "battle-mech":
+                    EnsureRun(app);
+                    {
+                        // 挂满状态并弹出其中一个的说明，用于验收战斗内的机制弹层
+                        var battle = EnterKind(app, NodeKind.Battle);
+                        var session = battle.DebugSession;
+                        session.Enemy.Shield = 12;
+                        session.Enemy.SetStatus(StatusKind.Poison, 6);
+                        session.Enemy.SetStatus(StatusKind.Freeze, 2);
+                        session.Enemy.SetStatus(StatusKind.Vulnerable, 3);
+                        battle.DebugRefresh();
+                        MechanicPopup.ShowStatus(battle.Root, StatusKind.Poison);
+                    }
+                    break;
+
                 case "drag-verbose":
                 case "drag-status":
                     {
@@ -169,6 +184,13 @@ namespace Slime.DevTools
                     app.Replace(new CodexScreen(CodexScreen.Tab.Cards));
                     break;
 
+                case "codex-mech":
+                    app.Replace(new CodexScreen(CodexScreen.Tab.Mechanics));
+                    break;
+
+                case "codex-detail":
+                    return OpenCodexDetail(app);
+
                 case "codex":
                     app.Replace(new CodexScreen(CodexScreen.Tab.Achievements));
                     break;
@@ -185,6 +207,41 @@ namespace Slime.DevTools
             }
 
             return "jumped:" + key;
+        }
+
+        /// <summary>
+        /// 打开图鉴并弹出指定卡牌的详情。用卡名匹配，方便人工核对某条说明。
+        /// 参数缺省时挑一张带「引爆」的牌，那是说明最长的形态。
+        /// </summary>
+        private static string OpenCodexDetail(GameApp app, string cardName = null)
+        {
+            CardDef target = null;
+            for (int i = 0; i < app.Cards.All.Count; i++)
+            {
+                var def = app.Cards.All[i];
+                if (cardName != null)
+                {
+                    if (def.Name == cardName)
+                    {
+                        target = def;
+                        break;
+                    }
+                }
+                else if (target == null && def.Script.Contains("detonate"))
+                {
+                    target = def;
+                }
+            }
+
+            if (target == null)
+            {
+                return "card not found: " + (cardName ?? "detonate");
+            }
+
+            var screen = new CodexScreen(CodexScreen.Tab.Cards);
+            app.Replace(screen);
+            screen.ShowDetail(target);
+            return "detail:" + target.Name;
         }
 
         /// <summary>
