@@ -45,6 +45,15 @@ namespace Slime.Core
 
         /// <summary>这张牌要求该状态已经在场上（前置）。引爆、破盾、若目标已灼烧。</summary>
         public bool Needs;
+
+        /// <summary>
+        /// 前置条件由对手决定，玩家凑不出来（敌方有护盾）。
+        ///
+        /// 这类牌仍然是「看条件」牌，卡面也确实写着「若目标有护盾」，
+        /// 但牌组里没有对应铺垫不是缺陷 —— 敌人自己会叠盾。
+        /// 拿它去算配套，只会让碎甲击永远挂一句「这条效果打不出来」。
+        /// </summary>
+        public bool Uncontrollable;
     }
 
     /// <summary>
@@ -210,6 +219,13 @@ namespace Slime.Core
                     continue;
                 }
 
+                // 条件由对手决定（敌方有护盾）：牌组里凑不出来不算缺陷，
+                // 但值得说清它什么时候才生效，否则玩家会当它是稳定收益。
+                if (link.Uncontrollable)
+                {
+                    return "只在目标有" + link.Term + "时才生效 —— 由对手决定，凑不出来";
+                }
+
                 int n = Count(setupCount, link);
                 if (n == 0)
                 {
@@ -310,7 +326,8 @@ namespace Slime.Core
                         Term = cur.Term,
                         Setup = cur.Setup,
                         Consumes = cur.Consumes,
-                        Needs = cur.Needs
+                        Needs = cur.Needs,
+                        Uncontrollable = cur.Uncontrollable
                     });
                 }
                 else
@@ -318,6 +335,7 @@ namespace Slime.Core
                     same.Setup |= cur.Setup;
                     same.Consumes |= cur.Consumes;
                     same.Needs |= cur.Needs;
+                    same.Uncontrollable |= cur.Uncontrollable;
                 }
             }
 
@@ -467,9 +485,9 @@ namespace Slime.Core
                         links.Add(new CardLink { Term = "护盾", Consumes = true });
                         break;
 
-                    case "shieldbreak":
-                        links.Add(new CardLink { Term = "护盾", Needs = true });
-                        break;
+                    // shieldbreak（斩铁「对护盾双倍伤害」）针对的是敌方的护盾。
+                    // 全卡池没有一张牌能给敌人加护盾 —— 那是敌人自己的行为，
+                    // 玩家凑不出也挡不住，所以它不该产生「缺铺垫」提示。
 
                     case "double_poison":
                         // 层数翻倍：既是兑现也是施加，之后再攒就更值钱
@@ -497,8 +515,13 @@ namespace Slime.Core
                     return Needs(StatusKind.Freeze);
                 case Condition.EnemyVulnerable:
                     return Needs(StatusKind.Vulnerable);
+
+                // 敌方有护盾不是玩家能安排的条件：全卡池没有给敌人加护盾的牌，
+                // 敌人什么时候叠盾由它自己决定。算成「缺铺垫」会让碎甲击永远
+                // 带着一句「这条效果打不出来」，而它其实随时可能吃到。
                 case Condition.EnemyHasShield:
-                    return NeedsTerm("护盾");
+                    return new CardLink { Term = "护盾", Needs = true, Uncontrollable = true };
+
                 case Condition.HasShield:
                     return NeedsTerm("护盾");
                 case Condition.HasStatus:
