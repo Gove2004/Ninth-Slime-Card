@@ -1,8 +1,8 @@
 ---
 title: 发版流水线（改需求 → 打包 → TapTap 上架）
-description: 从用户提需求到 TapTap 商店上线的完整闭环流程，含代码改动验证、Android 打包、包体上传、槽位绑定、提审与驳回重试。
-globs: ["**/Assets/**/*.cs", "**/ProjectSettings/**", "**/Assets/StreamingAssets/**", "**/Assets/Plugins/Android/**"]
-standards-version: 1.0.0
+description: 从用户提需求到 TapTap 商店上线的完整闭环流程。含代码改动与美术/音频/字体素材制作的并行实施与验证、Android 打包、包体上传、槽位绑定、提审与驳回重试。
+globs: ["**/Assets/**/*.cs", "**/ProjectSettings/**", "**/Assets/StreamingAssets/**", "**/Assets/Plugins/Android/**", "**/Assets/Resources/**", "**/*.csv", "**/Skills/**/*.md"]
+standards-version: 1.1.0
 ---
 
 # 发版流水线
@@ -10,11 +10,13 @@ standards-version: 1.0.0
 本项目所有要上 TapTap 的改动都走这一条链路。六个阶段严格按序，每个阶段有明确的**出口条件**——不满足就不要往下走，往回退比事后补救便宜得多。
 
 ```
-① 接需求  →  ② 分析  →  ③ 改代码 + 验证  →  ④ 汇报迭代  →  ⑤ 打包  →  ⑥ 上传提审
-                                        ↑______________|
+① 接需求  →  ② 分析  →  ③ 实施 + 验证  →  ④ 汇报迭代  →  ⑤ 打包  →  ⑥ 上传提审
+                              ↑_______|
 ```
 
-历史上最容易出事的是两个地方：**③ 验证不充分就打包**（打完发现文案不对，白等一轮审核），和 **⑤ 用错方式启动 Unity**（构建卡死，看起来在跑其实 clang 全挂着）。
+**③ 是双轨的**：需求可能落在代码上，也可能落在美术、音频、字体、配置表上，两者经常同时出现（加一张新卡 = 改 `cards.csv` + 出新卡面 + 补卡牌逻辑）。两条轨的实施方式和验证手段完全不同，但必须在同一个 ③ 里都走完才进 ⑤。
+
+历史上最容易出事的是三个地方：**③ 验证不充分就打包**（打完发现文案不对，白等一轮审核）、**③ 只验了代码没验素材**（源码改了但资源没进包，或进包了但名字对不上）、**⑤ 用错方式启动 Unity**（构建卡死，看起来在跑其实 clang 全挂着）。
 
 ---
 
@@ -25,10 +27,13 @@ standards-version: 1.0.0
 | 要确认的 | 为什么 |
 |---|---|
 | **改哪里** | 只说「改隐私政策」时，可能指包内弹窗、商店后台字段、或两者都要。这两条路的成本差一个完整审核周期 |
+| **改的是什么资源** | 代码 / 美术 / 音频 / 字体 / 配置表。决定 ③ 走哪条验证轨，也决定后面要不要重跑 `AudioCheck`、`fontcheck`、`cardlint` |
 | **要不要立刻上线** | 「改了」和「上线了」是两件事。很多需求可以只提交代码、不打包 |
 | **动的是不是审核敏感区** | 隐私文案、权限、包名、SDK 这类改动会触发人工复核，必须提前告知风险 |
 
 **反面教材**：用户说「打包」，就只打包，不要顺手讲平衡性分析——那不是他要的。
+
+**素材需求要多问一句**：用户说「加一张卡」时，通常包含三件事——`cards.csv` 加一行、出一张卡面、卡牌逻辑要能跑。只做其中一件等于没做完。反过来，用户说「换个音乐」时，多半只需要替换音频文件 + 同步 `AudioCheck` 的键名列表，不动代码。
 
 ---
 
@@ -37,25 +42,39 @@ standards-version: 1.0.0
 不要凭印象改。任何改动前先做这三步定位：
 
 ```bash
-# 1. 这段逻辑/文案到底在哪个文件里
+# 1. 这段逻辑/文案/资源到底在哪儿
 grep -rn "<关键词>" --include="*.cs" --include="*.html" --include="*.json" Assets/
+find Assets/Resources -iname "*<资源名>*"
 
 # 2. 线上现在是什么状态（先看真实值，别猜）
 taptap-cli app get-app-version --dev-id $DEV --app-id $APP --data '{"version":"<VERSION>"}'
 
-# 3. 代码里的实现和文档/声明是否一致
+# 3. 代码里的实现和文档/声明/资源是否一致
 grep -rn "<权限名>|<SDK名>" Assets/Plugins/Android ProjectSettings
+python .workbuddy/tools/fontcheck.py     # 文案字符是否都在字体里
+python .workbuddy/tools/cardlint.py      # CSV 描述与效果脚本是否说同一件事
 ```
 
 第 3 步经常能挖出真问题。例：`AndroidManifest.xml` 里挂着 `READ_PHONE_STATE`，代码里一次都没用——这种「声明了但没用到」的敏感权限是隐私合规检测的必命中项，比漏声明还容易被驳回。
 
-**方案要有优先级**：能只改代码就不动版本号；能只改包内就不动商店资料；两者都必须改时，明确告诉用户「这次要重走一轮审核」。
+**方案要有优先级**：能只改代码就不动版本号；能只改包内就不动商店资料；能只换资源文件就不动代码；两者都必须改时，明确告诉用户「这次要重走一轮审核」。
 
 ---
 
-## ③ 改代码 + 验证：验证不到位等于没改
+## ③ 实施 + 验证：双轨并行，验证不到位等于没改
 
-### 改动约定
+需求可能落在两类东西上，实施与验证方式完全不同：
+
+| 轨 | 内容 | 验证手段 | 详见 |
+|---|---|---|---|
+| **代码轨** | C# 逻辑、UI、配置读取、平台配置 | 编译 + 自检 + 解包比对 | 本节 |
+| **素材轨** | 卡面 / 立绘 / BGM / 音效 / 字体 / CSV 配置表 | 专项脚本 + 截图目视 | `references/asset-production.md` |
+
+两条轨经常交织：加一张新卡 = CSV 加一行（素材） + 卡面出图（素材） + 效果脚本要能跑（代码）。**只要需求里出现了「美术」「音乐」「音效」「字体」「卡面」「立绘」「图标」这类词，就必须同时走素材轨。**
+
+### 代码轨
+
+#### 改动约定
 
 - **一处改动，多处同步**。隐私文案这类东西通常同时存在于包内 `StreamingAssets` 和商店后台，改一处必须显式检查另一处。存放位置要按「谁采集的」来决定——我方读的（GAID）进第一节，SDK / 引擎读的（Android ID、传感器）单开一节。
 - **版本号只能走内存写入**。直接编辑 `ProjectSettings.asset` 的文本对已运行的编辑器无效，构建出来的还是旧版本号：
@@ -77,30 +96,68 @@ PlayerSettings.Android.keystorePass = "android";      // Android 官方 debug ke
 PlayerSettings.Android.keyaliasPass = "android";
 ```
 
-### 三层验证（缺一不可）
+### 素材轨
+
+素材没有编译器和测试兜底，验证要更机械。**每个专项脚本都是防静默失败的最后一道闸**：
+
+```bash
+python .workbuddy/tools/fontcheck.py    # 文案用字是否都在字体里（目标：缺字 0）
+python .workbuddy/tools/cardlint.py     # CSV 描述 vs 效果脚本是否一致
+# DevPanel.AudioCheck()  → 11 个音频是否都能 Resources.Load（目标：缺失 0）
+# DevPanel.SelfTest()    → 卡牌数 / 通关 / 战斗 / 音频综合回归
+python .workbuddy/tools/shots.py home battle reward   # 改动过的界面截图
+```
+
+三条硬约束（踩过坑，详见 `references/asset-production.md`）：
+
+1. **资源命名是硬约束**。卡面必须 `Card_<卡名>.png`（`ArtLib.Card()` 拼的就是这个前缀），立绘必须按 `EnemyDef.Sprite` 命名而非中文名。名字错了 `Resources.Load` **只返回 null 不报错**，表现是「图不见了」而不是报错。
+2. **`.meta` 要自己写**。Unity 首次导入生成的 `.meta` 是 `spriteMode: Single`，与项目既有资源（`spriteMode: 2`）不一致，要用 `metas.py` 按模板生成。
+3. **旧资源不删，移到 `.workbuddy/backup/<日期>-<描述>/`**。禁 `git rm` / `git mv`。
+
+**素材改动的出口条件**（任一项不过就不要往下走）：
+
+- [ ] 文件在正确目录、命名符合硬约束
+- [ ] `.meta` 已生成，`spriteMode` 与既有资源一致
+- [ ] 对应自检脚本全绿（`AudioCheck` / `fontcheck` / `cardlint`）
+- [ ] 改动过的界面截图目视通过
+- [ ] 旧资源已备份，不是删除
+
+### 三层验证（两条轨都要过）
 
 | 层 | 怎么验 | 查什么 |
 |---|---|---|
-| **语法/结构** | 正则数标签、比对数量 | `<h2>` 数量、`<ul>`/`</ul>` 是否配平、有无 GBK 乱码 |
+| **语法/结构** | 正则数标签、比对数量、跑 lint 脚本 | `<h2>` 数量、`<ul>`/`</ul>` 配平、GBK 乱码、缺字、CSV 与脚本分叉 |
 | **源码语义** | `grep -c` 逐项点检 | 每个新增关键词出现次数、旧表述是否清理干净 |
 | **产物本体** | 直接解包 APK 查 | 见下 |
 
-产物验证是这个流程里最有价值的一步——源码改对了不等于打进包里了：
+产物验证是这个流程里最有价值的一步——源码改对了不等于打进包里了，素材同理：
 
 ```python
-import zipfile
+import zipfile, re, glob, os
 z = zipfile.ZipFile("Builds/A/<包名>.apk")
+names = set(z.namelist())
 
-# 1. 文案是否真的进包
+# 1. 文案是否真的进包（StreamingAssets 保持原名）
 h = z.read('assets/privacy-policy-template.html').decode('utf-8-sig', errors='replace')
 for kw in ['GAID', 'Android ID', '传感器']:
     print(kw, h.count(kw))
 
-# 2. 实际权限（AndroidManifest 是二进制 axml，用 utf-16-le 粗解）
-import re
+# 2. 素材是否真的进包 —— 用 .meta 的 guid 反查
+#    Resources 下的贴图会被打成 assets/bin/Data/<guid>，文件名不保留，
+#    所以不能按 "Card_" 搜（搜不到）。guid 是唯一可靠线索。
+hit = total = 0
+for m in glob.glob('Assets/Resources/Art/Cards/*.png.meta'):
+    g = re.search(r'^guid: (\w+)', open(m, encoding='utf-8', errors='replace').read(), re.M).group(1)
+    total += 1
+    if 'assets/bin/Data/' + g in names: hit += 1
+print(f'卡面命中 {hit}/{total}')      # 应等于 144
+
+# 3. 实际权限（AndroidManifest 是二进制 axml，用 utf-16-le 粗解）
 s = z.read('AndroidManifest.xml').decode('utf-16-le', errors='ignore')
 print(sorted(set(re.findall(r'android\.permission\.[A-Z_]+', s))))
 ```
+
+**第 2 条容易白忙一场**：`z.namelist()` 里搜不到任何 `Card_` 前缀的名字，因为 Resources 资源进包后被重命名为 GUID。按文件名搜会得出「素材没进包」的错误结论，实际是搜法不对。当前包 144/144 全部命中。
 
 版本号则用 aapt2 读，比解二进制清单靠谱：
 
@@ -121,7 +178,11 @@ print(sorted(set(re.findall(r'android\.permission\.[A-Z_]+', s))))
 3. 顺带发现的问题（以及改没改、为什么）
 4. 遗留项 / 需要用户决策的分支
 
+**素材类改动的汇报要额外给「看得到的东西」**：截图路径、资源数量、包体大小变化。用户没法从 diff 里看出立绘好不好看，必须让他直接看图。代码改动可以说「逻辑验证通过」，素材改动不行——只有目视才算数。
+
 **迭代时的纪律**：用户说「继续」就继续当前方向，不要重复问已经答过的问题；用户纠正了口径就立刻切，不要辩解。中途发现原方案错了（比如日志看错了文件），主动承认并给出纠正后的事实。
+
+素材迭代天然是多轮：卡面风格被推翻三次才定下来是常态，不是失败。每次重做前先明确「这次换的是参考图、提示词、还是画风」，避免原地打转。
 
 ---
 
@@ -160,7 +221,8 @@ cd "<项目根>" && rm -f .workbuddy/build_<ver>.log && \
 - [ ] 日志有 `[CliBuild] result=Succeeded`
 - [ ] APK 时间戳是本次构建的
 - [ ] aapt2 读出的 versionCode / versionName 是目标值
-- [ ] 三项产物验证通过（文案 / 权限 / 大小）
+- [ ] 三项产物验证通过（文案 / 权限 / 素材）
+- [ ] 素材类改动：包内能查到新增资源，或装包后截图确认
 
 任何一项不过就停下来修，不要带着疑问上传。
 
@@ -226,6 +288,26 @@ taptap-cli skills read <skill-name>  # 查官方操作文档
 
 ## 参考
 
+- `references/asset-production.md` — 美术 / 音频 / 字体 / 配置表的制作管线与验证
 - `references/taptap-cli.md` — CLI 全命令用法、参数契约、踩坑
 - `references/build-android.md` — 打包排障、日志定位、DAG 手动补编译
 - `references/privacy-compliance.md` — 隐私合规自查清单
+
+## 素材改动速查
+
+```bash
+# 生成（有缓存，重复跑不烧额度）
+python .workbuddy/artgen/gen.py cards --only 斩击,重斩
+python .workbuddy/artgen/gen.py monsters --only bat            # 立绘
+python .workbuddy/artgen/metas.py all                              # 批量写 .meta
+python .workbuddy/artgen/sheet.py                              # 拼联系表人工过图
+
+# 校验（改完必跑，防静默失败）
+python .workbuddy/tools/fontcheck.py        # 缺字，目标 0
+python .workbuddy/tools/cardlint.py         # CSV 描述 vs 脚本
+python .workbuddy/tools/shots.py home battle reward   # 界面截图
+
+# 配置表重生成（不要手改 CSV）
+python .workbuddy/tools/gen_cards_v2.py
+python .workbuddy/tools/gen_achievements.py
+```
