@@ -139,7 +139,7 @@ namespace Slime.Game
             var goldBox = Ui.Rounded("GoldBox", body, Theme.RadiusS,
                 Theme.WithAlpha(Theme.PanelSunken, 0.95f), Theme.WithAlpha(Theme.Gold, 0.45f), 1);
             Ui.Fixed(goldBox.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                Vector2.zero, new Vector2(240f, 46f));
+                Vector2.zero, new Vector2(230f, 42f));
 
             goldLabel = Ui.Label("Gold", goldBox.transform, "金币 " + director.Gold, Theme.H4,
                 Theme.Gold, TextAlignmentOptions.Center);
@@ -154,12 +154,12 @@ namespace Slime.Game
                 removeUsed ? Theme.TextFaint : Theme.Gold, onRemoveClicked);
             removeCaption = removeButton.GetComponentInChildren<TextMeshProUGUI>();
             Ui.Fixed(removeButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(-240f, 20f), new Vector2(440f, 74f));
+                new Vector2(-240f, 16f), new Vector2(440f, 74f));
 
             var leave = Ui.TextButton("Leave", body, "离 开 商 店", Theme.H3,
                 Theme.AccentDeep, Theme.Text, Leave);
             Ui.Fixed(leave.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(240f, 20f), new Vector2(440f, 74f));
+                new Vector2(240f, 16f), new Vector2(440f, 74f));
 
             refreshAffordability();
         }
@@ -178,9 +178,9 @@ namespace Slime.Game
             float step = CardView.W * CardScale + CardGap;
             float left = -(offers.Count - 1) * 0.5f * step;
 
-            // body 高 520：底部 20~94 放两个按钮，104~146 放价格条，
-            // 卡面从 150 起、高 312，顶到 462，剩下 58 给右上角的金币筹码。
-            const float CardY = 150f;
+            // body 高 520：底部 16~90 放两个按钮，100~142 放价格条，
+            // 卡面从 146 起、高 312 顶到 458，最后 62 留给顶部的金币筹码。
+            const float CardY = 146f;
 
             for (int i = 0; i < offers.Count; i++)
             {
