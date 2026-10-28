@@ -432,18 +432,29 @@ namespace Slime.Game
                 return;
             }
 
-            var text = Ui.Label("Body", body, encounter.Body, Theme.Body,
-                Theme.TextDim, TextAlignmentOptions.Center);
+            // 叙述单独装进一块凹槽里，左对齐：三段中文居中排下来，
+            // 每行长短不一，右端参差得像没对齐过的表格。
+            var quote = Ui.Rounded("Quote", body, Theme.RadiusM,
+                Theme.WithAlpha(Theme.PanelSunken, 0.92f), Theme.WithAlpha(Theme.SeriesDark, 0.35f), 1);
+            Ui.Fixed(quote.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                Vector2.zero, new Vector2(960f, 124f));
+
+            var mark = Ui.Solid("Mark", quote.transform, Theme.SeriesDark);
+            Ui.Fixed(mark.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(18f, 0f), new Vector2(4f, 88f));
+
+            var text = Ui.Label("Body", quote.transform, encounter.Body, Theme.Body,
+                Theme.Text, TextAlignmentOptions.Left);
             text.enableWordWrapping = true;
-            Ui.Fixed(text.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -8f), new Vector2(920f, 96f));
+            text.margin = new Vector4(38f, 14f, 26f, 12f);
+            Ui.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
 
             if (receipt != null)
             {
                 var box = Ui.Rounded("Receipt", body, Theme.RadiusM,
                     Theme.WithAlpha(Theme.PanelSunken, 0.96f), Theme.WithAlpha(Theme.SeriesDark, 0.6f), 1);
                 Ui.Fixed(box.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(0f, -20f), new Vector2(920f, 150f));
+                    new Vector2(0f, -30f), new Vector2(960f, 150f));
 
                 var result = Ui.Label("Result", box.transform, receipt, Theme.Body,
                     Theme.Text, TextAlignmentOptions.Center);
@@ -451,7 +462,7 @@ namespace Slime.Game
                 Ui.Stretch(result.rectTransform, 28f, 20f, 28f, 20f);
                 Tween.FadeIn(result, 0.3f, 0.05f, 0f, 1f);
 
-                var leave = ActionButton(body, "继 续 前 行", new Vector2(0f, 40f), new Vector2(420f, 76f), Theme.AccentDeep);
+                var leave = ActionButton(body, "继 续 前 行", new Vector2(0f, 24f), new Vector2(420f, 76f), Theme.AccentDeep);
                 leave.onClick.AddListener(Leave);
                 return;
             }
@@ -461,8 +472,8 @@ namespace Slime.Game
 
         private void buildChoices()
         {
-            float step = 132f;
-            float top = -110f;
+            const float step = 126f;
+            const float top = -142f;
 
             for (int i = 0; i < encounter.Choices.Count; i++)
             {
@@ -474,7 +485,7 @@ namespace Slime.Game
                     Theme.WithAlpha(enabled ? Theme.PanelRaised : Theme.PanelSunken, 0.94f),
                     Theme.WithAlpha(enabled ? Theme.SeriesDark : Theme.Border, enabled ? 0.6f : 0.3f), 1, true);
                 Ui.Fixed(row.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                    new Vector2(0f, top - step * i), new Vector2(920f, 118f));
+                    new Vector2(0f, top - step * i), new Vector2(960f, 116f));
 
                 var btn = row.gameObject.AddComponent<Button>();
                 btn.targetGraphic = row;
@@ -483,16 +494,21 @@ namespace Slime.Game
                 int index = i;
                 btn.onClick.AddListener(() => onChoose(index));
 
+                // 竖条标出「这一整块都是按钮」，比整块淡色底更容易扫读。
+                var accent = Ui.Solid("Accent", row.transform, enabled ? Theme.SeriesDark : Theme.Border);
+                Ui.Fixed(accent.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                    new Vector2(0f, 0f), new Vector2(5f, 66f));
+
                 var caption = Ui.Label("Caption", row.transform,
                     choice.Caption + (enabled ? string.Empty : "（" + blocked + "）"),
                     Theme.H3, enabled ? Theme.Text : Theme.TextFaint, TextAlignmentOptions.Left);
                 Ui.Fixed(caption.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(32f, 20f), new Vector2(800f, 34f));
+                    new Vector2(36f, 20f), new Vector2(880f, 36f));
 
                 var detail = Ui.Label("Detail", row.transform, choice.Detail, Theme.Caption,
                     enabled ? Theme.TextDim : Theme.TextFaint, TextAlignmentOptions.Left);
                 Ui.Fixed(detail.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(32f, -22f), new Vector2(840f, 26f));
+                    new Vector2(36f, -22f), new Vector2(880f, 28f));
 
                 if (enabled)
                 {

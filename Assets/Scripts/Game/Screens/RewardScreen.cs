@@ -22,7 +22,6 @@ namespace Slime.Game
         private TextMeshProUGUI headline;
         private TextMeshProUGUI subtitle;
         private TextMeshProUGUI deckInfo;
-        private TextMeshProUGUI stageLine;
 
         private readonly List<CardView> choices = new List<CardView>();
         private readonly List<GameObject> hintNodes = new List<GameObject>();
@@ -59,31 +58,31 @@ namespace Slime.Game
             var defeated = director.LastEnemy;
 
             BuildHeader("战 利 品",
-                (defeated != null ? defeated.Name : "对手") + " 已被击败",
-                string.Empty);
-
-            // 页头占 40..136（顶部边距 + 96 高），下面这几行必须排在 136 之后，
-            // 否则会直接压在页头标题上——之前 -96 就落在页头内部，看起来像两行字叠在一起。
-            stageLine = Ui.Label("StageLine", Root,
-                director.ChapterName
+                (defeated != null ? defeated.Name : "对手") + " 已被击败"
                 + "  ·  第 " + (director.Floor + 1) + " 层"
                 + "  ·  生命 " + director.Hp + " / " + director.HpMax,
-                Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(stageLine.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -150f), new Vector2(1400f, 26f));
-            Tween.FadeIn(stageLine, 0.3f, 0.05f, 0f, 1f);
+                string.Empty);
 
-            headline = Ui.Label("Headline", Root, string.Empty, Theme.H2, Theme.Gold, TextAlignmentOptions.Center);
-            Ui.Fixed(headline.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -188f), new Vector2(1600f, 46f));
+            // 「选一张牌」和战斗统计原来直接裸摆在背景上，正好落在月亮和城堡的亮部，
+            // 灰字读不出来。给它们一条半透明底板，文字才有地方站。
+            var banner = Ui.Rounded("Banner", Root, Theme.RadiusM,
+                Theme.WithAlpha(Theme.Panel, 0.86f), Theme.WithAlpha(Theme.Border, 0.45f), 1);
+            Ui.Fixed(banner.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -160f), new Vector2(920f, 100f));
 
-            subtitle = Ui.Label("Subtitle", Root, BuildSummary(), Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -246f), new Vector2(1600f, 32f));
+            headline = Ui.Label("Headline", banner.transform, string.Empty, Theme.H2, Theme.Gold,
+                TextAlignmentOptions.Center);
+            Ui.Fixed(headline.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 18f), new Vector2(880f, 44f));
+
+            subtitle = Ui.Label("Subtitle", banner.transform, BuildSummary(), Theme.Caption,
+                Theme.TextDim, TextAlignmentOptions.Center);
+            Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -22f), new Vector2(880f, 30f));
             Tween.FadeIn(subtitle, 0.3f, 0.12f, 0f, 1f);
 
             content = Ui.Node("Content", Root);
-            Ui.Stretch(content, 0f, 264f, 0f, 120f);
+            Ui.Stretch(content, 0f, 272f, 0f, 120f);
 
             deckInfo = Ui.Label("DeckInfo", Root, string.Empty, Theme.Caption,
                 Theme.TextDim, TextAlignmentOptions.Center);
@@ -157,6 +156,9 @@ namespace Slime.Game
             {
                 var def = list[i];
                 var view = CardView.Create(content, def, v => Take(v.Def));
+                // 260 是卡片的**底边**：Ui.Fixed 的坐标是 pivot 位置，而 pivot 跟着 anchor
+                // 走（这里锚在内容区底边）。卡高 312×1.15≈359，所以卡面落在 260~619，
+                // 下面 260px 留给「角色标签 + 适配提示 + 跳过」。
                 view.SetPosition(new Vector2(left + step * i, 260f), 0f, CardScale);
                 choices.Add(view);
 
@@ -204,7 +206,7 @@ namespace Slime.Game
             var tag = Ui.Rounded("Role" + def.Id, parent, Theme.RadiusS,
                 Theme.WithAlpha(Theme.PanelSunken, 0.92f), Theme.WithAlpha(roleColor, 0.55f), 1);
             Ui.Fixed(tag.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(x, 200f), new Vector2(104f, 30f));
+                new Vector2(x, 220f), new Vector2(104f, 30f));
             hintNodes.Add(tag.gameObject);
 
             var label = Ui.Label("T", tag.transform, CardRoles.RoleName(role), Theme.Caption,
@@ -229,7 +231,7 @@ namespace Slime.Game
             // 高度按实际字数算：提示可能一到两行，给死高度会把第二行裁掉
             float hintH = Ui.MeasureTextHeight(fit, 276f, Theme.Caption) + 4f;
             Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(x, 156f), new Vector2(276f, hintH));
+                new Vector2(x, 150f), new Vector2(276f, hintH));
 
             hint.alpha = 0f;
             Tween.FadeIn(hint, 0.32f, 0.4f + delay, 0f, 1f);

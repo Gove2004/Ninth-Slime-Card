@@ -52,7 +52,7 @@ namespace Slime.Game
                 victory
                     ? "四章全部打通——你走到了深渊的尽头。"
                     : "这趟冒险到此为止。已解锁的卡牌与成就都留着。",
-                Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
+                Theme.Body, Theme.WithAlpha(Theme.Text, 0.92f), TextAlignmentOptions.Center);
             Ui.Fixed(sub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -37f), new Vector2(1500f, 36f));
             Tween.FadeIn(sub, 0.3f, 0.16f, 0f, 1f);
 
@@ -70,8 +70,6 @@ namespace Slime.Game
             BuildStat(stats, "单回合最高", best.ToString(), Theme.SeriesFire, 0.14f);
             BuildStat(stats, "回合数", turns.ToString(), Theme.Mana, 0.20f);
             BuildStat(stats, "累计奖杯", App.Meta.Trophy.ToString(), Theme.Accent, 0.26f);
-            BuildStat(stats, "是否通关",
-                App.Meta.Flags.Contains("run_cleared") ? "已通关" : "未通关", Theme.Text, 0.32f);
 
             var again = Ui.TextButton("Again", Root, "再 来 一 局", Theme.H3, Theme.AccentDeep, Theme.Text, Restart);
             Ui.Fixed(again.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-200f, 163f), new Vector2(360f, 96f));

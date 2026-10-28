@@ -38,10 +38,12 @@ namespace Slime.Game
             int actual = Mathf.Min(heal, director.HpMax - director.Hp);
             bool full = actual <= 0;
 
+            // 满血时换绿色：血红色在这一行读起来像「你受伤了」，
+            // 而「生命已满」恰恰是这一屏最好的消息。
             var hpInfo = Ui.Label("HpInfo", body,
                 "当前生命 " + director.Hp + " / " + director.HpMax +
                 (resolved ? "" : full ? "　·　生命已满" : "　·　休息可回复 " + actual),
-                Theme.H3, Theme.Hp, TextAlignmentOptions.Center);
+                Theme.H3, full && !resolved ? Theme.Accent : Theme.Hp, TextAlignmentOptions.Center);
             Ui.Fixed(hpInfo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -10f), new Vector2(900f, 40f));
 

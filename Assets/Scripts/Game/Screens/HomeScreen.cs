@@ -88,7 +88,7 @@ namespace Slime.Game
             Ui.Fixed(v.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
                 new Vector2(0f, 14f), new Vector2(w, 48f));
 
-            var c = Ui.Label("Cap", box, caption, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Right);
+            var c = Ui.Label("Cap", box, caption, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Right);
             Ui.Fixed(c.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
                 new Vector2(0f, -26f), new Vector2(w, 30f));
         }
@@ -135,8 +135,9 @@ namespace Slime.Game
             // 章节 · 层
             var chip = Ui.Rounded("Level", card.transform, 10,
                 Theme.WithAlpha(Theme.Darken(accent, 0.62f), 0.96f), Theme.WithAlpha(accent, 0.85f), 1);
+            // 胶囊再往下 14：原先半贴卡片上沿，像被人推到边上的标签。
             Ui.Fixed(chip.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -48f), new Vector2(600f, 50f));
+                new Vector2(0f, -62f), new Vector2(600f, 50f));
 
             var chipText = Ui.Label("LevelText", chip.transform,
                 director.ChapterName + "　·　第 " + (director.Floor + 1) + " 层",
@@ -146,19 +147,22 @@ namespace Slime.Game
             var title = Ui.Label("Title", card.transform, director.ChapterSubtitle,
                 Theme.H2, Theme.Text, TextAlignmentOptions.Center);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -388f), new Vector2(ColW - Pad * 2f, 52f));
+                new Vector2(0f, -396f), new Vector2(ColW - Pad * 2f, 52f));
 
             var foe = Ui.Label("Foe", card.transform, "下一个对手 · " + info.Name,
                 Theme.Body, Theme.WithAlpha(accent, 1f), TextAlignmentOptions.Center);
             Ui.Fixed(foe.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -440f), new Vector2(ColW - Pad * 2f, 36f));
+                new Vector2(0f, -448f), new Vector2(ColW - Pad * 2f, 36f));
 
             // 血条：跨节点保留的唯一稀缺资源。数字直接写在条里，省掉一行「生命 X/Y」
             var hpTrack = Ui.Panel("HpTrack", card.transform,
                 SpriteForge.Panel(12, Theme.PanelSunken, Theme.BorderSoft, 1), Color.white);
             hpTrack.type = Image.Type.Sliced;
+            // 血条和主按钮同宽：铺满整张卡片的话，34 高的红条会读成一条警示横幅，
+            // 而不是「我现在还剩多少血」。
+            const float hpW = 600f;
             Ui.Fixed(hpTrack.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 172f), new Vector2(ColW - Pad * 2f, 34f));
+                new Vector2(0f, 172f), new Vector2(hpW, 34f));
 
             float hpPct = director.HpMax <= 0 ? 0f : (float)director.Hp / director.HpMax;
             var hpFill = Ui.Panel("HpFill", hpTrack.transform,
@@ -166,7 +170,7 @@ namespace Slime.Game
                     Theme.Lighten(Theme.Hp, 0.3f), 1), Color.white);
             hpFill.type = Image.Type.Sliced;
             Ui.Fixed(hpFill.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(3f, 0f), new Vector2(Mathf.Max(8f, (ColW - Pad * 2f - 6f) * hpPct), 28f));
+                new Vector2(3f, 0f), new Vector2(Mathf.Max(8f, (hpW - 6f) * hpPct), 28f));
 
             var hpText = Ui.Label("HpText", hpTrack.transform,
                 "生命 " + director.Hp + " / " + director.HpMax,

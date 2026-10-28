@@ -144,23 +144,34 @@ namespace Slime.Game
                 Theme.TextDim, TextAlignmentOptions.Left);
             Ui.Fixed(blurb.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(266f, 0f), new Vector2(700f, 30f));
 
-            var count = Ui.Label("Count", header.transform, "已发现 " + shown + " / " + list.Count, Theme.Caption,
-                Theme.TextFaint, TextAlignmentOptions.Right);
-            Ui.Fixed(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-26f, 0f), new Vector2(240f, 30f));
+            var count = Ui.Label("Count", header.transform, "已发现 " + shown + " / " + list.Count, Theme.Body,
+                shown == list.Count ? Theme.Lighten(color, 0.25f) : Theme.TextDim, TextAlignmentOptions.Right);
+            Ui.Fixed(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-26f, 0f), new Vector2(260f, 32f));
         }
+
+        // 图鉴的格子按「战斗里那张牌的实际尺寸」放大到整格：卡片本体 216×312，
+        // 放大 1.6 倍之后卡名 45 号、效果 34 号，在 1080p 手机上是两倍于正文的清晰度。
+        // 早先每张牌压成 282×116 的一条，效果文字只剩 14 号 —— 一屏能塞 5 张，
+        // 但 14 号字落到手机上不到 8 个物理像素，等于印了一行花纹。
+        private const int Columns = 5;
+        private const float CellW = 345f;
+        private const float CellH = 498f;
+        private const float CellGap = 20f;
+
+        /// <summary>卡面从常量尺寸放大到格宽所需的倍数。</summary>
+        private const float CardScale = CellW / CardView.W;
 
         private void BuildSeriesGrid(RectTransform parent, List<CardDef> list)
         {
-            const int columns = 5;
-            const float cellW = 282f;
-            const float cellH = 116f;
-            const float gap = 12f;
-
-            int rows = (list.Count + columns - 1) / columns;
+            int rows = (list.Count + Columns - 1) / Columns;
 
             var gridNode = Ui.Node("Grid", parent);
-            var grid = Ui.Grid(gridNode, new Vector2(cellW, cellH), new Vector2(gap, gap), columns);
+            var grid = Ui.Grid(gridNode, new Vector2(CellW, CellH), new Vector2(CellGap, CellGap), Columns);
             grid.padding = new RectOffset(0, 0, 0, 0);
+
+            // 滚动区的竖向布局会把子节点拉满可用宽度，比 5 列的总宽更宽；
+            // 不居中的话整排卡面会贴着左边缘，右边空出一大块。
+            grid.childAlignment = TextAnchor.MiddleCenter;
 
             for (int i = 0; i < list.Count; i++)
             {
@@ -168,66 +179,71 @@ namespace Slime.Game
             }
 
             // 补齐空位，保证下一段从新的一行开始
-            int pad = rows * columns - list.Count;
+            int pad = rows * Columns - list.Count;
             for (int i = 0; i < pad; i++)
             {
                 Ui.Node("Pad", gridNode);
             }
 
-            Ui.FixedSize(gridNode.gameObject, columns * cellW + (columns - 1) * gap, rows * cellH + (rows - 1) * gap);
+            Ui.FixedSize(gridNode.gameObject, Columns * CellW + (Columns - 1) * CellGap,
+                rows * CellH + (rows - 1) * CellGap);
         }
 
         private void BuildCardTile(RectTransform parent, CardDef def)
         {
-            bool known = App.Meta.DiscoveredCards.Contains(def.Id);
-            Color color = Theme.SeriesColor(def.Series);
+            // 格子是空壳：GridLayoutGroup 会把直接子节点的尺寸改写成格宽格高，
+            // 卡面必须挂在这层壳里，否则 216×312 会被撑成 345×498 再放大 1.6 倍，
+            // 血淋淋地叠到隔壁格子上去。
+            var cell = Ui.Node("Cell" + def.Id, parent);
 
-            var tile = Ui.Rounded("Tile" + def.Id, parent, Theme.RadiusS,
-                known ? Theme.WithAlpha(Theme.Darken(color, 0.70f), 0.95f) : Theme.PanelSunken,
-                known ? Theme.WithAlpha(color, 0.65f) : Theme.BorderSoft, 1, known);
-            Ui.FixedSize(tile.gameObject, 282f, 116f);
-
-            // 已知的牌可以点开看完整说明与相关机制；未知的牌没有可看的内容，
-            // 保留不可点状态，否则点开是空面板，反而像坏掉了。
-            if (known)
+            if (!App.Meta.DiscoveredCards.Contains(def.Id))
             {
-                var btn = tile.gameObject.AddComponent<Button>();
-                btn.targetGraphic = tile;
-                var colors = btn.colors;
-                colors.normalColor = Color.white;
-                colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f, 1f);
-                colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
-                colors.fadeDuration = 0.08f;
-                btn.colors = colors;
-                btn.onClick.AddListener(() =>
-                {
-                    App.Audio.PlaySfx("ui");
-                    ShowCardDetail(def);
-                });
+                BuildUnknownTile(cell, def);
+                return;
             }
 
-            // 高度必须给实数：Ui.Fixed 设的是 sizeDelta，0 高度就是一条看不见的线。
-            var bar = Ui.Panel("Bar", tile.transform,
-                SpriteForge.Panel(6, known ? color : Theme.TextFaint, Theme.Lighten(color, 0.2f), 1), Color.white);
-            bar.type = Image.Type.Sliced;
-            Ui.Fixed(bar.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(2f, 0f), new Vector2(7f, 112f));
+            // 已发现的牌直接画成真卡面：图鉴要看的就是这张牌长什么样，
+            // 而不是把卡面文字抄进一个小方块里再缩到看不清。
+            var view = CardView.Create(cell, def, v =>
+            {
+                App.Audio.PlaySfx("ui");
+                ShowCardDetail(def);
+            });
 
-            var cost = Ui.Label("Cost", tile.transform, def.Cost + " 费", Theme.Caption,
-                known ? Theme.Lighten(color, 0.35f) : Theme.TextFaint, TextAlignmentOptions.Left);
-            Ui.Fixed(cost.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -8f), new Vector2(120f, 24f));
+            if (view == null || view.Root == null)
+            {
+                return;
+            }
 
-            var series = Ui.Label("Series", tile.transform, Series.DisplayName(def.Series), 13,
-                Theme.TextFaint, TextAlignmentOptions.Right);
-            Ui.Fixed(series.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-14f, -8f), new Vector2(110f, 24f));
+            // 只放大不动 RectTransform：卡面子元素全按 216×312 的坐标系摆放，
+            // 拉伸父节点不会带动字号，卡名会缩成蚂蚁。
+            view.Root.localScale = Vector3.one * CardScale;
+        }
 
-            var name = Ui.Label("Name", tile.transform, known ? def.Name : "？？？", Theme.H4,
-                known ? Theme.Text : Theme.TextFaint, TextAlignmentOptions.Left);
-            Ui.Fixed(name.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -34f), new Vector2(250f, 28f));
+        /// <summary>未发现的牌只画一张卡背：给系列色和体积，内容一概不给。</summary>
+        private void BuildUnknownTile(RectTransform cell, CardDef def)
+        {
+            Color color = Theme.SeriesColor(def.Series);
 
-            string body = known ? def.Text(0) : "在冒险中获取后解锁";
-            var text = Ui.Label("Text", tile.transform, body, 14,
-                known ? Theme.TextDim : Theme.TextFaint, TextAlignmentOptions.TopLeft);
-            Ui.Fixed(text.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -58f), new Vector2(250f, 50f));
+            var back = Ui.Rounded("Back", cell, Theme.RadiusL,
+                Theme.WithAlpha(Theme.PanelSunken, 1f), Theme.WithAlpha(color, 0.22f), 2);
+            Ui.Stretch(back.rectTransform, 6f, 6f, 6f, 6f);
+
+            // 中央用系列纹章而不是问号：纹章是程序化图形，不依赖字体里有没有那个字。
+            var glyph = Ui.Panel("Glyph", back.transform,
+                SpriteForge.SeriesGlyph(256, Theme.WithAlpha(color, 0.34f), def.Series), Color.white);
+            Ui.Fixed(glyph.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 18f), new Vector2(176f, 176f));
+
+            var tip = Ui.Label("Tip", back.transform, "未解锁", Theme.Body, Theme.TextFaint,
+                TextAlignmentOptions.Center);
+            Ui.Fixed(tip.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 82f), new Vector2(240f, 34f));
+
+            var sub = Ui.Label("Sub", back.transform, Series.DisplayName(def.Series), Theme.Caption,
+                Theme.WithAlpha(color, 0.55f), TextAlignmentOptions.Center);
+            Ui.Fixed(sub.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 46f), new Vector2(240f, 28f));
         }
 
         /// <summary>

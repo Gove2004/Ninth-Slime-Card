@@ -763,13 +763,15 @@ namespace Slime.Core
         /// </summary>
         public int RestHealPreview
         {
-            get { return Math.Max(30, HpMax * 60 / 100); }
+            get { return Math.Max(26, HpMax * 45 / 100); }
         }
 
         /// <summary>
         /// 篝火：回复生命。
-        /// 一章 12 层、每场战斗掉 8~15 血、生命上限只有 80~125，
-        /// 一次篝火至少要补回「三场战斗的损耗」才可能走完一章——按 60% 给。
+        ///
+        /// 45% 而不是更高：一章 12 层里有 2~3 处篝火，回得太多就等于没有资源压力 ——
+        /// 实测 60% 时打完整章还剩一半血，血条形同虚设。降到 45% 后，
+        /// 篝火回到「补三场损耗」的量级，玩家必须开始考虑「这场值不值得打」。
         /// </summary>
         public int RestHeal()
         {

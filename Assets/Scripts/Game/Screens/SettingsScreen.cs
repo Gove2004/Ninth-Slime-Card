@@ -10,7 +10,7 @@ namespace Slime.Game
     {
         protected override void Build()
         {
-            BuildHeader("设置", "本地设置立即生效并写入存档", "返回");
+            BuildHeader("设置", "音量、账号与存档", "返回");
             var body = BuildBody(142f);
 
             var column = Ui.Node("Column", body);
@@ -32,15 +32,18 @@ namespace Slime.Game
             Ui.Fixed(mark.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(6f, 26f));
 
             var label = Ui.Label("Title", head, title, Theme.H4, Theme.Text, TextAlignmentOptions.Left);
-            Ui.Fixed(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(18f, 0f), new Vector2(400f, 34f));
+            Ui.Fixed(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(18f, 0f), new Vector2(200f, 34f));
 
-            var sub = Ui.Label("Cap", head, caption, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Right);
-            Ui.Fixed(sub.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, 0f), new Vector2(700f, 28f));
+            // 补充说明紧贴标题，不做整行右对齐，也不留大间距：
+            // 三个分节标题都是两字，说明挪到 104 就正好跟在后面；
+            // 再往右会落在背景那轮月亮上，灰字压亮圆，等于没写。
+            var sub = Ui.Label("Cap", head, caption, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Left);
+            Ui.Fixed(sub.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(104f, 0f), new Vector2(700f, 28f));
         }
 
         private void BuildAudioSection(RectTransform parent)
         {
-            BuildSectionHeader(parent, "音频", "拖动滑块即时生效");
+            BuildSectionHeader(parent, "音频", "即时生效");
 
             var panel = Ui.Rounded("Audio", parent, Theme.RadiusL, Theme.WithAlpha(Theme.Panel, 0.96f), Theme.Border, 1);
             Ui.FixedSize(panel.gameObject, 1180f, 236f);
@@ -70,17 +73,17 @@ namespace Slime.Game
 
         private void BuildAccountSection(RectTransform parent)
         {
-            BuildSectionHeader(parent, "账号", "仅登录与成就联网，其余全部本地");
+            BuildSectionHeader(parent, "账号", string.Empty);
 
             var panel = Ui.Rounded("Account", parent, Theme.RadiusL, Theme.WithAlpha(Theme.Panel, 0.96f), Theme.Border, 1);
-            Ui.FixedSize(panel.gameObject, 1180f, 210f);
+            Ui.FixedSize(panel.gameObject, 1180f, 148f);
 
             bool logged = App.Tap.IsLoggedIn;
 
             var stateChip = Ui.Rounded("State", panel.transform, Theme.RadiusS,
                 logged ? Theme.WithAlpha(Theme.AccentDeep, 0.45f) : Theme.WithAlpha(Theme.PanelSunken, 1f),
                 logged ? Theme.WithAlpha(Theme.Accent, 0.75f) : Theme.BorderSoft, 1);
-            Ui.Fixed(stateChip.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(26f, -22f), new Vector2(300f, 44f));
+            Ui.Fixed(stateChip.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(26f, -26f), new Vector2(300f, 44f));
 
             var stateText = Ui.Label("StateText", stateChip.transform,
                 logged ? "TapTap 已连接" : "未登录（编辑器调试）", Theme.Body,
@@ -89,40 +92,36 @@ namespace Slime.Game
 
             var nick = Ui.Label("Nick", panel.transform,
                 string.IsNullOrEmpty(App.Tap.Nickname) ? "未登录" : App.Tap.Nickname,
-                Theme.H2, Theme.Text, TextAlignmentOptions.Right);
-            Ui.Fixed(nick.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-26f, -22f), new Vector2(600f, 46f));
+                Theme.H3, Theme.Text, TextAlignmentOptions.Right);
+            Ui.Fixed(nick.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-26f, -26f), new Vector2(600f, 44f));
 
-            var lines =
-                "UnionId： " + (string.IsNullOrEmpty(App.Tap.UnionId) ? "-" : App.Tap.UnionId) + "\n" +
-                "成就： 本地判定 + TapTap 上报（" + App.Meta.Unlocked.Count + "/" + App.Achievements.All.Count + "）\n" +
-                "存档： 本地 JSON\n" + Application.persistentDataPath;
+            // 只留玩家自己会关心的一句话。UnionId 与应用数据目录属于排查现场才需要的东西，
+            // 摆在设置里除了让面板像一张日志表，没有任何用处。
+            string line = logged
+                ? "成就已解锁 " + App.Meta.Unlocked.Count + " / " + App.Achievements.All.Count + "，记录会同步到 TapTap"
+                : "成就已解锁 " + App.Meta.Unlocked.Count + " / " + App.Achievements.All.Count + "，未登录时只记在本机";
 
-            var info = Ui.Label("Info", panel.transform, lines, Theme.Caption, Theme.TextDim, TextAlignmentOptions.TopLeft);
-            var infoRt = info.rectTransform;
-            infoRt.anchorMin = new Vector2(0f, 0f);
-            infoRt.anchorMax = new Vector2(1f, 0f);
-            infoRt.pivot = new Vector2(0.5f, 0f);
-            infoRt.offsetMin = new Vector2(26f, 22f);
-            infoRt.offsetMax = new Vector2(-26f, 124f);
+            var info = Ui.Label("Info", panel.transform, line, Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
+            Ui.Fixed(info.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(26f, 30f), new Vector2(1120f, 34f));
         }
 
         private void BuildDataSection(RectTransform parent)
         {
-            BuildSectionHeader(parent, "数据与版本", "v2.0 · 卡牌对决");
+            BuildSectionHeader(parent, "存档", "v" + Application.version);
 
             var row = Ui.Node("DataRow", parent);
-            Ui.FixedSize(row.gameObject, 1180f, 96f);
+            Ui.FixedSize(row.gameObject, 1180f, 92f);
             var layout = Ui.Row(row, 16, new RectOffset(0, 0, 0, 0));
             layout.childForceExpandWidth = false;
             layout.childAlignment = TextAnchor.MiddleLeft;
 
             var note = Ui.Rounded("Note", row, Theme.RadiusL, Theme.WithAlpha(Theme.PanelSunken, 1f), Theme.BorderSoft, 1);
-            Ui.FixedSize(note.gameObject, 830f, 96f);
+            Ui.FixedSize(note.gameObject, 830f, 92f);
 
             var noteText = Ui.Label("Text", note.transform,
-                "本作不包含任何热更新与资源下载：卡池与成就来自随包 CSV，美术在运行时程序化生成，断网可完整游玩。",
-                Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Left);
-            Ui.Fixed(noteText.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(26f, 0f), new Vector2(780f, 60f));
+                "进度只写在本机，换设备或卸载后不会自动恢复。",
+                Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
+            Ui.Fixed(noteText.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(26f, 0f), new Vector2(770f, 40f));
 
             var reset = Ui.TextButton("Reset", row, "清除本地存档", Theme.Body, Theme.WithAlpha(Theme.Danger, 0.85f), Theme.Text, ConfirmReset);
             Ui.FixedSize(reset.gameObject, 334f, 68f);
@@ -173,7 +172,7 @@ namespace Slime.Game
             var label = Ui.Label("Caption", rowRt, caption, Theme.Body, Theme.Text, TextAlignmentOptions.Left);
             Ui.Fixed(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 18f), new Vector2(320f, 30f));
 
-            var hintLabel = Ui.Label("Hint", rowRt, hint, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Left);
+            var hintLabel = Ui.Label("Hint", rowRt, hint, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Left);
             Ui.Fixed(hintLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, -16f), new Vector2(460f, 26f));
 
             var valueLabel = Ui.Label("Value", rowRt, Mathf.RoundToInt(value * 100f) + "%", Theme.H4, Theme.Accent, TextAlignmentOptions.Right);

@@ -189,10 +189,14 @@ namespace Slime.Game
                 Ui.Fixed(art.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                     Vector2.zero, new Vector2(artW, 1080f));
 
-                // 上下压暗渐变，保证 UI 文字可读
-                var shadeTop = Ui.Panel("BgShadeTop", BackgroundLayer, SpriteForge.Glow(64, Theme.BgDeep), Theme.WithAlpha(Color.white, 0.55f));
+                // 顶部压暗必须是一条竖直渐变，不能再用径向 Glow：背景图里的月亮
+                // 正好落在标题栏左侧，径向光只会把正中间压暗，月亮照样亮着，
+                // 于是「设置」「档案室」这些标题和标签栏整条都糊在月亮上。
+                var shadeTop = Ui.Panel("BgShadeTop", BackgroundLayer,
+                    SpriteForge.Scrim(32, 256, Theme.BgDeep, 0.92f, 0f), Color.white);
                 shadeTop.raycastTarget = false;
-                Ui.Fixed(shadeTop.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -120f), new Vector2(2200f, 500f));
+                Ui.Fixed(shadeTop.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                    Vector2.zero, new Vector2(2200f, 360f));
 
                 var shadeBottom = Ui.Panel("BgShadeBottom", BackgroundLayer, SpriteForge.Glow(64, Theme.BgDeep), Theme.WithAlpha(Color.white, 0.75f));
                 shadeBottom.raycastTarget = false;
@@ -229,6 +233,7 @@ namespace Slime.Game
             Save = SaveService.Current;
             Meta = SaveService.ToMeta(Save);
             Cards = ContentService.LoadCards();
+            PruneDiscoveries();
             // 角色分析要知道整个卡池里有哪些兑现手段，才能判断「这张攒层牌值不值得拿」
             CardRoles.PoolSource = Cards;
             Achievements = ContentService.LoadAchievements();
@@ -237,6 +242,35 @@ namespace Slime.Game
 
             Director = new RunDirector(Cards, Achievements, Meta, Environment.TickCount);
             Director.EnsureRun();
+        }
+
+        /// <summary>
+        /// 清掉存档里指向「已不在当前卡池」的卡牌记录。
+        ///
+        /// 图鉴进度是直接数 DiscoveredCards.Count，而这个集合只增不减：
+        /// 卡池换过几轮后，旧卡的 id 会一直堆在里面，界面于是显示成
+        /// 「155 / 144」——进度比总数还多。载入后按现卡池过一遍即可。
+        /// </summary>
+        private void PruneDiscoveries()
+        {
+            if (Meta == null || Cards == null || Meta.DiscoveredCards.Count == 0)
+            {
+                return;
+            }
+
+            var alive = new HashSet<int>();
+            var all = Cards.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                alive.Add(all[i].Id);
+            }
+
+            int removed = Meta.DiscoveredCards.RemoveWhere(id => !alive.Contains(id));
+            if (removed > 0)
+            {
+                PersistMeta();
+                Debug.Log("图鉴清理：移除 " + removed + " 条已不在卡池的卡牌记录");
+            }
         }
 
         #endregion

@@ -48,21 +48,54 @@ namespace Slime.Game
 
         private void buildChest()
         {
-            // 图标用中心锚点放在上方，按钮用底锚点压在最下，两者不再撞在一起
-            var icon = Ui.Panel("Chest", body,
-                SpriteForge.Circle(200, Theme.WithAlpha(Theme.Gold, 0.16f), Theme.WithAlpha(Theme.Gold, 0.7f), 3), Color.white);
-            Ui.Fixed(icon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 60f), new Vector2(200f, 200f));
-            // 第二参是缩放倍率，不是尺寸：传 200 会把图标放大两百倍糊满整屏
-            Tween.PopInScaled(icon.rectTransform, 1f, 0f, 0.86f);
+            // 宝箱用几块圆角底板拼出来，不再用一个圈里写个「箱」字顶事：
+            // 那一枚字符既不像箱子，也让整块 720 高的面板空得像没做完。
+            var chest = Ui.Node("Chest", body);
+            Ui.Fixed(chest, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 96f), new Vector2(360f, 300f));
 
-            var glyph = Ui.Label("Glyph", icon.transform, "箱", Theme.H1, Theme.Gold, TextAlignmentOptions.Center);
-            Ui.Stretch(glyph.rectTransform, 0f, 0f, 0f, 0f);
+            var glow = Ui.Panel("Glow", chest, SpriteForge.Glow(256, Theme.Gold),
+                Theme.WithAlpha(Color.white, 0.20f));
+            Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -10f), new Vector2(560f, 560f));
+
+            var baseBox = Ui.Rounded("Base", chest, 18,
+                Theme.WithAlpha(Theme.Darken(Theme.Gold, 0.72f), 0.96f), Theme.WithAlpha(Theme.Gold, 0.85f), 4);
+            Ui.Fixed(baseBox.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 18f), new Vector2(340f, 182f));
+
+            var lid = Ui.Rounded("Lid", chest, 92,
+                Theme.WithAlpha(Theme.Darken(Theme.Gold, 0.64f), 0.98f), Theme.WithAlpha(Theme.Gold, 0.9f), 4);
+            Ui.Fixed(lid.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 176f), new Vector2(340f, 124f));
+
+            // 盖顶一道高光：只有描边的话，箱盖会和箱体糊成一整块金色。
+            var shine = Ui.Rounded("Shine", lid.transform, 40, Theme.WithAlpha(Theme.Gold, 0.30f),
+                Color.clear, 0);
+            Ui.Fixed(shine.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -10f), new Vector2(250f, 22f));
+
+            for (int i = 0; i < 2; i++)
+            {
+                var strap = Ui.Solid("Strap", chest, Theme.WithAlpha(Theme.Gold, 0.55f));
+                Ui.Fixed(strap.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                    new Vector2(i == 0 ? -104f : 104f, 18f), new Vector2(16f, 282f));
+            }
+
+            var clasp = Ui.Rounded("Clasp", chest, 8, Theme.Gold, Theme.Lighten(Theme.Gold, 0.45f), 2);
+            Ui.Fixed(clasp.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 152f), new Vector2(58f, 74f));
+
+            var hole = Ui.Rounded("Hole", clasp.transform, 6, Theme.BgDeep, Color.clear, 0);
+            Ui.Fixed(hole.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 8f), new Vector2(14f, 26f));
+
+            Tween.PopInScaled(chest, 1f, 0f, 0.9f);
 
             var hint = Ui.Label("Hint", body, "打开它会直接得到一张卡牌，不占奖励次数。",
                 Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -70f), new Vector2(900f, 30f));
+                new Vector2(0f, -110f), new Vector2(900f, 32f));
 
             var open = ActionButton(body, "打 开 宝 箱", new Vector2(0f, 20f), new Vector2(440f, 88f), Theme.Gold);
             open.GetComponentInChildren<TextMeshProUGUI>().color = Theme.BgDeep;

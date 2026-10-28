@@ -13,7 +13,9 @@ namespace Slime.Game
     /// </summary>
     public sealed class ShopScreen : NodeScreen
     {
-        private const float CardScale = 0.86f;
+        // 四张牌摊在 1000 宽的正文区里，按卡面原尺寸（216×312）摆正好排得下，
+        // 没有理由再缩：商店是玩家读卡最多的一屏，字小一号就是白来一趟。
+        private const float CardScale = 1f;
         private const float CardGap = 28f;
 
         private sealed class Offer
@@ -132,17 +134,23 @@ namespace Slime.Game
 
             var director = App.Director;
 
-            goldLabel = Ui.Label("Gold", body, "金币 " + director.Gold, Theme.H2,
+            // 金币曾经横在副标题和商品之间，字号比标题还大，把视线从货上拽走。
+            // 它是「读数」不是「标题」，缩成右上角一枚筹码。
+            var goldBox = Ui.Rounded("GoldBox", body, Theme.RadiusS,
+                Theme.WithAlpha(Theme.PanelSunken, 0.95f), Theme.WithAlpha(Theme.Gold, 0.45f), 1);
+            Ui.Fixed(goldBox.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                Vector2.zero, new Vector2(240f, 46f));
+
+            goldLabel = Ui.Label("Gold", goldBox.transform, "金币 " + director.Gold, Theme.H4,
                 Theme.Gold, TextAlignmentOptions.Center);
-            Ui.Fixed(goldLabel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -4f), new Vector2(600f, 42f));
+            Ui.Stretch(goldLabel.rectTransform, 0f, 0f, 0f, 0f);
 
             buildOffers();
 
             // 底部：删牌服务 + 离开
             removeButton = Ui.TextButton("Remove", body,
-                "移除一张牌　" + removePrice + " 金币", Theme.H3,
-                removeUsed ? Theme.PanelRaised : Theme.PanelRaised,
+                "移除一张牌 · " + removePrice + " 金币", Theme.H3,
+                Theme.PanelRaised,
                 removeUsed ? Theme.TextFaint : Theme.Gold, onRemoveClicked);
             removeCaption = removeButton.GetComponentInChildren<TextMeshProUGUI>();
             Ui.Fixed(removeButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
@@ -170,8 +178,8 @@ namespace Slime.Game
             float step = CardView.W * CardScale + CardGap;
             float left = -(offers.Count - 1) * 0.5f * step;
 
-            // body 高 520。四张卡按 0.86 缩放是 268 高：
-            // 底边留 150 给价格牌与按钮，顶边不压住金币行。
+            // body 高 520：底部 20~94 放两个按钮，104~146 放价格条，
+            // 卡面从 150 起、高 312，顶到 462，剩下 58 给右上角的金币筹码。
             const float CardY = 150f;
 
             for (int i = 0; i < offers.Count; i++)
@@ -189,12 +197,14 @@ namespace Slime.Game
 
                 // 价格牌挂在卡下沿。卡片是底锚定的，价格牌同样用底锚点，
                 // 否则两套坐标系会在卡面上撞到一起。
-                float priceY = CardY - 44f;
+                // 价格条与卡面同宽：原来是一枚 150 宽的小胶囊浮在卡下，
+                // 和上面的卡对不齐，看上去像贴错位置的标签。
+                float priceY = CardY - 46f;
                 var tag = Ui.Rounded("Price", body, Theme.RadiusS,
                     Theme.WithAlpha(Theme.PanelSunken, 0.95f),
                     Theme.WithAlpha(offer.Sold ? Theme.TextFaint : Theme.Gold, 0.7f), 1);
                 Ui.Fixed(tag.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                    new Vector2(left + step * i, priceY), new Vector2(150f, 40f));
+                    new Vector2(left + step * i, priceY), new Vector2(CardView.W * CardScale - 8f, 42f));
 
                 var priceText = Ui.Label("T", tag.transform,
                     offer.Sold ? "已 售 出" : offer.Price + " 金币",
@@ -311,7 +321,7 @@ namespace Slime.Game
             Tween.PopIn(panel.rectTransform, 0f, 0.9f);
 
             var title = Ui.Label("Title", panel.transform,
-                "移除一张牌　" + removePrice + " 金币", Theme.H2, Theme.Gold, TextAlignmentOptions.Center);
+                "移除一张牌 · " + removePrice + " 金币", Theme.H2, Theme.Gold, TextAlignmentOptions.Center);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -28f), new Vector2(1000f, 44f));
 

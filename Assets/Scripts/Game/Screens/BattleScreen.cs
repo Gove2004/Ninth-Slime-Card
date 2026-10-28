@@ -55,7 +55,7 @@ namespace Slime.Game
         private const float PileY = -392f;
         private const float DiscardPileX = 840f;
         private const float EndTurnX = 800f;
-        private const float EndTurnY = -120f;
+        private const float EndTurnY = -200f;
 
         private BattleSession session;
         private readonly List<CardView> handViews = new List<CardView>();
@@ -237,7 +237,7 @@ namespace Slime.Game
                 new Vector2(StageX, PortraitY), new Vector2(PortraitSize, PortraitSize));
             enemyBaseScale = enemyPortrait.rectTransform.localScale;
 
-            enemySubLabel = Ui.Label("EnemySub", Root, info.Title, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
+            enemySubLabel = Ui.Label("EnemySub", Root, info.Title, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(enemySubLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(StageX, EnemySubY), new Vector2(460f, 24f));
 
@@ -297,16 +297,18 @@ namespace Slime.Game
             stageChipFill = Ui.Rounded("StageChip", Root, Theme.RadiusM,
                 Theme.WithAlpha(Theme.Panel, 0.92f), Theme.Border, 1);
             stageChip = stageChipFill.rectTransform;
+            // 宽 520 是量出来的：章节名「第四章 · 混沌深渊」按 24 号排开要 240 往右，
+            // 原来只有 430 宽、进度点又压在右半边，两者直接叠成一团。
             Ui.Fixed(stageChip, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(TopInset, -TopInset), new Vector2(430f, 54f));
+                new Vector2(TopInset, -TopInset), new Vector2(520f, 54f));
 
             stageActLabel = Ui.Label("StageAct", stageChip, string.Empty, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Left);
             Ui.Fixed(stageActLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(20f, 11f), new Vector2(220f, 22f));
+                new Vector2(20f, 12f), new Vector2(320f, 22f));
 
             stageLabel = Ui.Label("StageName", stageChip, string.Empty, Theme.H4, Theme.Text, TextAlignmentOptions.Left);
             Ui.Fixed(stageLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(20f, -12f), new Vector2(240f, 26f));
+                new Vector2(20f, -13f), new Vector2(260f, 26f));
 
             // 本章进度点：按层数铺开，走过的点亮
             int pipCount = Mathf.Clamp(EnemyRoster.FloorsPerChapter / 2, 3, 7);
@@ -314,14 +316,15 @@ namespace Slime.Game
             {
                 var pip = Ui.Panel("StagePip" + i, stageChip,
                     SpriteForge.Circle(26, Theme.PanelSunken, Theme.WithAlpha(Theme.Border, 0.8f), 1), Color.white);
+                // 进度点整体落在下半行，和「第 N 层 · 普通」同一行，不再回头压住章节名
                 Ui.Fixed(pip.rectTransform, new Vector2(1f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(-30f - (pipCount - 1 - i) * 30f, 0f), new Vector2(16f, 16f));
+                    new Vector2(-24f - (pipCount - 1 - i) * 28f, -13f), new Vector2(16f, 16f));
                 stagePips.Add(pip);
             }
 
             stageCountLabel = Ui.Label("StageCount", stageChip, string.Empty, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Right);
-            Ui.Fixed(stageCountLabel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-18f, -8f), new Vector2(130f, 22f));
+            Ui.Fixed(stageCountLabel.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-18f, 12f), new Vector2(120f, 22f));
 
             // 中：回合胶囊
             var capsule = Ui.Rounded("TurnCapsule", Root, Theme.RadiusM,
