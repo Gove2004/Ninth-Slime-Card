@@ -49,10 +49,27 @@ namespace Slime.Core
     /// </summary>
     public sealed class BattleRules
     {
-        public int DrawPerTurn = 5;
+        /// <summary>
+        /// 手牌目标张数。每回合开始**补齐到这个数**，而不是固定抽 N 张。
+        ///
+        /// 两种做法的差别是玩法层面的：
+        /// - 固定抽 N 张：回合末弃光 → 每回合永远是同一个开局手感，上回合打掉几张毫无记忆点；
+        /// - 补齐到 N 张：开局 5 张，打出 3 张后回合结束，下回合只补 3 张。
+        ///   上一回合剩多少，直接决定这一回合有多少选择，玩家会开始为「留着不打」付代价，
+        ///   也会为「这回合必须打完，好把好牌洗回去」做计算。
+        ///
+        /// 配合回合末弃牌，手牌永远不会堆积，也不会出现「每回合都满手、永远出不完」的拖沓感。
+        /// </summary>
+        public int HandTarget = 5;
+
+        /// <summary>单张牌的效果最多能把抽牌推到多少张（防止「抽到死」类死循环）。</summary>
         public int HandLimit = 10;
+
+        /// <summary>开局手牌数。</summary>
         public int StartingHand = 5;
+
         public int EnergyPerTurn = 3;
+
         /// <summary>超过这个回合数后双方开始流失生命，防止无限拉锯。</summary>
         public int SoftTurnLimit = 30;
 
@@ -207,7 +224,11 @@ namespace Slime.Core
                 return;
             }
 
-            int drawCount = rules.DrawPerTurn - Player.GetStatus(StatusKind.Blind);
+            // 补牌式：把手牌补齐到目标张数，而不是固定抽 N 张。
+            // 上一回合剩几张，这一回合就只补几张 —— 打出多少、补回多少。
+            // 致盲扣的是「目标张数」，不是「抽取张数」，所以致盲期间手牌会更薄。
+            int target = rules.HandTarget - Player.GetStatus(StatusKind.Blind);
+            int drawCount = Math.Max(0, target) - Player.Hand.Count;
             Draw(Player, Math.Max(0, drawCount));
             RefreshPlayerEnergy();
 
@@ -337,11 +358,16 @@ namespace Slime.Core
                 BestTurnDamage = thisTurn;
             }
 
-            // 回合结束弃掉整手牌。只裁到上限是不够的：
-            // 那样手牌会一路涨到 10 张就再也不降，从第 3 回合起「每回合抽 5 张」
-            // 抽到的牌全被上限吞掉，抽牌类的能力牌直接变成废牌；
-            // 而且玩家可以囤一整手好牌，之后每回合只挑最强的几张打，难度曲线就没了。
-            DiscardHand(Player);
+            // 回合结束**保留手牌**，只把超出的部分裁掉。
+            //
+            // 这是补牌式抽牌成立的前提：如果回合末整手弃光，「补齐到 5 张」就等价于
+            // 「每回合固定抽 5 张」，两种做法没有区别。保留手牌之后，
+            // 打出去几张、下回合就只补几张，手牌数量被钉在目标张数上，
+            // 既不会堆积（不用囤牌），也不会出现「永远满手、永远出不完」的拖沓。
+            //
+            // 裁到 HandTarget 而不是 HandLimit：效果抽牌允许临时超出手牌目标，
+            // 但超出部分不该跨回合留下来变成永久牌库。
+            TrimHand(Player, rules.HandTarget);
             ExpireOnPlayPowers(Player);
 
             TickEndOfTurn(Player);
@@ -565,6 +591,22 @@ namespace Slime.Core
             {
                 Heal(unit, aura);
             }
+
+            // 护盾清空放在自己回合的**最后**：此时敌人的整个回合已经打完，
+            // 盾该吃的伤害都吃到了，剩下的才是真正「没用上」的部分。
+            //
+            // 不能放在回合结束（TickEndOfTurn）：那发生在玩家交牌之后、敌人动手之前，
+            // 盾会在敌人出招前归零 —— 玩家叠的盾一次都用不上。
+            // 也不能放在回合开始的第一行：中毒无视护盾，先散盾会让「护盾撑过了敌方回合」
+            // 这条信息丢失，结算顺序也变得无法验证。
+            //
+            // 对称性：敌人自己叠的盾同样保留到玩家的回合打完，
+            // 玩家看到的「护盾 8」是实打实会吃掉 8 点伤害的。
+            if (unit.Shield > 0)
+            {
+                Emit(EventKind.Shield, unit.Name + " 护盾消散 " + unit.Shield, unit.Shield, !unit.IsPlayer);
+                unit.Shield = 0;
+            }
         }
 
         private void TickEndOfTurn(BattleUnit unit)
@@ -586,11 +628,8 @@ namespace Slime.Core
 
             unit.DecayStatuses();
 
-            // 护盾每回合清空（尖塔式），结界也在此时归零
-            if (unit.Shield > 0)
-            {
-                unit.Shield = 0;
-            }
+            // 护盾不在这里清。清在这里等于「敌人还没动手，盾先没了」，
+            // 正确时机是持有者下一个回合开始时（见 TickStartOfTurn）。
         }
 
         /// <summary>返回 true 表示本回合因控制效果被跳过。</summary>
@@ -1319,22 +1358,33 @@ namespace Slime.Core
             Emit(EventKind.Draw, "弃牌堆洗回", unit.DrawPile.Count, !unit.IsPlayer);
         }
 
-        /// <summary>回合结束把整手牌弃掉（尖塔式）。</summary>
-        private void DiscardHand(BattleUnit unit)
+        /// <summary>
+        /// 回合结束把手牌裁到 <paramref name="keep"/> 张，多出来的从**右侧**（最新拿到的）开始弃。
+        ///
+        /// 弃右侧而不是左侧：左侧是最早留下的牌，玩家把它们留着不打通常是有意的
+        /// （等能量、等配套牌）；右侧则是本回合用效果临时抽进来的，弃掉损失最小。
+        /// </summary>
+        private void TrimHand(BattleUnit unit, int keep)
         {
-            if (unit.Hand.Count == 0)
+            if (keep < 0)
+            {
+                keep = 0;
+            }
+
+            int excess = unit.Hand.Count - keep;
+            if (excess <= 0)
             {
                 return;
             }
 
-            int count = unit.Hand.Count;
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < excess; i++)
             {
-                unit.DiscardPile.Add(unit.Hand[i]);
+                int last = unit.Hand.Count - 1;
+                unit.DiscardPile.Add(unit.Hand[last]);
+                unit.Hand.RemoveAt(last);
             }
 
-            unit.Hand.Clear();
-            Emit(EventKind.Discard, "弃掉 " + count + " 张手牌", count, !unit.IsPlayer);
+            Emit(EventKind.Discard, "弃掉 " + excess + " 张手牌", excess, !unit.IsPlayer);
         }
 
         private void DiscardRandom(BattleUnit unit, int count)

@@ -50,12 +50,13 @@ namespace Slime.Core
             new GlossaryEntry
             {
                 Key = "护盾", Name = "护盾", Group = GlossaryGroup.Rule, Status = StatusKind.None,
-                Text = "优先于生命承受伤害。回合结束时清空 —— 所以护盾是「这一回合」的资源，攒不到下一回合。"
+                Text = "优先于生命承受伤害。出牌叠的盾会一直留到敌人整个回合打完，"
+                    + "在自己下一个回合开始时才清空 —— 它能完整挡下接下来那一次敌方行动，但攒不到再下一个回合。"
             },
             new GlossaryEntry
             {
                 Key = "结界", Name = "结界", Group = GlossaryGroup.Buff, Status = StatusKind.Barrier,
-                Text = "比护盾更先承受伤害，不按回合衰减，但每回合结束时同样清零。适合挡下已知的大招。"
+                Text = "比护盾更先承受伤害，不按层数衰减，但同样在自己下一个回合开始时清零。适合提前挡下已知的大招。"
             },
             new GlossaryEntry
             {
@@ -65,7 +66,8 @@ namespace Slime.Core
             new GlossaryEntry
             {
                 Key = "抽", Name = "抽牌", Group = GlossaryGroup.Rule, Status = StatusKind.None,
-                Text = "每回合抽 5 张，回合结束时整手弃掉。手牌上限 10 张，抽满即止。"
+                Text = "手牌不弃、跨回合保留。每回合开始把手牌补齐到 5 张：上一回合剩几张，这回合就只补几张。"
+                    + "效果牌可以临时把手牌推高到 10 张，但回合结束时只保留 5 张，多出来的弃掉。"
             },
             new GlossaryEntry
             {
@@ -173,7 +175,7 @@ namespace Slime.Core
             new GlossaryEntry
             {
                 Key = "倾泻", Name = "倾泻", Group = GlossaryGroup.Payoff, Status = StatusKind.None,
-                Text = "把当前护盾全部清零，每点护盾折算成伤害。护盾本来到回合结束也会消失，"
+                Text = "把当前护盾全部清零，每点护盾折算成伤害。护盾本来在自己下一个回合开始也会消散，"
                      + "倾泻等于把它提前换成一发重击。同样无视护盾与易伤。"
             },
             new GlossaryEntry

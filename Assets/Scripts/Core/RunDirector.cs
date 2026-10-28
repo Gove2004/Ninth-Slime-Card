@@ -477,7 +477,9 @@ namespace Slime.Core
             // 能量随章节成长。敌人血量逐章抬升，玩家如果始终只有 3 点能量，
             // 输出就不会变强，Boss 战必然变成单方面挨打。
             rules.EnergyPerTurn = 3 + (Chapter - 1);
-            rules.DrawPerTurn = Chapter >= 3 ? 6 : 5;
+            // 手牌目标同样随章节 +1：后期牌库更杂，多一张选择才撑得住场面。
+            // 注意这是「补齐到几张」，不是「抽几张」——见 BattleRules.HandTarget。
+            rules.HandTarget = Chapter >= 3 ? 6 : 5;
 
             var session = new BattleSession(Cards, enemy, Deck, seed, rules);
             session.Chapter = Chapter;

@@ -38,12 +38,19 @@ namespace Slime.Game
         public static readonly Color SeriesDark = Hex("#8465D6");     // 暗咒 · 幽紫
         public static readonly Color SeriesArcane = Hex("#4FC0A8");   // 秘术 · 青碧
 
-        public const int H1 = 46;
-        public const int H2 = 34;
-        public const int H3 = 26;
-        public const int H4 = 21;
-        public const int Body = 19;
-        public const int Caption = 16;
+        // 字号按「手机横屏能不能看清」定，不按桌面显示器能不能看清定。
+        // 画布参考 1920×1080、match 0.5，在 2400×1080 的手机上缩放约 1.12 倍；
+        // 原先 Caption=16 落到真机只有约 18 物理像素（≈6.5dp），小到必须凑近看。
+        // 现在最小一档 24 → 真机约 27 物理像素（≈10dp），是中文正文的可读下限。
+        public const int H1 = 56;
+        public const int H2 = 44;
+        public const int H3 = 34;
+        public const int H4 = 28;
+        public const int Body = 26;
+        public const int Caption = 24;
+
+        /// <summary>卡面描述用字：比 Caption 略小，但仍然高于可读下限。</summary>
+        public const int CardText = 21;
 
         public const int GapS = 6;
         public const int GapM = 12;

@@ -112,21 +112,23 @@ namespace Slime.Game
             divider = Ui.Panel("Divider", Root, SpriteForge.Panel(2, Theme.WithAlpha(series, 0.55f), Color.clear, 0), Color.white);
             Ui.Fixed(divider.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 74f), new Vector2(W - 64f, 2f));
 
-            nameLabel = Ui.Label("Name", Root, def.Name, 26, Theme.Text, TextAlignmentOptions.Center);
+            nameLabel = Ui.Label("Name", Root, def.Name, 28, Theme.Text, TextAlignmentOptions.Center);
             Ui.Fixed(nameLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(W - 20f, 34f));
 
             // 用实例文本而不是模板文本：牌升级后卡面数值必须跟着变，
             // 否则锻造完看上去跟没升一样。
             // 描述区从 56 加高到 62 并上移 4：56 高装两行中文会顶到卡名下沿，
             // 自动缩字号又把它压成 10px，看起来就是一团糊。
-            descLabel = Ui.Label("Desc", Root, Wrap(inst.DisplayText, series), 15,
-                Theme.WithAlpha(Theme.Text, 0.92f), TextAlignmentOptions.Top);
+            descLabel = Ui.Label("Desc", Root, Wrap(inst.DisplayText, series), Theme.CardText,
+                Theme.WithAlpha(Theme.Text, 0.94f), TextAlignmentOptions.Top);
             Ui.Fixed(descLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(W - 26f, 62f));
             descLabel.lineSpacing = 1f;
             // 长描述自动缩字号，避免溢出卡面
             descLabel.enableAutoSizing = true;
-            descLabel.fontSizeMin = 11f;
-            descLabel.fontSizeMax = 15f;
+            // AutoSizing 的下限就是「手机上还能不能读」的底线。
+            // 低于 15 的字在 1080p 手机横屏上等于糊成一团墨，宁可让描述换行也别缩下去。
+            descLabel.fontSizeMin = 15f;
+            descLabel.fontSizeMax = Theme.CardText;
 
             // 费用徽章（左上）：六边宝石压在插画上，加深色外圈拉开层次
             costBadge = Ui.Panel("CostBadge", Root, SpriteForge.Gem(72, series, Theme.Darken(Theme.BgDeep, 0.1f)), Color.white);

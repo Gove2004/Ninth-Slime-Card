@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Slime.Core;
 using TMPro;
 using UnityEngine;
@@ -7,198 +6,104 @@ using UnityEngine.UI;
 namespace Slime.Game
 {
     /// <summary>
-    /// 主界面。所有区块落在同一套三栏栅格里：
-    ///   左栏 / 中栏 / 右栏 = 520 / 720 / 520，栏距 40；
-    ///   顶栏一条水平线，左右两栏的上下分界与底线完全对齐。
-    /// 面板一律用「上边界 + 下边界」声明（见 Panel），避免中心点与高度各写各的导致错位。
+    /// 主界面。设计原则：**一屏只回答一个问题——「我现在要做什么」**。
+    ///
+    /// 结构（自上而下三层，层与层之间只靠留白分隔，不画多余边框）：
+    ///   ① 顶栏：我是谁（左）+ 三个核心数字（右）
+    ///   ② 主卡：这一局打到哪、打谁、还有多少血、点这个继续 —— 唯一视觉重心
+    ///   ③ 底栏：牌库 / 设置 / 重开一局 —— 全部降级为哑光小按钮
+    ///
+    /// 旧版把「如何对局」「八系列牌池」「牌组构成」「牌组预览」四块面板平铺在一屏，
+    /// 60+ 行文字，玩家第一眼没有任何可落脚的地方。那些内容要么搬进档案室，
+    /// 要么只在玩家主动查看时出现。
     /// </summary>
     public sealed class HomeScreen : Screen
     {
         // ---------------------------------------------------------------- 栅格
-        private const float ColW = 520f;        // 左右栏宽
-        private const float LeftX = -660f;      // 左栏中心
-        private const float RightX = 660f;      // 右栏中心
-        private const float Pad = 24f;          // 面板内边距
+        private const float ColW = 1080f;
+        private const float Pad = 36f;
 
-        private const float BarY = 452f;        // 顶栏中线
-        private const float BarH = 96f;         // 顶栏高度（500..404）
+        private const float TopBarY = 466f;
+        private const float TopBarH = 96f;
 
-        private const float Top = 380f;         // 内容区上边界
-        private const float Split = 52f;        // 上下两块的视觉分界线
-        private const float Bottom = -420f;     // 内容区下边界（左中右三栏共线）
-        private const float Gap = 24f;          // 上下两块之间的空隙
+        // 主卡：上下界直接写死，内部元素全部相对卡片自身排布（详见 BuildHero 的纵轴表）
+        private const float CardTop = 372f;
+        private const float CardBottom = -300f;
+        private const float CardH = CardTop - CardBottom;   // 672
 
-        private const float UpperBottom = Split + Gap * 0.5f;   // 64
-        private const float LowerTop = Split - Gap * 0.5f;      // 40
-        private const float HeroBottom = Bottom + 240f;         // -180：出征卡下沿，卡下留出预览带
+        private const float FooterY = -430f;
 
         protected override void Build()
         {
             App.Audio.PlayMusic("title1");
 
             BuildTopBar();
-            BuildRules();
-            BuildSeries();
             BuildHero();
-            BuildDeckPanel();
-            BuildRail();
-            BuildPreview();
-
-            var footer = Ui.Label("Footer", Root, "第九张史莱姆牌 · 卡牌对决 · 本地运行",
-                Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(footer.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 26f), new Vector2(900f, 22f));
-        }
-
-        // ---------------------------------------------------------------- 助手
-
-        /// <summary>按上/下边界摆放一块面板——上下界的对齐关系直接可读。</summary>
-        private static RectTransform Panel(string name, RectTransform parent, float centerX, float top, float bottom, float width, Color border)
-        {
-            float height = top - bottom;
-            var box = Ui.Rounded(name, parent, Theme.RadiusL,
-                Theme.WithAlpha(Theme.Panel, 0.92f), border, 1);
-            Ui.Fixed(box.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(centerX, (top + bottom) * 0.5f), new Vector2(width, height));
-            return box.rectTransform;
-        }
-
-        /// <summary>面板内标题行：左标题 + 右副标，两栏共用同一套内边距。</summary>
-        private static void Header(RectTransform panel, string title, string caption, Color captionColor)
-        {
-            var label = Ui.Label("Title", panel, title, Theme.H3, Theme.Text, TextAlignmentOptions.Left);
-            Ui.Fixed(label.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(Pad, -18f), new Vector2(320f, 38f));
-
-            if (string.IsNullOrEmpty(caption))
-            {
-                return;
-            }
-
-            var sub = Ui.Label("Caption", panel, caption, Theme.Caption, captionColor, TextAlignmentOptions.Right);
-            Ui.Fixed(sub.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-Pad, -20f), new Vector2(240f, 30f));
+            BuildFooter();
         }
 
         // ---------------------------------------------------------------- 顶栏
 
         private void BuildTopBar()
         {
-            // 左：玩家牌（与左栏同宽、同左缘）
-            var plate = Ui.Rounded("PlayerPlate", Root, Theme.RadiusM,
-                Theme.WithAlpha(Theme.Panel, 0.94f), Theme.Border, 1);
-            Ui.Fixed(plate.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(LeftX - ColW * 0.5f, BarY), new Vector2(ColW, BarH));
+            var bar = Ui.Node("TopBar", Root);
+            Ui.Fixed(bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, TopBarY), new Vector2(ColW, TopBarH));
 
-            var avatar = Ui.Panel("Avatar", plate.transform,
-                SpriteForge.Slime(128, Theme.Accent, Theme.BgDeep, 4242, false, SlimeFace.Happy), Color.white);
-            Ui.Fixed(avatar.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(18f, 0f), new Vector2(68f, 68f));
+            // --- 左：身份（头像 + 名字）。技术上「是否登录」不再是主界面信息，挪到设置里去了 ---
+            // 头像用真立绘，和战斗里的主角保持同一张脸；缺图才回退到程序化史莱姆。
+            Sprite heroArt = ArtLib.Hero;
+            var avatar = Ui.Panel("Avatar", bar,
+                heroArt != null
+                    ? heroArt
+                    : SpriteForge.Slime(160, Theme.Accent, Theme.BgDeep, 4242, false, SlimeFace.Happy),
+                Color.white);
+            avatar.preserveAspect = true;
+            Ui.Fixed(avatar.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(0f, 0f), new Vector2(80f, 80f));
 
-            var name = Ui.Label("Name", plate.transform, App.Tap.DisplayName, Theme.H4, Theme.Text, TextAlignmentOptions.Left);
-            Ui.Fixed(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(100f, 15f), new Vector2(400f, 32f));
+            var name = Ui.Label("Name", bar, App.Tap.DisplayName, Theme.H4, Theme.Text, TextAlignmentOptions.Left);
+            Ui.Fixed(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(100f, 0f), new Vector2(360f, 40f));
 
-            var tag = App.Tap.IsLoggedIn ? "TapTap 已连接 · 成就同步可用" : "编辑器调试身份 · 成就仅本地";
-            var mode = Ui.Label("Mode", plate.transform, tag, Theme.Caption,
-                App.Tap.IsLoggedIn ? Theme.Accent : Theme.Gold, TextAlignmentOptions.Left);
-            Ui.Fixed(mode.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(100f, -17f), new Vector2(400f, 26f));
-
-            // 中：字牌（居中于整屏）
-            var mark = Ui.Label("Wordmark", Root, "第 九 张 史 莱 姆 牌", Theme.H3, Theme.TextDim, TextAlignmentOptions.Center);
-            mark.characterSpacing = 4f;
-            Ui.Fixed(mark.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, BarY), new Vector2(600f, 40f));
-
-            // 右：两块等宽数据（与右栏同宽、同右缘）
-            Stat("Trophy", RightX + 135f, App.Meta.Trophy.ToString(), "奖杯", Theme.Gold, Theme.WithAlpha(Theme.Gold, 0.45f));
-
+            // --- 右：三个数字，从右缘往左依次排，每个是「数值在上、标签在下」 ---
             int best = App.Meta.BestChapter > 0 ? App.Meta.BestChapter : App.Director.Chapter;
-            Stat("Best", RightX - 135f,
-                best + " / " + EnemyRoster.TotalChapters,
-                "最深章节", Theme.Text, Theme.Border);
+
+            // 从右往左：奖杯（最重要，放最右） → 金币 → 最远章节
+            Stat(bar, "Trophy", App.Meta.Trophy.ToString(), "奖杯", 0f);
+            Stat(bar, "Gold", App.Director.Gold.ToString(), "金币", -200f);
+            Stat(bar, "Chapter", best + " / " + EnemyRoster.TotalChapters, "最远章节", -400f);
         }
 
-        private void Stat(string name, float centerX, string value, string caption, Color valueColor, Color border)
+        /// <summary>一枚右对齐的数字块。<paramref name="rightOffset"/> 是距顶栏右缘的距离。</summary>
+        private void Stat(RectTransform bar, string name, string value, string caption, float rightOffset)
         {
-            var box = Ui.Rounded(name, Root, Theme.RadiusM,
-                Theme.WithAlpha(Theme.Panel, 0.94f), border, 1);
-            Ui.Fixed(box.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(centerX, BarY), new Vector2(250f, BarH));
+            const float w = 180f;
 
-            var valueLabel = Ui.Label("Value", box.transform, value, Theme.H2, valueColor, TextAlignmentOptions.Center);
-            Ui.Fixed(valueLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 12f), new Vector2(230f, 44f));
+            var box = Ui.Node(name, bar);
+            Ui.Fixed(box, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(rightOffset, 0f), new Vector2(w, 92f));
 
-            var cap = Ui.Label("Cap", box.transform, caption, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(cap.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -26f), new Vector2(230f, 26f));
+            var v = Ui.Label("Value", box, value, Theme.H2, Theme.Text, TextAlignmentOptions.Right);
+            Ui.Fixed(v.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(0f, 14f), new Vector2(w, 48f));
+
+            var c = Ui.Label("Cap", box, caption, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Right);
+            Ui.Fixed(c.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(0f, -26f), new Vector2(w, 30f));
         }
 
-        // ---------------------------------------------------------------- 左栏
+        // ---------------------------------------------------------------- 主卡
 
-        private void BuildRules()
-        {
-            var panel = Panel("Rules", Root, LeftX, Top, UpperBottom, ColW, Theme.Border);
-            Header(panel, "如 何 对 局", null, Theme.TextFaint);
-
-            string[] lines =
-            {
-                "四章 · 每章 12 层：层间岔路自选，走到章末打掉 Boss 进下一章。",
-                "按住卡牌拖到屏幕中段的出牌区，松手才会打出。",
-                "战斗、宝箱、篝火、商店、事件五类节点，路线自己挑。",
-                "牌组上限 40 张，满了改为「替换」——换掉弱牌，越打越精。"
-            };
-
-            for (int i = 0; i < lines.Length; i++)
-            {
-                var dot = Ui.Panel("Dot" + i, panel, SpriteForge.Circle(14, Theme.Accent, Theme.AccentDeep, 0), Color.white);
-                Ui.Fixed(dot.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f),
-                    new Vector2(Pad + 5f, -86f - i * 58f), new Vector2(9f, 9f));
-
-                var text = Ui.Label("Line" + i, panel, lines[i], Theme.Caption, Theme.TextDim, TextAlignmentOptions.TopLeft);
-                Ui.Fixed(text.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                    new Vector2(Pad + 22f, -74f - i * 58f), new Vector2(ColW - Pad * 2f - 22f, 54f));
-            }
-        }
-
-        private void BuildSeries()
-        {
-            var panel = Panel("Series", Root, LeftX, LowerTop, Bottom, ColW, Theme.Border);
-            Header(panel, "八 系 列 牌 池", App.Cards.Count + " 张卡牌", Theme.TextFaint);
-
-            const float chipW = 112f;
-            const float chipH = 160f;
-            const float gapX = 10f;
-            const float gapY = 16f;
-            const float padX = (ColW - (4f * chipW + 3f * gapX)) * 0.5f;   // 左右等距
-
-            for (int i = 0; i < Series.All.Length; i++)
-            {
-                var series = Series.All[i];
-                Color color = Theme.SeriesColor(series);
-
-                int col = i % 4;
-                int row = i / 4;
-
-                float x = padX + col * (chipW + gapX) + chipW * 0.5f;
-                float y = -88f - row * (chipH + gapY) - chipH * 0.5f;
-
-                var chip = Ui.Rounded("Chip" + i, panel, Theme.RadiusS,
-                    Theme.WithAlpha(Theme.Darken(color, 0.74f), 0.96f), Theme.WithAlpha(color, 0.6f), 1);
-                Ui.Fixed(chip.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(chipW, chipH));
-
-                var glyph = Ui.Panel("Glyph", chip.transform,
-                    SpriteForge.SeriesGlyph(112, Theme.Lighten(color, 0.2f), series), Color.white);
-                Ui.Fixed(glyph.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -14f), new Vector2(52f, 52f));
-
-                var label = Ui.Label("Name", chip.transform, Series.DisplayName(series), Theme.H4,
-                    Theme.Lighten(color, 0.42f), TextAlignmentOptions.Center);
-                Ui.Fixed(label.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 44f), new Vector2(chipW - 8f, 30f));
-
-                var num = Ui.Label("Count", chip.transform, App.Cards.OfSeries(series).Count + " 张", Theme.Caption,
-                    Theme.TextDim, TextAlignmentOptions.Center);
-                Ui.Fixed(num.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(chipW - 8f, 22f));
-            }
-        }
-
-        // ---------------------------------------------------------------- 中栏
-
+        /// <summary>
+        /// 唯一的重心：一块大地台，放章节 / 对手立绘 / 血条 / 主按钮。
+        /// 纵轴（相对卡片上缘，负值向下，卡片高 672）：
+        ///   -48  章节·层 胶囊（高 50）
+        ///   -240 对手立绘（236 见方，占 -122..-358）
+        ///   -388 章节副标题（占 -362..-414）
+        ///   -440 下一个对手（占 -422..-458）
+        ///   底 172 血条（高 34，数字写在条内）/ 底 32 主按钮（高 90）
+        /// </summary>
         private void BuildHero()
         {
             var director = App.Director;
@@ -206,222 +111,102 @@ namespace Slime.Game
             Color accent = Theme.SeriesColor(info.Accent);
 
             var card = Ui.Rounded("Hero", Root, Theme.RadiusL,
-                Theme.WithAlpha(Theme.Panel, 0.96f), Theme.WithAlpha(accent, 0.45f), 2);
+                Theme.WithAlpha(Theme.Panel, 0.96f), Theme.WithAlpha(accent, 0.5f), 2);
             Ui.Fixed(card.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, (Top + HeroBottom) * 0.5f), new Vector2(700f, Top - HeroBottom));
+                new Vector2(0f, (CardTop + CardBottom) * 0.5f), new Vector2(ColW, CardH));
             Tween.SlideIn(card.rectTransform, new Vector2(0f, -40f), 0.36f, 0.05f);
 
-            var glow = Ui.Panel("Glow", card.transform, SpriteForge.Glow(256, accent), Theme.WithAlpha(Color.white, 0.32f));
-            Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0f, -158f), new Vector2(360f, 360f));
+            // 光晕压在立绘后面，给立绘一个"从暗场里亮出来"的落点
+            var glow = Ui.Panel("Glow", card.transform, SpriteForge.Glow(256, accent),
+                Theme.WithAlpha(Color.white, 0.30f));
+            Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -238f), new Vector2(410f, 410f));
 
             var portrait = Ui.Panel("Enemy", card.transform, null, Color.white);
             Sprite foeArt = ArtLib.Monster(info.Sprite);
-            if (foeArt != null)
-            {
-                portrait.sprite = foeArt;
-                portrait.preserveAspect = true;
-            }
-            else
-            {
-                portrait.sprite = SpriteForge.Slime(256, accent, Theme.BgDeep, info.Seed, true, SlimeFace.Fierce);
-            }
-
-            Ui.Fixed(portrait.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0f, -158f), new Vector2(200f, 200f));
+            portrait.sprite = foeArt != null
+                ? foeArt
+                : SpriteForge.Slime(256, accent, Theme.BgDeep, info.Seed, true, SlimeFace.Fierce);
+            portrait.preserveAspect = true;
+            Ui.Fixed(portrait.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -240f), new Vector2(236f, 236f));
             Tween.PopIn(portrait.rectTransform, 0.12f, 0.85f);
 
-            // 第一行：当前章节与所在层
-            var levelChip = Ui.Rounded("Level", card.transform, 10,
-                Theme.WithAlpha(Theme.Darken(accent, 0.6f), 0.96f), Theme.WithAlpha(accent, 0.85f), 1);
-            Ui.Fixed(levelChip.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0f, -38f), new Vector2(480f, 40f));
+            // 章节 · 层
+            var chip = Ui.Rounded("Level", card.transform, 10,
+                Theme.WithAlpha(Theme.Darken(accent, 0.62f), 0.96f), Theme.WithAlpha(accent, 0.85f), 1);
+            Ui.Fixed(chip.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -48f), new Vector2(600f, 50f));
 
-            var levelLabel = Ui.Label("LevelText", levelChip.transform,
+            var chipText = Ui.Label("LevelText", chip.transform,
                 director.ChapterName + "　·　第 " + (director.Floor + 1) + " 层",
                 Theme.Body, Theme.Lighten(accent, 0.45f), TextAlignmentOptions.Center);
-            Ui.Stretch(levelLabel.rectTransform, 0f, 1f, 0f, 1f);
+            Ui.Stretch(chipText.rectTransform, 0f, 0f, 0f, 0f);
 
-            var title = Ui.Label("Title", card.transform, director.ChapterSubtitle, Theme.H2, Theme.Text, TextAlignmentOptions.Center);
-            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -270f), new Vector2(640f, 48f));
+            var title = Ui.Label("Title", card.transform, director.ChapterSubtitle,
+                Theme.H2, Theme.Text, TextAlignmentOptions.Center);
+            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -388f), new Vector2(ColW - Pad * 2f, 52f));
 
-            var subtitle = Ui.Label("Sub", card.transform, "下一个对手 · " + info.Name,
-                Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -318f), new Vector2(640f, 30f));
+            var foe = Ui.Label("Foe", card.transform, "下一个对手 · " + info.Name,
+                Theme.Body, Theme.WithAlpha(accent, 1f), TextAlignmentOptions.Center);
+            Ui.Fixed(foe.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -440f), new Vector2(ColW - Pad * 2f, 36f));
 
-            // 三项关键状态：生命是跨节点保留的稀缺资源，牌组是构筑成果
-            var stats = Ui.Label("Stats", card.transform,
-                "生命 " + director.Hp + " / " + director.HpMax
-                + "   ·   金币 " + director.Gold
-                + "   ·   牌组 " + director.DeckCount + " 张",
-                Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(stats.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -348f), new Vector2(660f, 26f));
-            Tween.FadeIn(stats, 0.3f, 0.18f, 0f, 1f);
-
-            // 生命条：一眼看出这局还能撑多久
+            // 血条：跨节点保留的唯一稀缺资源。数字直接写在条里，省掉一行「生命 X/Y」
             var hpTrack = Ui.Panel("HpTrack", card.transform,
-                SpriteForge.Panel(8, Theme.PanelSunken, Theme.BorderSoft, 1), Color.white);
+                SpriteForge.Panel(12, Theme.PanelSunken, Theme.BorderSoft, 1), Color.white);
             hpTrack.type = Image.Type.Sliced;
-            Ui.Fixed(hpTrack.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 168f), new Vector2(520f, 18f));
+            Ui.Fixed(hpTrack.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 172f), new Vector2(ColW - Pad * 2f, 34f));
 
             float hpPct = director.HpMax <= 0 ? 0f : (float)director.Hp / director.HpMax;
             var hpFill = Ui.Panel("HpFill", hpTrack.transform,
-                SpriteForge.Panel(8, hpPct > 0.5f ? Theme.Hp : Theme.Danger, Theme.Lighten(Theme.Hp, 0.3f), 1), Color.white);
+                SpriteForge.Panel(12, hpPct > 0.5f ? Theme.Hp : Theme.Danger,
+                    Theme.Lighten(Theme.Hp, 0.3f), 1), Color.white);
             hpFill.type = Image.Type.Sliced;
-            Ui.Fixed(hpFill.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(2f, 0f),
-                new Vector2(Mathf.Max(6f, 516f * hpPct), 14f));
+            Ui.Fixed(hpFill.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(3f, 0f), new Vector2(Mathf.Max(8f, (ColW - Pad * 2f - 6f) * hpPct), 28f));
 
-            var start = Ui.TextButton("Start", card.transform, "继 续 冒 险", Theme.H3, Theme.AccentDeep, Theme.Text, StartRun);
-            Ui.Fixed(start.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(440f, 80f));
+            var hpText = Ui.Label("HpText", hpTrack.transform,
+                "生命 " + director.Hp + " / " + director.HpMax,
+                Theme.Caption, Theme.Text, TextAlignmentOptions.Center);
+            Ui.Stretch(hpText.rectTransform, 0f, 0f, 0f, 0f);
 
-            var restart = Ui.TextButton("Restart", card.transform, "重 开 一 局", Theme.Caption, Theme.PanelRaised, Theme.TextDim, RestartRun);
-            Ui.Fixed(restart.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(440f, 38f));
+            // 主按钮：整屏唯一的实心高饱和色块
+            var start = Ui.TextButton("Start", card.transform, "继 续 冒 险", Theme.H3,
+                Theme.AccentDeep, Theme.Text, StartRun);
+            Ui.Fixed(start.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 32f), new Vector2(600f, 90f));
         }
 
-        /// <summary>底部中间摆一排真卡面——一屏之内就能看出这是个打牌的游戏。</summary>
-        private void BuildPreview()
+        // ---------------------------------------------------------------- 底栏
+
+        /// <summary>
+        /// 底栏只放三个「玩家会主动想点」的入口。
+        /// 「清除存档」本来设置里就有，从主界面移除以减少一个破坏性按钮的暴露面。
+        /// </summary>
+        private void BuildFooter()
         {
-            var strip = Ui.Node("DeckPreview", Root);
+            var bar = Ui.Node("Footer", Root);
+            Ui.Fixed(bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, FooterY), new Vector2(ColW, 76f));
 
-            var caption = Ui.Label("Caption", strip, "当前牌组 · 最近加入的五张", Theme.Caption,
-                Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(caption.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -206f), new Vector2(460f, 24f));
+            const float gap = 24f;
+            const float w = (ColW - gap * 2f) / 3f;
 
-            // 取牌组里最近的五张（去重），让玩家一眼看到自己攒了什么
-            var defs = new List<CardDef>();
-            var seen = new HashSet<int>();
-            var deck = App.Director.Deck;
-            for (int i = deck.Count - 1; i >= 0 && defs.Count < 5; i--)
-            {
-                var d = deck[i].Def;
-                if (d != null && seen.Add(d.Id))
-                {
-                    defs.Add(d);
-                }
-            }
-
-            const float scale = 0.60f;
-            const float gap = 16f;
-            float step = CardView.W * scale + gap;      // 缩放后的实际卡宽 + 视觉间距
-            float left = -step * (defs.Count - 1) * 0.5f;
-
-            // SetPosition 的 y 是「卡底距画布底边」，-420 即与左右两栏共底线。
-            for (int i = 0; i < defs.Count; i++)
-            {
-                var def = defs[i];
-                var view = CardView.Create(strip, def, null);
-                if (view == null)
-                {
-                    continue;
-                }
-
-                view.SetPosition(new Vector2(left + step * i, 120f), 0f, scale);
-                view.SetInteractive(false);
-
-                // 从右下方向上一张张发进来，像把牌摊到桌面上
-                var rt = view.Root;
-                Tween.LocalMove(rt, rt.anchoredPosition + new Vector2(step * 0.9f, -70f), rt.anchoredPosition,
-                    0.34f, Easing.OutCubic, null, 0.04f * i);
-                Tween.Scale(rt, scale * 0.7f, scale, 0.34f, Easing.OutBack, null, 0.04f * i);
-            }
+            Entry(bar, "Codex", "牌 库", -ColW * 0.5f + w * 0.5f, w,
+                () => App.Push(new CodexScreen(CodexScreen.Tab.Cards)));
+            Entry(bar, "Settings", "设 置", -ColW * 0.5f + w * 0.5f + w + gap, w,
+                () => App.Push(new SettingsScreen()));
+            Entry(bar, "Restart", "重开一局", -ColW * 0.5f + w * 0.5f + (w + gap) * 2f, w, RestartRun);
         }
 
-        // ---------------------------------------------------------------- 右栏
-
-        private void BuildRail()
+        private void Entry(RectTransform bar, string name, string caption, float x, float w, System.Action onClick)
         {
-            float height = Top - UpperBottom;       // 316
-            const float buttonH = 70f;
-            float step = buttonH + (height - 4f * buttonH) / 3f;   // 4 枚等分，首尾贴齐面板上下沿
-
-            var rail = Ui.Node("Rail", Root);
-            Ui.Fixed(rail, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(RightX, (Top + UpperBottom) * 0.5f), new Vector2(ColW, height));
-
-            string[] captions = { "卡牌图鉴", "成就档案", "设置", "清除存档" };
-            System.Action[] actions =
-            {
-                () => App.Push(new CodexScreen(CodexScreen.Tab.Cards)),
-                () => App.Push(new CodexScreen(CodexScreen.Tab.Achievements)),
-                () => App.Push(new SettingsScreen()),
-                ConfirmReset
-            };
-
-            Color[] fills = { Theme.PanelRaised, Theme.PanelRaised, Theme.PanelRaised, Theme.WithAlpha(Theme.Danger, 0.24f) };
-            Color[] textColors = { Theme.Text, Theme.Text, Theme.Text, Theme.Danger };
-
-            for (int i = 0; i < captions.Length; i++)
-            {
-                int index = i;
-                var btn = Ui.TextButton("Rail" + i, rail, captions[i], Theme.H4, fills[i], textColors[i],
-                    () => actions[index]());
-                Ui.Fixed(btn.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                    new Vector2(0f, -i * step), new Vector2(ColW, buttonH));
-            }
-        }
-
-        private void BuildDeckPanel()
-        {
-            var panel = Panel("Deck", Root, RightX, LowerTop, Bottom, ColW, Theme.Border);
-            Header(panel, "牌 组", App.Director.DeckCount + " / " + DeckRules.DeckCap + " 张",
-                App.Director.AtDeckCap ? Theme.Gold : Theme.Accent);
-
-            var composition = App.Director.DeckComposition();
-            var perSeries = new Dictionary<CardSeries, int>();
-            int max = 1;
-
-            foreach (var pair in composition)
-            {
-                var def = App.Cards.Get(pair.Key);
-                if (def == null)
-                {
-                    continue;
-                }
-
-                int n;
-                perSeries.TryGetValue(def.Series, out n);
-                perSeries[def.Series] = n + pair.Value;
-                if (perSeries[def.Series] > max)
-                {
-                    max = perSeries[def.Series];
-                }
-            }
-
-            // 八行等距铺满：首行中心 -73，行距 50，末行下沿正好落在内边距上。
-            float y = -73f;
-            foreach (var series in Series.All)
-            {
-                int n;
-                if (!perSeries.TryGetValue(series, out n) || n <= 0)
-                {
-                    continue;
-                }
-
-                Color color = Theme.SeriesColor(series);
-
-                var label = Ui.Label("S" + (int)series, panel, Series.DisplayName(series), Theme.Caption,
-                    Theme.TextDim, TextAlignmentOptions.Left);
-                Ui.Fixed(label.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(Pad, y), new Vector2(80f, 26f));
-
-                var track = Ui.Panel("Track", panel, SpriteForge.Panel(6, Theme.PanelSunken, Theme.BorderSoft, 1), Color.white);
-                track.type = Image.Type.Sliced;
-                Ui.Fixed(track.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(120f, y), new Vector2(ColW - 220f, 18f));
-
-                var fill = Ui.Panel("Fill", track.transform, SpriteForge.Panel(6, color, Theme.Lighten(color, 0.25f), 1), Color.white);
-                fill.type = Image.Type.Sliced;
-                Ui.Fixed(fill.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(2f, 0f),
-                    new Vector2(Mathf.Max(6f, (ColW - 228f) * n / max), 14f));
-
-                var num = Ui.Label("N" + (int)series, panel, n.ToString(), Theme.Caption,
-                    Theme.Lighten(color, 0.35f), TextAlignmentOptions.Right);
-                Ui.Fixed(num.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 0.5f), new Vector2(-Pad, y), new Vector2(60f, 26f));
-
-                y -= 50f;
-            }
-
-            if (perSeries.Count == 0)
-            {
-                var empty = Ui.Label("Empty", panel, "牌组为空\n点「重置牌组」重建初始牌组", Theme.Caption,
-                    Theme.TextFaint, TextAlignmentOptions.Center);
-                Ui.Fixed(empty.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -20f), new Vector2(280f, 80f));
-            }
+            var btn = Ui.TextButton(name, bar, caption, Theme.Body, Theme.PanelRaised, Theme.TextDim, onClick);
+            Ui.Fixed(btn.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(x, 0f), new Vector2(w, 76f));
         }
 
         // ---------------------------------------------------------------- 行为
@@ -438,48 +223,15 @@ namespace Slime.Game
 
         private void RestartRun()
         {
-            App.Audio.PlaySfx("mana");
-            App.Director.StartNewRun();
-            App.PersistMeta();
-            App.Toast("已重开一局");
-            App.Replace(new HomeScreen());
-        }
-
-        private void ConfirmReset()
-        {
-            var dialog = Ui.Rounded("Dialog", Root, Theme.RadiusL,
-                Theme.WithAlpha(Theme.PanelRaised, 0.99f), Theme.Border, 1);
-            Ui.Fixed(dialog.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(680f, 320f));
-
-            var text = Ui.Label("Text", dialog.transform,
-                "确定清除全部本地存档？\n奖杯、图鉴、成就与统计数据都会丢失。",
-                Theme.Body, Theme.Text, TextAlignmentOptions.Center);
-            Ui.Fixed(text.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 46f), new Vector2(620f, 120f));
-
-            var yes = Ui.TextButton("Yes", dialog.transform, "确认清除", Theme.Body, Theme.Danger, Theme.Text, () =>
+            // 重开会清掉当前局，属于不可撤回操作，必须二次确认
+            App.ShowConfirm("重开一局会放弃当前进度\n（奖杯与图鉴记录保留）", "确认重开", "取消", () =>
             {
-                SaveService.DeleteFile();
-                App.Meta.Trophy = 0;
-                App.Meta.BestChapter = 1;
-                App.Meta.RunsPlayed = 0;
-                App.Meta.Wins = 0;
-                App.Meta.Losses = 0;
-                App.Meta.DiscoveredCards.Clear();
-                App.Meta.Unlocked.Clear();
-                App.Meta.Counters.Clear();
-                App.Meta.Flags.Clear();
-                App.Meta.ClearRun();
+                App.Audio.PlaySfx("mana");
                 App.Director.StartNewRun();
                 App.PersistMeta();
-                Object.Destroy(dialog.gameObject);
-                App.Toast("存档已清除");
+                App.Toast("已重开一局");
                 App.Replace(new HomeScreen());
             });
-            Ui.Fixed(yes.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-140f, 30f), new Vector2(240f, 68f));
-
-            var no = Ui.TextButton("No", dialog.transform, "取消", Theme.Body, Theme.Panel, Theme.TextDim,
-                () => Object.Destroy(dialog.gameObject));
-            Ui.Fixed(no.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(140f, 30f), new Vector2(240f, 68f));
         }
     }
 }

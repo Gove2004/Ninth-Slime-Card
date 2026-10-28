@@ -60,6 +60,18 @@ namespace Slime.Game
         private BattleSession session;
         private readonly List<CardView> handViews = new List<CardView>();
         private readonly List<Floating> floats = new List<Floating>();
+        private readonly List<PortraitPunch> hitPunches = new List<PortraitPunch>();
+
+        /// <summary>下一条飘字最早可出现的时刻。连续事件靠它排队，避免数字叠成一坨。</summary>
+        private float nextFloatAt;
+
+        /// <summary>三条飘字行各自被占用到什么时候，用来避免同一位置同时冒出两条。</summary>
+        private readonly float[] laneFreeAt = new float[3];
+
+        // 立绘的基础缩放要单独存：玩家立绘是 (-1,1,1) 的水平镜像，
+        // 受击挤压时按基础值等比缩放才不会把镜像弄丢。
+        private Vector3 enemyBaseScale = Vector3.one;
+        private Vector3 playerBaseScale = Vector3.one;
 
         private Screen backTo;
 
@@ -126,11 +138,34 @@ namespace Slime.Game
         private float settleTimer;
         private bool settlePending;
 
+        /// <summary>
+        /// 一条飘字。位置 / 缩放 / 透明度全部在 TickFloats 里手算，不走 Tween。
+        /// Tween 的每条通道都是一次性补间，而飘字要同时叠加「弹入 + 上升 + 横向摆动 +
+        /// 旋转回正 + 尾段淡出」，用几个补间拼起来会互相覆盖同一个属性。
+        /// </summary>
         private struct Floating
         {
-            public TextMeshProUGUI label;
+            public RectTransform rt;
+            public TextMeshProUGUI main;
+            public TextMeshProUGUI shadow;
+            public Color tint;
+            public Vector2 origin;
+            public float spawnAt;    // 排队时刻
+            public float bornAt;     // 真正出现时刻
+            public bool live;        // 已到出场时刻
+            public float rise;
+            public float sway;
+            public float tilt;
+            public float life;
+        }
+
+        /// <summary>立绘受击挤压：命中瞬间压扁一点再弹回，比纯震屏更能指向「是谁挨打了」。</summary>
+        private struct PortraitPunch
+        {
+            public RectTransform rt;
+            public Vector3 baseScale;
             public float bornAt;
-            public float drift;
+            public float amp;
         }
 
         public BattleScreen()
@@ -200,6 +235,7 @@ namespace Slime.Game
             enemyPortrait.color = Color.white;
             Ui.Fixed(enemyPortrait.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(StageX, PortraitY), new Vector2(PortraitSize, PortraitSize));
+            enemyBaseScale = enemyPortrait.rectTransform.localScale;
 
             enemySubLabel = Ui.Label("EnemySub", Root, info.Title, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
             Ui.Fixed(enemySubLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -394,14 +430,16 @@ namespace Slime.Game
 
             playerPortrait = Ui.Panel("PlayerPortrait", Root, null, Color.white);
             Sprite heroArt = ArtLib.Hero;
-            // 素材持剑朝左，镜像后剑尖指向右侧的敌人
             playerPortrait.sprite = heroArt != null
                 ? heroArt
                 : SpriteForge.Slime(220, Theme.Accent, Theme.BgDeep, 4242, false, SlimeFace.Neutral);
             playerPortrait.preserveAspect = true;
+            // 立绘素材本身朝左，而玩家站在战场左侧、敌人站在右侧 ——
+            // 不镜像的话主角是背对着敌人打的。
             playerPortrait.rectTransform.localScale = new Vector3(-1f, 1f, 1f);
             Ui.Fixed(playerPortrait.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(-StageX, PortraitY), new Vector2(PortraitSize, PortraitSize));
+            playerBaseScale = playerPortrait.rectTransform.localScale;
 
             // 脚下的影子，把立绘"放"在地上
             var shadow = Ui.Panel("PlayerShadow", Root, SpriteForge.Glow(128, Theme.WithAlpha(Color.black, 0.5f)), Color.white);
@@ -1504,27 +1542,28 @@ namespace Slime.Game
             for (int i = 0; i < events.Count; i++)
             {
                 var e = events[i];
-                Vector2 at = e.OnEnemy
-                    ? new Vector2(StageX, PortraitY + PortraitSize * 0.5f + 10f)
-                    : new Vector2(-StageX, PortraitY + PortraitSize * 0.5f + 10f);
+                // 飘字起点压在立绘的胸口中部（而不是头顶）：从立绘上缘起飞的话，
+                // 上升满 100 多像素后就贴到顶部回合条上，和赛程信息糊在一起。
+                Vector2 at = new Vector2(e.OnEnemy ? StageX : -StageX, PortraitY + PortraitSize * 0.26f);
 
                 switch (e.Kind)
                 {
                     case EventKind.Damage:
-                        SpawnFloat(e.Text, Theme.Danger, at + new Vector2(Random.Range(-40f, 40f), 0f), 1.35f);
+                        SpawnFloat(e.Text, Theme.Danger, at + new Vector2(Random.Range(-40f, 40f), 0f), 1.65f, 104f, 0.9f);
                         Flash(e.OnEnemy);
+                        HitPunch(e.OnEnemy, 0.12f);
                         GameApp.I.Audio.PlaySfx("slash");
                         Tween.Shake(Root, e.OnEnemy ? 6f : 11f, 0.3f);
                         break;
                     case EventKind.Heal:
-                        SpawnFloat(e.Text, Theme.Accent, at + new Vector2(Random.Range(-30f, 30f), 0f), 1.1f);
+                        SpawnFloat(e.Text, Theme.Accent, at + new Vector2(Random.Range(-30f, 30f), 0f), 1.15f, 92f);
                         GameApp.I.Audio.PlaySfx("heal");
                         break;
                     case EventKind.Shield:
-                        SpawnFloat(e.Text, Theme.Shield, at + new Vector2(Random.Range(-30f, 30f), 24f), 1.0f);
+                        SpawnFloat(e.Text, Theme.Shield, at + new Vector2(Random.Range(-30f, 30f), 24f), 1.05f, 74f);
                         break;
                     case EventKind.Energy:
-                        SpawnFloat(e.Text, Theme.Mana, at + new Vector2(Random.Range(-30f, 30f), 44f), 0.95f);
+                        SpawnFloat(e.Text, Theme.Mana, at + new Vector2(Random.Range(-30f, 30f), 44f), 0.95f, 66f);
                         GameApp.I.Audio.PlaySfx("mana");
                         break;
                     case EventKind.Draw:
@@ -1540,7 +1579,7 @@ namespace Slime.Game
                         UpdateLog(e.Text);
                         break;
                     case EventKind.Debuff:
-                        SpawnFloat(e.Text, Theme.SeriesDark, at + new Vector2(0f, 64f), 1.0f);
+                        SpawnFloat(e.Text, Theme.SeriesDark, at + new Vector2(0f, 64f), 1.0f, 78f);
                         GameApp.I.Audio.PlaySfx("venom");
                         break;
                     case EventKind.Status:
@@ -1551,8 +1590,9 @@ namespace Slime.Game
                     case EventKind.Payoff:
                         // 兑现时刻：攒了半天的层数/护盾一次换成了伤害，
                         // 这是玩家理解自己构筑强度的唯一机会，必须给足反馈。
-                        SpawnFloat(e.Text, Theme.SeriesLight, at + new Vector2(0f, 96f), 1.5f);
+                        SpawnFloat(e.Text, Theme.SeriesLight, at + new Vector2(0f, 54f), 1.95f, 104f, 1.2f);
                         Flash(e.OnEnemy);
+                        HitPunch(e.OnEnemy, 0.18f);
                         GameApp.I.Audio.PlaySfx("mana");
                         Tween.Shake(Root, e.OnEnemy ? 9f : 5f, 0.34f);
                         UpdateLog(e.Text);
@@ -1561,21 +1601,105 @@ namespace Slime.Game
             }
         }
 
-        private void SpawnFloat(string text, Color color, Vector2 at, float scale)
+        /// <summary>
+        /// 战斗飘字。字号直接决定真机上能不能读到，所以基数用 H2（44）再乘系数：
+        /// 伤害最高（约 73），护盾/能量最低也在 40 以上 —— 旧版基数 H4（28）
+        /// 乘完只有 27~42，在手机上是一行看不清的小字。
+        /// </summary>
+        /// <param name="scale">字号系数。</param>
+        /// <param name="rise">整条飘字上升的总高度（像素）。</param>
+        /// <param name="life">存活时长（秒）。</param>
+        private void SpawnFloat(string text, Color color, Vector2 at, float scale, float rise = 96f, float life = 0.95f)
         {
             if (string.IsNullOrEmpty(text))
             {
                 return;
             }
 
-            var label = Ui.Label("Float", Root, text, Mathf.RoundToInt(Theme.H4 * scale), color, TextAlignmentOptions.Center);
-            Ui.Fixed(label.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), at, new Vector2(520f, 44f));
+            int size = Mathf.RoundToInt(Theme.H2 * scale);
+            // 宽度按字数给足：TMP 在窄框里会把中文折成竖排，一个「护盾消散 12」能变成三行。
+            float width = Mathf.Clamp(text.Length * size * 1.05f + 60f, 320f, 1400f);
+            var box = new Vector2(width, size * 1.7f);
 
-            // 入场：从 0.5 倍弹到目标大小，干脆利落
-            label.rectTransform.localScale = Vector3.one * 0.5f;
-            Tween.Scale(label.rectTransform, 0.5f, 1f, 0.24f, Easing.OutBack);
+            // 一次结算常常连发好几条事件（多段伤害、护盾 + 灼烧 + 生命流失），
+            // 而「敌方回合出招」和「下回合开始回能量」也几乎同时发生。
+            // 只靠时间错开不够：每条要飘 0.9 秒，先出来的还没走，后一条已经在同一位置炸开了。
+            // 所以给飘字分三条行，挑当前空着的那条，读起来像连击计数。
+            float now = Time.unscaledTime;
+            int lane = 0;
+            float earliest = float.MaxValue;
+            for (int i = 0; i < laneFreeAt.Length; i++)
+            {
+                if (laneFreeAt[i] <= now)
+                {
+                    lane = i;
+                    break;
+                }
 
-            floats.Add(new Floating { label = label, bornAt = Time.unscaledTime, drift = 30f });
+                if (laneFreeAt[i] < earliest)
+                {
+                    earliest = laneFreeAt[i];
+                    lane = i;
+                }
+            }
+
+            laneFreeAt[lane] = now + life * 0.8f;
+
+            // 后来的往下排，不往上。
+            // 飘字本身一直在上升，如果后出现的排在更高处，先出现的那条一定会追上来撞进它的位置
+            // （0.3 秒就能升 90 像素，比任何行间距都大）。往下排则永远越离越远。
+            var origin = at - new Vector2(0f, lane * 74f);
+
+            var rt = Ui.Node("Float", Root);
+            Ui.Fixed(rt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), origin, box);
+            rt.localScale = Vector3.zero;
+
+            // 影子替身代替 TMP outline：outline 需要每个实例一份 material（几十份材质实例会拖 GC），
+            // 一层偏右下的黑色副本同样能把数字从花哨的立绘背景上压出来。
+            var shadow = Ui.Label("Shadow", rt, text, size, Theme.WithAlpha(Color.black, 0.6f), TextAlignmentOptions.Center);
+            shadow.margin = new Vector4(4f, 5f, 0f, 0f);
+
+            var main = Ui.Label("Main", rt, text, size, color, TextAlignmentOptions.Center);
+
+            // 每条再错开 90ms 出场，避免同一帧冒出三四个数字
+            float spawnAt = Mathf.Max(now, nextFloatAt);
+            nextFloatAt = spawnAt + 0.09f;
+
+            floats.Add(new Floating
+            {
+                rt = rt,
+                main = main,
+                shadow = shadow,
+                tint = color,
+                origin = origin,
+                spawnAt = spawnAt,
+                bornAt = now,
+                live = false,
+                rise = rise,
+                sway = Random.Range(-34f, 34f),
+                tilt = Random.Range(-9f, 9f),
+                life = life,
+            });
+        }
+
+        /// <summary>命中反馈：被击者立绘压扁一下弹回。按基础缩放乘系数，玩家立绘的镜像不会丢。</summary>
+        private void HitPunch(bool onEnemy, float amp)
+        {
+            RectTransform rt = onEnemy
+                ? (enemyPortrait != null ? enemyPortrait.rectTransform : null)
+                : (playerPortrait != null ? playerPortrait.rectTransform : null);
+            if (rt == null)
+            {
+                return;
+            }
+
+            hitPunches.Add(new PortraitPunch
+            {
+                rt = rt,
+                baseScale = onEnemy ? enemyBaseScale : playerBaseScale,
+                bornAt = Time.unscaledTime,
+                amp = amp,
+            });
         }
 
         private void Flash(bool onEnemy)
@@ -1623,29 +1747,90 @@ namespace Slime.Game
 
         private void TickFloats(float dt)
         {
+            float now = Time.unscaledTime;
+
             for (int i = floats.Count - 1; i >= 0; i--)
             {
                 var f = floats[i];
-                if (f.label == null)
+                if (f.rt == null || f.main == null)
                 {
                     floats.RemoveAt(i);
                     continue;
                 }
 
-                float age = Time.unscaledTime - f.bornAt;
-                if (age > 1.1f)
+                // 排队中的先隐身等自己的出场时刻
+                if (!f.live)
                 {
-                    Object.Destroy(f.label.gameObject);
+                    if (now < f.spawnAt)
+                    {
+                        continue;
+                    }
+
+                    f.live = true;
+                    f.bornAt = now;
+                }
+
+                float t = (now - f.bornAt) / f.life;
+                if (t >= 1f)
+                {
+                    Object.Destroy(f.rt.gameObject);
                     floats.RemoveAt(i);
                     continue;
                 }
 
-                var rt = f.label.rectTransform;
-                rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, rt.anchoredPosition.y + f.drift * dt);
+                // 弹入分两段：0.35 倍炸到 1.3 倍（过冲），再落回 1 倍。
+                // 单段 OutBack 的过冲在 40 号字上基本看不出来，必须显式做这两段。
+                float s;
+                if (t < 0.14f)
+                {
+                    s = Mathf.LerpUnclamped(0.35f, 1.3f, Easing.OutQuad(t / 0.14f));
+                }
+                else if (t < 0.3f)
+                {
+                    s = Mathf.LerpUnclamped(1.3f, 1f, Easing.OutQuad((t - 0.14f) / 0.16f));
+                }
+                else
+                {
+                    s = 1f;
+                }
 
-                var c = f.label.color;
-                c.a = Mathf.Clamp01(1f - (age - 0.55f) / 0.55f);
-                f.label.color = c;
+                // 上升前快后慢（强缓出），停在高处淡出；横向给一点正弦摆动，
+                // 避免连续几条数字走同一条竖线。旋转从随机倾斜回正，带一点"甩上去"的力道。
+                float up = 1f - Mathf.Pow(1f - t, 2.6f);
+                float side = f.sway * Mathf.Sin(Mathf.Min(1f, t * 1.25f) * Mathf.PI);
+                f.rt.anchoredPosition = f.origin + new Vector2(side, f.rise * up);
+                f.rt.localScale = Vector3.one * s;
+                f.rt.localRotation = Quaternion.Euler(0f, 0f, f.tilt * (1f - up));
+
+                // 出场瞬间偏白（受击闪光感），16% 时落回该事件的主题色
+                float settle = Mathf.Clamp01(t / 0.16f);
+                float alpha = t < 0.6f ? 1f : Mathf.Clamp01(1f - (t - 0.6f) / 0.4f);
+                f.main.color = Theme.WithAlpha(Color.Lerp(Color.white, f.tint, settle), alpha);
+                f.shadow.color = Theme.WithAlpha(Color.black, 0.6f * alpha);
+
+                floats[i] = f;   // struct 是值类型，live / bornAt 不写回就会被每帧重置
+            }
+
+            for (int i = hitPunches.Count - 1; i >= 0; i--)
+            {
+                var p = hitPunches[i];
+                if (p.rt == null)
+                {
+                    hitPunches.RemoveAt(i);
+                    continue;
+                }
+
+                float t = (now - p.bornAt) / 0.26f;
+                if (t >= 1f)
+                {
+                    p.rt.localScale = p.baseScale;
+                    hitPunches.RemoveAt(i);
+                    continue;
+                }
+
+                float k = 1f - p.amp * Mathf.Sin(t * Mathf.PI);
+                p.rt.localScale = new Vector3(p.baseScale.x * k, p.baseScale.y * k, p.baseScale.z);
+                hitPunches[i] = p;
             }
 
             if (enemyHitFlash != null && enemyHitFlash.color.a > 0.01f)
