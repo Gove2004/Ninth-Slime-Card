@@ -30,6 +30,12 @@ namespace Slime.DevTools
                     app.Replace(new LoginScreen());
                     break;
 
+                // 已登录的机器上 LoginScreen 会立刻复用登录态跳走，排版根本看不到。
+                // 这个键跳过自动登录，停在登录屏本身。
+                case "login-idle":
+                    app.Replace(new LoginScreen(true));
+                    break;
+
                 case "home":
                     app.Replace(new HomeScreen());
                     break;

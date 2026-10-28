@@ -580,7 +580,9 @@ namespace Slime.Core
             Meta.AddCounter("score", facts.DamageDealt);
             Meta.AddCounter("draw", facts.CardsDrawn);
             Meta.AddCounter("play", facts.CardsPlayed);
-            Meta.AddCounter("energy", facts.EnergyGained);
+            // 键名必须是 mana：成就表里能量类成就写的是 counter:mana，
+            // 这里写成 energy 的话那 8 条成就读的是一个永远为 0 的计数器，一辈子解不开。
+            Meta.AddCounter("mana", facts.EnergyGained);
             Meta.AddCounter("heal", facts.Healed);
 
             if (facts.BestTurnDamage >= 25)

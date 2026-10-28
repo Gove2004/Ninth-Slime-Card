@@ -514,15 +514,12 @@ namespace Slime.Game
                 unlocked ? Theme.Text : (ready ? Theme.Gold : Theme.TextDim), TextAlignmentOptions.Left);
             Ui.Fixed(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(96f, 20f), new Vector2(560f, 32f));
 
-            string detail;
-            if (def.IsCounter)
-            {
-                detail = def.Text + "   （进度 " + Format(progress) + " / " + Format(def.Threshold) + "）";
-            }
-            else
-            {
-                detail = def.Text + "   （特殊条件）";
-            }
+            // 一行只讲一件事：左边是条件与读数，右边是状态。
+            // 从前中间那行写「条件（进度 a / b）」，右边又挂一个「需 b」，
+            // 同一个数字在一行里出现两遍，读起来像没填完的表格。
+            string detail = def.IsCounter
+                ? CounterLine(def) + " · " + Format(progress) + " / " + Format(def.Threshold)
+                : def.Text;
 
             var text = Ui.Label("Text", row.transform, detail, Theme.Caption,
                 unlocked ? Theme.TextDim : Theme.TextFaint, TextAlignmentOptions.Left);
@@ -539,12 +536,35 @@ namespace Slime.Game
                 return;
             }
 
-            string caption = ready ? ("兑换 · " + def.TrophyCost + " 奖杯") : ("需 " + Format(def.Threshold));
-            var btn = Ui.TextButton("Buy", row.transform, caption, Theme.Caption,
+            if (!ready)
+            {
+                // 未达成不给标签。三十多行都挂一块「未达成」只是噪音：
+                // 名字与读数都已经是暗色，右边空着本身就说明还没到。
+                return;
+            }
+
+            var btn = Ui.TextButton("Buy", row.transform, "兑换 · " + def.TrophyCost + " 奖杯", Theme.Caption,
                 canBuy ? Theme.Gold : Theme.Panel, canBuy ? Theme.BgDeep : Theme.TextFaint,
                 () => Purchase(def));
             btn.interactable = canBuy;
             Ui.Fixed(btn.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-26f, 0f), new Vector2(230f, 54f));
+        }
+
+        /// <summary>
+        /// 累计型成就的读数口径。键必须与 RunDirector.Accumulate 写进 Meta 的计数器同名，
+        /// 改名要两边一起改，否则进度永远是 0。
+        /// </summary>
+        private static string CounterLine(AchievementDef def)
+        {
+            switch (def.CounterKey)
+            {
+                case "score": return "累计造成伤害";
+                case "draw": return "累计抽牌";
+                case "play": return "累计出牌";
+                case "mana": return "累计消耗能量";
+                case "heal": return "累计治疗量";
+                default: return def.Text;
+            }
         }
 
         /// <summary>千分位整数：进度和门槛用同一套写法，避免"12.9万 / 100M"这种混用。</summary>

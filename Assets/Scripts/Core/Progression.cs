@@ -244,6 +244,16 @@ namespace Slime.Core
                             }
                         }
 
+                        // 能量累计在存档里可能同时有 energy 与 mana 两个键，它们各自覆盖
+                        // 一段时间，合并到 mana 才是完整总量。成就表读的是 mana，
+                        // 只认其中一个键的话，另一段积累在界面上就是凭空消失。
+                        long energy;
+                        if (meta.Counters.TryGetValue("energy", out energy))
+                        {
+                            meta.Counters.Remove("energy");
+                            meta.AddCounter("mana", energy);
+                        }
+
                         break;
                 }
             }
