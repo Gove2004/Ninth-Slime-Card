@@ -122,6 +122,11 @@ namespace Slime.Core
         public int HealedTotal { get { return Player.HealedTotal; } }
         public int BestTurnDamage { get; private set; }
 
+        /// <summary>玩家在本场战斗中对敌人施加过的不同减益种类数（同一状态重复施加只算一种）。</summary>
+        public int EnemyDebuffKinds { get { return enemyDebuffsApplied.Count; } }
+
+        private readonly HashSet<StatusKind> enemyDebuffsApplied = new HashSet<StatusKind>();
+
         public BattleSession(CardDatabase database, EnemyDef enemy, IEnumerable<CardInstance> deck, int seed, BattleRules battleRules = null)
         {
             db = database ?? CardDatabase.CreateFallback();
@@ -1299,6 +1304,12 @@ namespace Slime.Core
             {
                 Emit(EventKind.Status, target.Name + " 免疫了" + Statuses.DisplayName(kind), 0, !target.IsPlayer);
                 return;
+            }
+
+            // 只统计「玩家施加到敌人身上」的不同减益：敌人自己叠的、施加给玩家的都不算。
+            if (source != null && source.IsPlayer && !target.IsPlayer && !Statuses.IsBuff(kind))
+            {
+                enemyDebuffsApplied.Add(kind);
             }
 
             target.AddStatus(kind, stacks);

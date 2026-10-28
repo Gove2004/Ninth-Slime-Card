@@ -530,6 +530,7 @@ namespace Slime.Core
                     Phase = RunPhase.Victory;
                     RunJustEnded = true;
                     Meta.Flags.Add("run_cleared");
+                    Meta.Flags.Add("clear_hell");
                     Meta.RunsCleared++;
                 }
                 else
@@ -608,6 +609,35 @@ namespace Slime.Core
             if (facts.Victory && LastWasBoss)
             {
                 Meta.Flags.Add("boss_slayer");
+            }
+
+            // 下面几条写的是成就 ID，不是语义名：MeetsRequirement 直接拿 def.Id
+            // 去 Flags 里找，写成别的名字成就就永远解不开（这六条一度就是这样失联的）。
+            if (facts.CardsDrawn >= 16 && facts.CardsPlayed >= 12 && facts.BestTurnDamage >= 25)
+            {
+                Meta.Flags.Add("draw_draw");
+            }
+
+            if (facts.EnemyDebuffKinds >= 3)
+            {
+                Meta.Flags.Add("double_agent");
+            }
+
+            if (facts.Victory && Meta.Wins == 1)
+            {
+                Meta.Flags.Add("clear_easy");
+            }
+
+            if (facts.Victory && Hp * 10 <= HpMax)
+            {
+                Meta.Flags.Add("clear_hard");
+            }
+
+            // 「dddd」是后台早先建的一条测试成就，成就表已经不能再改，只能给它一个
+            // 真实条件。绑在 3 回合内取胜上：它的成就步数也正好是 3。
+            if (facts.TurnCount <= 3 && facts.Victory)
+            {
+                Meta.Flags.Add("test");
             }
         }
 

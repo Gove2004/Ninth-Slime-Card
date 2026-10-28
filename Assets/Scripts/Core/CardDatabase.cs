@@ -272,6 +272,9 @@ namespace Slime.Core
         /// <summary>counter:score / counter:draw / ... / flag</summary>
         public string Metric = "flag";
 
+        /// <summary>隐藏成就：达成之前不露名字与条件，只在档案里占一行。</summary>
+        public bool Hidden;
+
         public bool IsCounter { get { return Metric.StartsWith("counter:", StringComparison.Ordinal); } }
 
         public string CounterKey { get { return IsCounter ? Metric.Substring(8) : string.Empty; } }
@@ -321,6 +324,11 @@ namespace Slime.Core
                 if (cells.Length > 6 && cells[6].Trim().Length > 0)
                 {
                     def.Metric = cells[6].Trim();
+                }
+
+                if (cells.Length > 7)
+                {
+                    def.Hidden = cells[7].Trim() == "1";
                 }
 
                 if (def.Id.Length > 0)

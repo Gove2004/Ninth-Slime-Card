@@ -288,6 +288,7 @@ namespace Slime.Core
         public int EnergyGained;
         public int Healed;
         public int SelfDamageTaken;
+        public int EnemyDebuffKinds;
 
         public static BattleFacts Capture(BattleSession session, int currentHp)
         {
@@ -306,6 +307,7 @@ namespace Slime.Core
             facts.CardsDrawn = session.CardsDrawnTotal;
             facts.EnergyGained = session.ManaGainedTotal;
             facts.Healed = session.HealedTotal;
+            facts.EnemyDebuffKinds = session.EnemyDebuffKinds;
             facts.SelfDamageTaken = Math.Max(0, session.Player.HpMax - currentHp);
             return facts;
         }

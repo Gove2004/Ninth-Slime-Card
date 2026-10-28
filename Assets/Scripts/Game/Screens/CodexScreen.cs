@@ -490,6 +490,10 @@ namespace Slime.Game
             long progress = App.Director.Progress(def);
             bool canBuy = !unlocked && ready && App.Meta.Trophy >= def.TrophyCost;
 
+            // 隐藏成就达成之前只占一行：名字和条件都不给，
+            // 否则「隐藏」这一点在界面上完全体现不出来。
+            bool secret = def.Hidden && !ready && !unlocked;
+
             Color accent = unlocked ? Theme.Accent : (ready ? Theme.Gold : Theme.Border);
 
             var row = Ui.Rounded("Row", parent, Theme.RadiusM,
@@ -506,11 +510,11 @@ namespace Slime.Game
             Ui.Fixed(badge.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(26f, 0f), new Vector2(52f, 52f));
 
             // 用 √ 而不是 ✓：Alibaba PuHuiTi 本身没有 U+2713 字形（✓ 会渲染成方框），√ 是它自带的对勾符号。
-            var mark = Ui.Label("Mark", badge.transform, unlocked ? "√" : def.Order.ToString(), Theme.H4,
+            var mark = Ui.Label("Mark", badge.transform, unlocked ? "√" : (secret ? "？" : def.Order.ToString()), Theme.H4,
                 unlocked ? Theme.Text : Theme.TextFaint, TextAlignmentOptions.Center);
             Ui.Stretch(mark.rectTransform, 0f, 0f, 0f, 0f);
 
-            var name = Ui.Label("Name", row.transform, def.Name, Theme.H4,
+            var name = Ui.Label("Name", row.transform, secret ? "？？？" : def.Name, Theme.H4,
                 unlocked ? Theme.Text : (ready ? Theme.Gold : Theme.TextDim), TextAlignmentOptions.Left);
             Ui.Fixed(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(96f, 20f), new Vector2(560f, 32f));
 
@@ -518,9 +522,11 @@ namespace Slime.Game
             // 条件句里的门槛数字来自成就表（「累计造成 1,000 点伤害」），
             // 后面只补当前读数，不再写一遍「/ 1,000」—— 同一个数字在一行里
             // 出现两遍，读起来像没填完的表格。
-            string detail = def.IsCounter
-                ? def.Text + "  ·  已达 " + Format(progress)
-                : def.Text;
+            string detail = secret
+                ? "隐藏成就 · 达成后揭晓"
+                : def.IsCounter
+                    ? def.Text + "  ·  已达 " + Format(progress)
+                    : def.Text;
 
             var text = Ui.Label("Text", row.transform, detail, Theme.Caption,
                 unlocked ? Theme.TextDim : Theme.TextFaint, TextAlignmentOptions.Left);
