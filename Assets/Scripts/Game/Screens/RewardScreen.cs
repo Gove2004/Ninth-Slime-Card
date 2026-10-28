@@ -182,8 +182,9 @@ namespace Slime.Game
 
             var skip = Ui.TextButton("Skip", content, TotalRounds > 1 ? "放弃剩余奖励" : "跳 过", Theme.Body,
                 Theme.PanelRaised, Theme.TextDim, Skip);
+            // 让开卡下三行提示的地盘（提示块最矮也会落到 y=88），同时把底部那段空地收一收
             Ui.Fixed(skip.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 26f), new Vector2(300f, 62f));
+                new Vector2(0f, -14f), new Vector2(300f, 62f));
             skipButton = skip.gameObject;
         }
 
@@ -203,16 +204,22 @@ namespace Slime.Game
                 : role == CardRole.Conditional ? Theme.SeriesThunder
                 : Theme.TextFaint;
 
+            // 卡片底边在 y=260（见上面 SetPosition 的注释）。标签占 [200, 238]，
+            // 与卡面留 22px —— 再靠上去就会被卡面下缘的深色描边吃掉上半截。
+            // 高度按字号给足：Caption 是 24px，30px 高的框去掉内边距只剩 26，
+            // TMP 会把字纵向裁掉一条。
+            const float TagBottom = 200f;
+            const float TagHeight = 38f;
             var tag = Ui.Rounded("Role" + def.Id, parent, Theme.RadiusS,
                 Theme.WithAlpha(Theme.PanelSunken, 0.92f), Theme.WithAlpha(roleColor, 0.55f), 1);
             Ui.Fixed(tag.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(x, 220f), new Vector2(104f, 30f));
+                new Vector2(x, TagBottom), new Vector2(112f, TagHeight));
             hintNodes.Add(tag.gameObject);
 
             var label = Ui.Label("T", tag.transform, CardRoles.RoleName(role), Theme.Caption,
                 role == CardRole.Plain ? Theme.TextFaint : Theme.Lighten(roleColor, 0.3f),
                 TextAlignmentOptions.Center);
-            Ui.Stretch(label.rectTransform, 4f, 2f, 4f, 2f);
+            Ui.Stretch(label.rectTransform, 6f, 4f, 6f, 4f);
 
             string fit = CardRoles.Fit(def, DeckDefs());
             if (string.IsNullOrEmpty(fit))
@@ -225,13 +232,15 @@ namespace Slime.Game
             // 用红色说它不行，玩家会误以为这张牌是废的。
             bool blocked = role == CardRole.Payoff && fit.Contains("打不出来");
             var hint = Ui.Label("Fit" + def.Id, parent, fit, Theme.Caption,
-                blocked ? Theme.Danger : Theme.TextFaint, TextAlignmentOptions.Top);
+                blocked ? Theme.Danger : Theme.TextDim, TextAlignmentOptions.Top);
             hint.enableWordWrapping = true;
 
-            // 高度按实际字数算：提示可能一到两行，给死高度会把第二行裁掉
-            float hintH = Ui.MeasureTextHeight(fit, 276f, Theme.Caption) + 4f;
+            // 高度按实际字数算：提示可能一到三行，给死高度会把后面的行裁掉。
+            // 位置从标签底边往上倒推 —— 提示块是底对齐（pivot 在底边），
+            // 写死 y 的话行数一变就会顶进标签里，把「铺垫」两个字糊掉。
+            float hintH = Mathf.Min(Ui.MeasureTextHeight(fit, 276f, Theme.Caption) + 4f, 104f);
             Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(x, 150f), new Vector2(276f, hintH));
+                new Vector2(x, TagBottom - 8f - hintH), new Vector2(276f, hintH));
 
             hint.alpha = 0f;
             Tween.FadeIn(hint, 0.32f, 0.4f + delay, 0f, 1f);
