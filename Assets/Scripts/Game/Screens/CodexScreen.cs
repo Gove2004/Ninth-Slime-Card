@@ -564,7 +564,7 @@ namespace Slime.Game
             }
 
             App.Audio.PlaySfx("mana");
-            App.ReportAchievement(def.Id, def.Name);
+            App.ReportAchievement(def);
             Show(Tab.Achievements);
         }
 

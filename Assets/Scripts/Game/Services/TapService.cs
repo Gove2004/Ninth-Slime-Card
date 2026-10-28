@@ -193,38 +193,46 @@ namespace Slime.Game
         }
 #endif
 
-        /// <summary>上报成就。失败静默，不阻断游戏。</summary>
-        public void UnlockAchievement(string achievementId)
+        /// <summary>本会话内已经报过的成就。TapTap 侧没有查询接口，重复上报只能本地拦。</summary>
+        private readonly HashSet<string> reported = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// 上报成就。失败静默，不阻断游戏。
+        ///
+        /// TapTap 后台每个成就都有一个「成就步数」：步数 1 的调 Unlock，
+        /// 多步的必须调 Increment 把进度补到满。对多步成就硬调 Unlock，
+        /// 服务端会拒成 80020 并原样丢掉这次上报——本作的成就大量是
+        /// 100 / 1 万 / 1 千万这类累计值，一律走 Unlock 等于全部上报失败。
+        /// </summary>
+        public void ReportAchievement(string achievementId, long totalSteps)
         {
             if (!SdkReady || !IsLoggedIn || string.IsNullOrEmpty(achievementId))
             {
                 return;
             }
 
-            try
-            {
-                TapTapAchievement.Unlock(achievementId: achievementId);
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning("[Tap] achievement report failed: " + achievementId + " / " + e.Message);
-            }
-        }
-
-        public void IncrementAchievement(string achievementId, int step)
-        {
-            if (!SdkReady || !IsLoggedIn || string.IsNullOrEmpty(achievementId))
+            if (!reported.Add(achievementId))
             {
                 return;
             }
 
             try
             {
+                if (totalSteps <= 1)
+                {
+                    TapTapAchievement.Unlock(achievementId: achievementId);
+                    return;
+                }
+
+                // 本地只在进度达标后才解锁，所以这里一次补齐到满步即可。
+                // step 是增量、类型是 int，超过上限的步数夹到上限（服务端到顶即解锁）。
+                int step = totalSteps > int.MaxValue ? int.MaxValue : (int)totalSteps;
                 TapTapAchievement.Increment(achievementId: achievementId, step: step);
             }
             catch (Exception e)
             {
-                Debug.LogWarning("[Tap] achievement increment failed: " + achievementId + " / " + e.Message);
+                reported.Remove(achievementId);
+                Debug.LogWarning("[Tap] achievement report failed: " + achievementId + " / " + e.Message);
             }
         }
 
@@ -248,6 +256,9 @@ namespace Slime.Game
 
         private sealed class AchievementBridge : ITapAchievementCallback
         {
+            /// <summary>同一条失败只留一行日志，批量上报失败时否则会刷满整个 Console。</summary>
+            private readonly HashSet<string> failed = new HashSet<string>(StringComparer.Ordinal);
+
             public void OnAchievementSuccess(int code, TapAchievementResult result)
             {
                 Debug.Log("[Tap] achievement success, code = " + code);
@@ -255,7 +266,19 @@ namespace Slime.Game
 
             public void OnAchievementFailure(string achievementId, int errorCode, string errorMsg)
             {
-                Debug.LogWarning("[Tap] achievement failure: " + achievementId + " (" + errorCode + ") " + errorMsg);
+                if (!failed.Add(achievementId + "|" + errorCode))
+                {
+                    return;
+                }
+
+                // 80020 是无效请求：要么成就 ID 在后台不存在，要么后台记的「成就步数」
+                // 与调用方式不符（多步成就必须 Increment）。这两种都只能在
+                // 开发者中心核对，代码侧无从修正，所以把话说到点上。
+                string hint = errorCode == TapTapAchievementConstants.INVALID_REQUEST
+                    ? "（到开发者中心核对该成就的「成就步数」是否与 CSV 一致）"
+                    : string.Empty;
+
+                Debug.LogWarning("[Tap] achievement failure: " + achievementId + " (" + errorCode + ") " + errorMsg + hint);
             }
         }
     }

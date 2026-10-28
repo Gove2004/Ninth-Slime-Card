@@ -479,10 +479,15 @@ namespace Slime.Game
         }
 
         /// <summary>成就达成后上报 TapTap（本地解锁记录已在 RunDirector 内写进 Meta）。</summary>
-        public void ReportAchievement(string achievementId, string displayName)
+        public void ReportAchievement(AchievementDef def)
         {
-            Toast("成就达成 · " + displayName);
-            Tap.UnlockAchievement(achievementId);
+            if (def == null)
+            {
+                return;
+            }
+
+            Toast("成就达成 · " + def.Name);
+            Tap.ReportAchievement(def.Id, def.Threshold);
             PersistMeta();
         }
 
