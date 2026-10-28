@@ -5,7 +5,7 @@ namespace Slime.Game
 {
     /// <summary>
     /// 真美术素材门面：Assets/Resources/Art 下的卡面插画、背景、立绘、图标。
-    /// 由 Editor/ArtForge 一次性导入。取不到时返回 null，调用方回退到程序化美术。
+    /// 资源按约定路径直接放在该目录下，取不到时返回 null，调用方回退到程序化美术。
     /// </summary>
     public static class ArtLib
     {
