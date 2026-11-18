@@ -21,6 +21,12 @@ namespace Slime.Core
         /// <summary>无限年模式的历史最深层数（1 起）。</summary>
         public int BestFloor;
 
+        /// <summary>
+        /// 新春装饰偏好：0 = 跟随日期窗口（1/20～2/28 自动出现），1 = 常开，2 = 关闭。
+        /// 纯表现层设置，不参与任何结算。
+        /// </summary>
+        public int FestivalPref;
+
         /// <summary>当前局模式：0 = 普通周目，1 = 无限年。</summary>
         public int RunMode;
 
@@ -115,6 +121,7 @@ namespace Slime.Core
             sb.Append("runnode=").Append(RunNodeId).Append('\n');
             sb.Append("runmapseed=").Append(RunMapSeed).Append('\n');
             sb.Append("runfloorbase=").Append(RunFloorBase).Append('\n');
+            sb.Append("festivalpref=").Append(FestivalPref).Append('\n');
             sb.Append("rundeck=").Append(string.Join(",", RunDeck.ConvertAll(i => i.ToString()).ToArray())).Append('\n');
             sb.Append("rundecklv=").Append(string.Join(",", RunDeckLevels.ConvertAll(i => i.ToString()).ToArray())).Append('\n');
 
@@ -190,6 +197,7 @@ namespace Slime.Core
                     case "runnode": meta.RunNodeId = ParseInt(value, 0); break;
                     case "runmapseed": meta.RunMapSeed = ParseInt(value, 0); break;
                     case "runfloorbase": meta.RunFloorBase = Math.Max(0, ParseInt(value, 0)); break;
+                    case "festivalpref": meta.FestivalPref = Math.Max(0, Math.Min(2, ParseInt(value, 0))); break;
                     case "rundeck":
                         meta.RunDeck.Clear();
                         foreach (var piece in Split(value))

@@ -1109,6 +1109,78 @@ namespace Slime.Game
         #region 吉祥物
 
         /// <summary>程序化史莱姆：超椭圆身体 + 高光 + 表情。Boss 与玩家头像都用它。</summary>
+        /// <summary>
+        /// 程序化灯笼：红身 + 金盖 + 竖棱 + 流苏，新春装饰用。
+        /// 自带一圈暖光晕，挂进场景后无需再叠 Glow。
+        /// </summary>
+        public static Sprite Lantern(int size, Color body, Color trim)
+        {
+            size = Mathf.Clamp(size, 64, 256);
+            string key = "lantern_" + size + "_" + ColorKey(body) + "_" + ColorKey(trim);
+            Sprite cached;
+            if (cache.TryGetValue(key, out cached))
+            {
+                return cached;
+            }
+
+            var canvas = Canvas.Create(size, size);
+            float c = size * 0.5f;
+
+            Color dark = Theme.Darken(body, 0.42f);
+            Color bright = Theme.Lighten(body, 0.22f);
+
+            // 暖光晕垫底
+            DrawDisc(canvas, c, c, size * 0.47f, Theme.WithAlpha(body, 0.12f), 0f);
+
+            // 灯体：胶囊形
+            FillRounded(canvas, c, c, size * 0.26f, size * 0.30f, size * 0.22f, body);
+            // 内部受光：左上亮核
+            FillRounded(canvas, c - size * 0.06f, c + size * 0.05f, size * 0.13f, size * 0.18f,
+                size * 0.12f, Theme.WithAlpha(bright, 0.85f));
+            // 三条竖棱
+            for (int i = -1; i <= 1; i++)
+            {
+                float rx = c + i * size * 0.13f;
+                DrawLine(canvas, rx, c - size * 0.27f, rx, c + size * 0.27f, 2f, Theme.WithAlpha(dark, 0.8f));
+            }
+
+            // 金盖与金托
+            FillRounded(canvas, c, c + size * 0.34f, size * 0.11f, size * 0.045f, size * 0.03f, trim);
+            FillRounded(canvas, c, c - size * 0.34f, size * 0.11f, size * 0.045f, size * 0.03f, trim);
+
+            // 流苏
+            DrawLine(canvas, c, c - size * 0.38f, c, c - size * 0.48f, 2.5f, trim);
+            DrawDisc(canvas, c, c - size * 0.48f, size * 0.025f, trim, 0f);
+
+            // 顶部挂环
+            DrawRing(canvas, c, c + size * 0.42f, size * 0.045f, size * 0.02f, trim);
+
+            return Build(key, canvas, Vector4.zero, 100f);
+        }
+
+        /// <summary>按圆角矩形 SDF 逐像素填充（带 AA）。DrawDisc 的矩形版。</summary>
+        private static void FillRounded(Canvas canvas, float cx, float cy, float halfW, float halfH,
+            float radius, Color color)
+        {
+            int x0 = Mathf.FloorToInt(cx - halfW - 2);
+            int x1 = Mathf.CeilToInt(cx + halfW + 2);
+            int y0 = Mathf.FloorToInt(cy - halfH - 2);
+            int y1 = Mathf.CeilToInt(cy + halfH + 2);
+
+            for (int y = y0; y <= y1; y++)
+            {
+                for (int x = x0; x <= x1; x++)
+                {
+                    float d = RoundedRectSdf(x + 0.5f - cx, y + 0.5f - cy, halfW, halfH, radius);
+                    float aa = Mathf.Clamp(0.5f - d, 0f, 1f);
+                    if (aa > 0f)
+                    {
+                        canvas.Blend(x, y, color, aa);
+                    }
+                }
+            }
+        }
+
         public static Sprite Slime(int size, Color body, Color eye, int seed, bool crowned, SlimeFace face = SlimeFace.Neutral)
         {
             size = Mathf.Clamp(size, 48, 512);

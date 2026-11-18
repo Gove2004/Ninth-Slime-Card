@@ -40,6 +40,79 @@ namespace Slime.Game
             BuildTopBar();
             BuildHero();
             BuildFooter();
+
+            // 新春装饰最后挂到 Root（渲染在最上层），但只占屏幕四角的空地——
+            // 中轴的顶栏与主卡一个像素都不碰；窗口外或玩家在设置里关掉就整层不建。
+            if (Festival.IsActive)
+            {
+                BuildFestivalDecor();
+            }
+        }
+
+        /// <summary>
+        /// 新春装饰：左右春联、檐口双灯笼、顶部福字。全部 SpriteForge 程序化，无新素材。
+        /// 只占屏幕四角的空地，中轴（顶栏与主卡）一个像素都不碰。
+        /// </summary>
+        private void BuildFestivalDecor()
+        {
+            Color red = Theme.SeriesSpring;
+            Color gold = Theme.Gold;
+
+            // ---- 春联：左右两条红底金字的竖批 ----
+            BuildCouplet(-878f, "辞\n旧\n迎\n新", 0.05f);
+            BuildCouplet(878f, "万\n事\n胜\n意", 0.14f);
+
+            // ---- 双灯笼：挂在檐口（屏幕顶缘），带垂绳 ----
+            BuildLantern(-640f, 0f);
+            BuildLantern(640f, 0.12f);
+
+            // ---- 福字：顶栏中段的空地，一枚红底金字的菱印 ----
+            var fu = Ui.Rounded("Fu", Root, Theme.RadiusS,
+                Theme.WithAlpha(Theme.Darken(red, 0.2f), 0.94f), Theme.WithAlpha(gold, 0.85f), 2);
+            Ui.Fixed(fu.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 474f), new Vector2(92f, 92f));
+            fu.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+
+            var fuText = Ui.Label("FuText", fu.transform, "福", Theme.H3, gold, TextAlignmentOptions.Center);
+            Ui.Fixed(fuText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(130f, 130f));
+            fuText.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -45f);
+            Tween.PopIn(fu.rectTransform, 0.32f, 0.5f, 0.4f);
+        }
+
+        private void BuildCouplet(float x, string verticalText, float delay)
+        {
+            Color red = Theme.SeriesSpring;
+
+            var strip = Ui.Rounded("Couplet", Root, Theme.RadiusS,
+                Theme.WithAlpha(Theme.Darken(red, 0.15f), 0.94f), Theme.WithAlpha(Theme.Gold, 0.6f), 2);
+            Ui.Fixed(strip.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(x, 60f), new Vector2(64f, 560f));
+            Tween.SlideIn(strip.rectTransform, new Vector2(x > 0 ? 120f : -120f, 0f), 0.42f, delay);
+
+            var text = Ui.Label("Text", strip.transform, verticalText, Theme.Body,
+                Theme.Gold, TextAlignmentOptions.Center);
+            Ui.Stretch(text.rectTransform, 4f, 8f, 4f, 8f);
+            Tween.FadeIn(text, 0.4f, delay + 0.16f, 0f, 1f);
+        }
+
+        private void BuildLantern(float x, float delay)
+        {
+            Color red = Theme.SeriesSpring;
+            Color gold = Theme.Gold;
+
+            // 垂绳：从屏幕顶缘垂到灯笼
+            var rope = Ui.Solid("Rope", Root, Theme.WithAlpha(gold, 0.55f));
+            rope.raycastTarget = false;
+            Ui.Fixed(rope.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(x, -34f), new Vector2(2.5f, 68f));
+
+            var lantern = Ui.Panel("Lantern", Root, SpriteForge.Lantern(160, red, gold), Color.white);
+            lantern.raycastTarget = false;
+            Ui.Fixed(lantern.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(x, -122f), new Vector2(124f, 148f));
+            lantern.preserveAspect = true;
+            Tween.SlideIn(lantern.rectTransform, new Vector2(0f, 110f), 0.5f, delay);
         }
 
         // ---------------------------------------------------------------- 顶栏

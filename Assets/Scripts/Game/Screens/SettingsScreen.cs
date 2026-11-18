@@ -15,12 +15,52 @@ namespace Slime.Game
 
             var column = Ui.Node("Column", body);
             // 纵向居中：上下留白等分，避免内容全挤在上半屏。
-            Ui.Fixed(column, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1180f, 700f));
+            // 高度容纳音频/外观/账号/存档四节（858 + 间隙），居中后上下各留 20 左右。
+            Ui.Fixed(column, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1180f, 920f));
             Ui.Column(column, 18, new RectOffset(0, 0, 0, 0));
 
             BuildAudioSection(column);
+            BuildFestivalSection(column);
             BuildAccountSection(column);
             BuildDataSection(column);
+        }
+
+        /// <summary>新春装饰偏好：跟随日期 / 常开 / 关闭，点按钮循环切换。</summary>
+        private void BuildFestivalSection(RectTransform parent)
+        {
+            BuildSectionHeader(parent, "外观", "新春装饰");
+
+            var panel = Ui.Rounded("Festival", parent, Theme.RadiusL, Theme.WithAlpha(Theme.Panel, 0.96f), Theme.Border, 1);
+            Ui.FixedSize(panel.gameObject, 1180f, 148f);
+
+            var info = Ui.Label("Info", panel.transform,
+                "灯笼春联会在 1 月 20 日至 2 月 28 日自动出现。纯装饰，不影响玩法。",
+                Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
+            Ui.Fixed(info.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(26f, 0f), new Vector2(700f, 40f));
+
+            BuildFestivalButton(panel.transform);
+        }
+
+        private void BuildFestivalButton(Transform panel)
+        {
+            var meta = App.Meta;
+            Button btn = null;
+            btn = Ui.TextButton("FestBtn", panel, "装饰：" + Festival.PrefName(meta.FestivalPref),
+                Theme.Body, Theme.PanelRaised, Theme.Text, () =>
+                {
+                    meta.FestivalPref = (meta.FestivalPref + 1) % 3;
+                    App.Audio.PlaySfx("ui");
+                    App.PersistMeta();
+                    // 只改文字不重建节点：Destroy 当帧不生效，同帧重建会新旧按钮叠在一起
+                    var label = btn.GetComponentInChildren<TMPro.TMP_Text>();
+                    if (label != null)
+                    {
+                        label.text = "装饰：" + Festival.PrefName(meta.FestivalPref);
+                    }
+                });
+            Ui.Fixed(btn.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-26f, 0f), new Vector2(340f, 62f));
         }
 
         private void BuildSectionHeader(RectTransform parent, string title, string caption)
