@@ -72,6 +72,14 @@ namespace Slime.Game
         // 受击挤压时按基础值等比缩放才不会把镜像弄丢。
         private Vector3 enemyBaseScale = Vector3.one;
         private Vector3 playerBaseScale = Vector3.one;
+        // 基准站位同理：呼吸浮动与突进/施法动作全部在基准位上叠加，
+        // 每帧由 TickBreathing / TickActs 统一写回，避免多路动画互相覆盖。
+        private Vector2 enemyBasePos;
+        private Vector2 playerBasePos;
+        private readonly List<PortraitAct> portraitActs = new List<PortraitAct>();
+        private bool playerDeathAnimating;
+        private bool enemyDeathAnimating;
+        private bool deathAnimPlayed;
 
         private Screen backTo;
 
@@ -168,6 +176,21 @@ namespace Slime.Game
             public float amp;
         }
 
+        /// <summary>
+        /// 立绘的一次性动作（突进 / 施法上浮）。位置动效走这个轻量列表而不是 Tween：
+        /// 呼吸浮动每帧都在写 anchoredPosition，交给 Tween 的话两边会互相打架。
+        /// </summary>
+        private struct PortraitAct
+        {
+            public RectTransform rt;
+            public Vector2 basePos;
+            public float bornAt;
+            public float dur;
+            public float amp;
+            public bool vertical;
+            public int dir;
+        }
+
         public BattleScreen()
         {
             var app = GameApp.I;
@@ -236,6 +259,7 @@ namespace Slime.Game
             Ui.Fixed(enemyPortrait.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(StageX, PortraitY), new Vector2(PortraitSize, PortraitSize));
             enemyBaseScale = enemyPortrait.rectTransform.localScale;
+            enemyBasePos = enemyPortrait.rectTransform.anchoredPosition;
 
             enemySubLabel = Ui.Label("EnemySub", Root, info.Title, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(enemySubLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -443,6 +467,7 @@ namespace Slime.Game
             Ui.Fixed(playerPortrait.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(-StageX, PortraitY), new Vector2(PortraitSize, PortraitSize));
             playerBaseScale = playerPortrait.rectTransform.localScale;
+            playerBasePos = playerPortrait.rectTransform.anchoredPosition;
 
             // 脚下的影子，把立绘"放"在地上
             var shadow = Ui.Panel("PlayerShadow", Root, SpriteForge.Glow(128, Theme.WithAlpha(Color.black, 0.5f)), Color.white);
@@ -1487,6 +1512,14 @@ namespace Slime.Game
 
         private void GoResult(bool victory)
         {
+            // 死亡演出只播一次：先把倒下的一方淡出下沉，再走结算换屏
+            if (!deathAnimPlayed)
+            {
+                deathAnimPlayed = true;
+                PlayDeath(victory, () => GoResult(victory));
+                return;
+            }
+
             var app = GameApp.I;
             var director = app.Director;
 
@@ -1558,18 +1591,23 @@ namespace Slime.Game
                         SpawnFloat(e.Text, Theme.Danger, at + new Vector2(Random.Range(-40f, 40f), 0f), 1.65f, 104f, 0.9f);
                         Flash(e.OnEnemy);
                         HitPunch(e.OnEnemy, 0.12f);
+                        // 事件按「谁挨打」标记：敌人挨打 → 出手的是玩家 → 玩家突进
+                        StartLunge(!e.OnEnemy);
                         GameApp.I.Audio.PlaySfx("slash");
                         Tween.Shake(Root, e.OnEnemy ? 6f : 11f, 0.3f);
                         break;
                     case EventKind.Heal:
                         SpawnFloat(e.Text, Theme.Accent, at + new Vector2(Random.Range(-30f, 30f), 0f), 1.15f, 92f);
+                        StartCast(e.OnEnemy);
                         GameApp.I.Audio.PlaySfx("heal");
                         break;
                     case EventKind.Shield:
                         SpawnFloat(e.Text, Theme.Shield, at + new Vector2(Random.Range(-30f, 30f), 24f), 1.05f, 74f);
+                        StartCast(e.OnEnemy);
                         break;
                     case EventKind.Energy:
                         SpawnFloat(e.Text, Theme.Mana, at + new Vector2(Random.Range(-30f, 30f), 44f), 0.95f, 66f);
+                        StartCast(false);
                         GameApp.I.Audio.PlaySfx("mana");
                         break;
                     case EventKind.Draw:
@@ -1586,6 +1624,8 @@ namespace Slime.Game
                         break;
                     case EventKind.Debuff:
                         SpawnFloat(e.Text, Theme.SeriesDark, at + new Vector2(0f, 64f), 1.0f, 78f);
+                        // 上负面的一方在「施法」：目标在自己对面
+                        StartCast(!e.OnEnemy);
                         GameApp.I.Audio.PlaySfx("venom");
                         break;
                     case EventKind.Status:
@@ -1599,6 +1639,7 @@ namespace Slime.Game
                         SpawnFloat(e.Text, Theme.SeriesLight, at + new Vector2(0f, 54f), 1.95f, 104f, 1.2f);
                         Flash(e.OnEnemy);
                         HitPunch(e.OnEnemy, 0.18f);
+                        StartLunge(!e.OnEnemy);
                         GameApp.I.Audio.PlaySfx("mana");
                         Tween.Shake(Root, e.OnEnemy ? 9f : 5f, 0.34f);
                         UpdateLog(e.Text);
@@ -1715,6 +1756,197 @@ namespace Slime.Game
                 enemyHitFlash.color = Theme.WithAlpha(Color.white, 0.7f);
             }
         }
+
+        #region 立绘动效
+
+        /// <summary>
+        /// 待机呼吸：缩放与上下浮动都按 sin 事件驱动，两位错开相位，
+        /// 场上才不会像两块贴图在同步打拍子。幅度刻意压小——呼吸是氛围，
+        /// 抢了受击挤压与突进的戏就变成噪声了。死亡演出接管后立即停写。
+        /// </summary>
+        private void TickBreathing()
+        {
+            float t = Time.unscaledTime;
+
+            if (playerPortrait != null && !playerDeathAnimating)
+            {
+                float breathe = 1f + Mathf.Sin(t * 2.1f) * 0.016f;
+                playerPortrait.rectTransform.localScale = new Vector3(
+                    playerBaseScale.x * breathe,
+                    playerBaseScale.y * (1f + Mathf.Sin(t * 2.1f) * 0.02f),
+                    playerBaseScale.z);
+                if (!HasAct(playerPortrait.rectTransform))
+                {
+                    playerPortrait.rectTransform.anchoredPosition = playerBasePos +
+                        new Vector2(0f, Mathf.Sin(t * 2.1f) * 3.5f);
+                }
+            }
+
+            if (enemyPortrait != null && !enemyDeathAnimating)
+            {
+                float breathe = 1f + Mathf.Sin(t * 2.3f + 1.7f) * 0.016f;
+                enemyPortrait.rectTransform.localScale = new Vector3(
+                    enemyBaseScale.x * breathe,
+                    enemyBaseScale.y * (1f + Mathf.Sin(t * 2.3f + 1.7f) * 0.02f),
+                    enemyBaseScale.z);
+                if (!HasAct(enemyPortrait.rectTransform))
+                {
+                    enemyPortrait.rectTransform.anchoredPosition = enemyBasePos +
+                        new Vector2(0f, Mathf.Sin(t * 2.3f + 1.7f) * 3.5f);
+                }
+            }
+        }
+
+        /// <summary>该立绘有没有正在路上的一次性动作（有则呼吸不写位置，避免打架）。</summary>
+        private bool HasAct(RectTransform rt)
+        {
+            if (rt == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < portraitActs.Count; i++)
+            {
+                if (portraitActs[i].rt == rt)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>突进：攻击者朝目标方向探身再收回来。0.36 秒一轮，不阻塞结算。</summary>
+        private void StartLunge(bool playerActing)
+        {
+            var rt = playerActing
+                ? (playerPortrait != null ? playerPortrait.rectTransform : null)
+                : (enemyPortrait != null ? enemyPortrait.rectTransform : null);
+            if (rt == null)
+            {
+                return;
+            }
+
+            portraitActs.Add(new PortraitAct
+            {
+                rt = rt,
+                basePos = playerActing ? playerBasePos : enemyBasePos,
+                bornAt = Time.unscaledTime,
+                dur = 0.36f,
+                amp = playerActing ? 58f : -58f,
+                vertical = false,
+                dir = 1,
+            });
+        }
+
+        /// <summary>施法：轻缓的上浮再落回。回复/护盾/上状态共用，节奏比突进慢半拍。</summary>
+        private void StartCast(bool onEnemy)
+        {
+            var rt = onEnemy
+                ? (enemyPortrait != null ? enemyPortrait.rectTransform : null)
+                : (playerPortrait != null ? playerPortrait.rectTransform : null);
+            if (rt == null)
+            {
+                return;
+            }
+
+            portraitActs.Add(new PortraitAct
+            {
+                rt = rt,
+                basePos = onEnemy ? enemyBasePos : playerBasePos,
+                bornAt = Time.unscaledTime,
+                dur = 0.5f,
+                amp = 14f,
+                vertical = true,
+                dir = 1,
+            });
+        }
+
+        private void TickActs()
+        {
+            float now = Time.unscaledTime;
+            for (int i = portraitActs.Count - 1; i >= 0; i--)
+            {
+                var a = portraitActs[i];
+                if (a.rt == null)
+                {
+                    portraitActs.RemoveAt(i);
+                    continue;
+                }
+
+                float t = (now - a.bornAt) / a.dur;
+                if (t >= 1f)
+                {
+                    a.rt.anchoredPosition = a.basePos;
+                    portraitActs.RemoveAt(i);
+                    continue;
+                }
+
+                // 出去快（OutQuad 0..0.35）、回来慢——「探身出手」的力道感
+                float offset = t < 0.35f
+                    ? Easing.OutQuad(t / 0.35f)
+                    : 1f - Easing.OutQuad((t - 0.35f) / 0.65f);
+                var delta = a.vertical
+                    ? new Vector2(0f, a.amp * offset * a.dir)
+                    : new Vector2(a.amp * offset * a.dir, 0f);
+                a.rt.anchoredPosition = a.basePos + delta;
+            }
+        }
+
+        /// <summary>
+        /// 死亡演出：倒下一方淡出、下沉、微微倾倒。接管该立绘的全部逐帧动画
+        /// （呼吸/动作立即停写），播完通过 <paramref name="done"/> 交还结算流程。
+        /// </summary>
+        private void PlayDeath(bool enemyDied, System.Action done)
+        {
+            var rt = enemyDied
+                ? (enemyPortrait != null ? enemyPortrait.rectTransform : null)
+                : (playerPortrait != null ? playerPortrait.rectTransform : null);
+            if (rt == null)
+            {
+                done?.Invoke();
+                return;
+            }
+
+            if (enemyDied)
+            {
+                enemyDeathAnimating = true;
+            }
+            else
+            {
+                playerDeathAnimating = true;
+            }
+
+            Tween.Kill(rt);
+            portraitActs.RemoveAll(a => a.rt == rt);
+            var img = rt.GetComponent<Image>();
+
+            Vector2 from = rt.anchoredPosition;
+            Vector3 fromScale = rt.localScale;
+            Color fromColor = img != null ? img.color : Color.white;
+
+            // 先顿 0.15 秒：死亡要有「反应时间」，淡出立刻开始反而像切屏
+            Tween.To(0.75f, k =>
+            {
+                if (rt == null)
+                {
+                    return;
+                }
+
+                rt.anchoredPosition = from + new Vector2(0f, -44f * k);
+                rt.localScale = Vector3.LerpUnclamped(fromScale,
+                    new Vector3(fromScale.x * 0.82f, fromScale.y * 0.86f, fromScale.z), k);
+                if (img != null)
+                {
+                    var c = Color.LerpUnclamped(fromColor, new Color(fromColor.r, fromColor.g, fromColor.b, 0.12f), k);
+                    img.color = c;
+                }
+
+                rt.localRotation = Quaternion.Euler(0f, 0f, (enemyDied ? -7f : 7f) * k);
+            }, Easing.OutQuad, done, 0.15f);
+        }
+
+        #endregion
 
         /// <summary>战报只在有事时短暂出现（胶囊下方一行），不占常驻版面。</summary>
         private void UpdateLog(string line)
@@ -1865,6 +2097,8 @@ namespace Slime.Game
                 GameApp.I.RunSelfDamage = 0;
             }
 
+            TickBreathing();
+            TickActs();
             TickFloats(deltaTime);
             TickBanner();
             TickDropZoneHint();
