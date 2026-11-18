@@ -213,12 +213,25 @@ namespace Slime.Core
 
         /// <summary>
         /// 无限年的 Boss 轮换。absoluteFloor 是 0 起的全局层数，Boss 固定压在段末
-        /// （第 9、19、29…层）：顺序 4/1/2/3，混沌深渊打头，与「规则崩坏」的氛围衔接。
+        /// （第 9、19、29…层）。第 30 层压轴是一次性的纪念 Boss 史莱姆九世，
+        /// 之后按 混沌深渊 → 史莱姆王 → 年兽 → 森之古王 → 龙王 循环。
         /// </summary>
         public static EnemyDef EndlessBossFor(int absoluteFloor)
         {
-            int[] order = { 4, 1, 2, 3 };
-            return BossOf(order[(absoluteFloor / 10) % order.Length]);
+            int segment = absoluteFloor / 10;
+            if (segment == 2)
+            {
+                return Get("boss_slime_nine");
+            }
+
+            switch (segment % 5)
+            {
+                case 0: return BossOf(4);
+                case 1: return BossOf(1);
+                case 2: return Get("boss_nian");
+                case 3: return BossOf(2);
+                default: return BossOf(3);
+            }
         }
 
         /// <summary>怪物所属章节。Generated 时写入 EnemyDef.Chapter，升章后仍能正确归属。</summary>
@@ -477,6 +490,66 @@ namespace Slime.Core
                 Move("重构", intKind: IntentKind.Heal, heal: 8, weight: 4)),
                 StatusKind.Enrage, 3));
 
+            // ==================== 新春 · 一周年特别版 ====================
+            // 这六只的数值基线都按第四章定（无限年直接复用第四章怪池 + 虚拟章节缩放），
+            // 普通周目的混沌深渊也会遇到前四只——节日怪不该只在活动模式里存在。
+
+            // 鞭炮鬼：爆炸流的低配版（对比炸弹岩）。没有自爆斩杀，压力来自
+            // 「小爆高频 + 力量滚雪球」，引信给的 Enrage 让玩家不能无视它拖太久。
+            list.Add(Make("c4_firecracker", "鞭炮鬼", "魔物", "过年没被点着的那一挂，怨念成了精",
+                4, 168, "firecracker",
+                Move("点引信", intKind: IntentKind.Buff, status: StatusKind.Enrage, stacks: 2, weight: 5),
+                Move("二踢脚", 4, hits: 2, weight: 8),
+                Move("连环爆竹", 13, weight: 4, cooldown: 3)));
+
+            // 灯笼精：灼烧 + 自护的消耗型。对比虚空仆从（同是灼烧），它更耐打
+            // 但烧得更慢——灯罩让它偶尔白挨一下，玩家的破盾节奏因此有起伏。
+            list.Add(Make("c4_lantern", "灯笼精", "亡灵", "挂在门前守了一整年，火苗里住着脾气",
+                4, 166, "lantern",
+                Move("烛火燎人", 8, intKind: IntentKind.AttackDebuff, status: StatusKind.Burn, stacks: 3, weight: 7),
+                Move("灯影摇曳", 12, weight: 6),
+                Move("灯罩加固", intKind: IntentKind.Defend, shield: 9, weight: 3)));
+
+            // 年画妖：精英。三招都在「给玩家上负面」和「给自己叠力量」之间轮转，
+            // 开场自带 1 层 Enrage——镜像的年画会越打越凶，先手压它是唯一解。
+            list.Add(WithStatus(Elite("elite_nian_painting", "年画妖", "人形", "从门神画里走出来，把你画进了它的画",
+                4, 168, "nian_painting",
+                Move("泼墨爪", 13, intKind: IntentKind.AttackDebuff, status: StatusKind.Vulnerable, stacks: 2, weight: 6),
+                Move("画中走兽", 8, hits: 2, weight: 5),
+                Move("开光点睛", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 2, weight: 4)),
+                StatusKind.Enrage, 2));
+
+            // 瑞雪兽：精英。冻一层 + 小回血的软消耗流，威胁不大但极难速杀——
+            // Regen 让它在磨血战里缓慢回血，逼玩家带出爆发而不是慢慢磨。
+            list.Add(WithStatus(Elite("elite_snow_beast", "瑞雪兽", "野兽", "落在谁家院里，谁家就冻上一层霜",
+                4, 166, "snow_beast",
+                Move("雪崩扑击", 16, weight: 7),
+                Move("凝霜吐息", 6, intKind: IntentKind.AttackDebuff, status: StatusKind.Freeze, stacks: 1, weight: 4, cooldown: 3),
+                Move("瑞雪覆伤", intKind: IntentKind.Heal, heal: 8, weight: 2, cooldown: 3)),
+                StatusKind.Regen, 2));
+
+            // 年兽：Boss，只出现在无限年轮换里。变招靠「半血以下才解锁除夕狂暴」：
+            // 前期是标准双动 Boss，压到半血它开始动真格——玩家要在它变招前
+            // 决定是抢血还是留盾，这一拍节奏就是这只 Boss 的全部设计。
+            list.Add(WithStatus(Boss("boss_nian", "年兽", "魔物", "除夕夜闯进来的那一头，从没被人真正赶走过",
+                4, 176, "nian",
+                Move("爆竹横扫", 8, hits: 2, weight: 7),
+                Move("吞金累积", intKind: IntentKind.Buff, status: StatusKind.Strength, stacks: 3, weight: 3, cooldown: 4),
+                Move("红袍震慑", intKind: IntentKind.Debuff, status: StatusKind.Weak, stacks: 2, weight: 4),
+                Move("除夕狂暴", 16, weight: 5, cooldown: 2, onlyBelowHpPct: 50)),
+                StatusKind.Enrage, 1));
+
+            // 史莱姆九世：纪念 Boss，只出现在无限年第 30 层压轴，一次性不复刻。
+            // 「九」的纪念藏在数值里：血量 162 = 9×18、九连鞭 3×3、同堂回 9——
+            // 引擎的血条是单段的，硬拆九段只会做出一个读不懂的 UI，不做。
+            list.Add(WithStatus(Boss("boss_slime_nine", "史莱姆九世", "史莱姆", "九个世代叠成的那一只，每一代都记得你",
+                4, 170, "slime_nine",
+                Move("九连鞭", 4, hits: 3, weight: 6),
+                Move("第九张牌", 15, weight: 3, cooldown: 3),
+                Move("王朝余晖", intKind: IntentKind.Debuff, status: StatusKind.Blind, stacks: 2, weight: 4),
+                Move("九世同堂", intKind: IntentKind.Heal, heal: 9, weight: 2, cooldown: 3)),
+                StatusKind.Enrage, 1));
+
             cache = new Dictionary<string, EnemyDef>();
             ordered = new List<EnemyDef>();
             for (int i = 0; i < list.Count; i++)
@@ -604,7 +677,7 @@ namespace Slime.Core
             int hits = 1, int shield = 0, int heal = 0,
             IntentKind intKind = IntentKind.Attack,
             StatusKind status = StatusKind.None, int stacks = 0,
-            int weight = 10, int cooldown = 1)
+            int weight = 10, int cooldown = 1, int onlyBelowHpPct = 0)
         {
             return new EnemyMove
             {
@@ -617,7 +690,8 @@ namespace Slime.Core
                 Status = status,
                 StatusStacks = stacks,
                 Weight = weight,
-                Cooldown = cooldown
+                Cooldown = cooldown,
+                OnlyBelowHpPct = onlyBelowHpPct
             };
         }
     }
