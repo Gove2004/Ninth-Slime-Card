@@ -45,6 +45,13 @@ namespace Slime.DevTools
                     app.Replace(new MapScreen());
                     break;
 
+                case "endless":
+                    // 无限年：起一局新模式并停在地图上
+                    app.Director.StartNewRun(true);
+                    app.PersistMeta();
+                    app.Replace(new MapScreen());
+                    break;
+
                 case "battle":
                     EnsureRun(app);
                     EnterKind(app, NodeKind.Battle);

@@ -18,6 +18,12 @@ namespace Slime.Core
         /// <summary>历史到达的最深章节。</summary>
         public int BestChapter = 1;
 
+        /// <summary>无限年模式的历史最深层数（1 起）。</summary>
+        public int BestFloor;
+
+        /// <summary>当前局模式：0 = 普通周目，1 = 无限年。</summary>
+        public int RunMode;
+
         // ---- 当前局的续档 ----
         public int RunChapter;
         public int RunHp;
@@ -26,6 +32,8 @@ namespace Slime.Core
         public int RunNodeId;
         /// <summary>本章地图的生成种子。必须持久化，否则读档后 NodeId 会指向另一张地图上的节点。</summary>
         public int RunMapSeed;
+        /// <summary>无限年当前线段的基座层数（段内层号 = 基座 + 1..10）。读档建段必须用它，不能从层数反推。</summary>
+        public int RunFloorBase;
         public readonly List<int> RunDeck = new List<int>();
 
         /// <summary>
@@ -81,6 +89,8 @@ namespace Slime.Core
             RunGold = 0;
             RunNodeId = 0;
             RunMapSeed = 0;
+            RunFloorBase = 0;
+            RunMode = 0;
         }
 
         // ---------------------------------------------------------- 序列化
@@ -88,20 +98,23 @@ namespace Slime.Core
         public string Serialize()
         {
             var sb = new StringBuilder();
-            sb.Append("v=4\n");
+            sb.Append("v=5\n");
             sb.Append("trophy=").Append(Trophy).Append('\n');
             sb.Append("runs=").Append(RunsPlayed).Append('\n');
             sb.Append("cleared=").Append(RunsCleared).Append('\n');
             sb.Append("wins=").Append(Wins).Append('\n');
             sb.Append("losses=").Append(Losses).Append('\n');
             sb.Append("bestchapter=").Append(BestChapter).Append('\n');
+            sb.Append("bestfloor=").Append(BestFloor).Append('\n');
 
+            sb.Append("runmode=").Append(RunMode).Append('\n');
             sb.Append("runchapter=").Append(RunChapter).Append('\n');
             sb.Append("runhp=").Append(RunHp).Append('\n');
             sb.Append("runhpmax=").Append(RunHpMax).Append('\n');
             sb.Append("rungold=").Append(RunGold).Append('\n');
             sb.Append("runnode=").Append(RunNodeId).Append('\n');
             sb.Append("runmapseed=").Append(RunMapSeed).Append('\n');
+            sb.Append("runfloorbase=").Append(RunFloorBase).Append('\n');
             sb.Append("rundeck=").Append(string.Join(",", RunDeck.ConvertAll(i => i.ToString()).ToArray())).Append('\n');
             sb.Append("rundecklv=").Append(string.Join(",", RunDeckLevels.ConvertAll(i => i.ToString()).ToArray())).Append('\n');
 
@@ -167,13 +180,16 @@ namespace Slime.Core
                     case "wins": meta.Wins = ParseInt(value, 0); break;
                     case "losses": meta.Losses = ParseInt(value, 0); break;
                     case "bestchapter": meta.BestChapter = Math.Max(1, ParseInt(value, 1)); break;
+                    case "bestfloor": meta.BestFloor = Math.Max(0, ParseInt(value, 0)); break;
 
+                    case "runmode": meta.RunMode = ParseInt(value, 0) == 1 ? 1 : 0; break;
                     case "runchapter": meta.RunChapter = ParseInt(value, 0); break;
                     case "runhp": meta.RunHp = ParseInt(value, 0); break;
                     case "runhpmax": meta.RunHpMax = ParseInt(value, 0); break;
                     case "rungold": meta.RunGold = ParseInt(value, 0); break;
                     case "runnode": meta.RunNodeId = ParseInt(value, 0); break;
                     case "runmapseed": meta.RunMapSeed = ParseInt(value, 0); break;
+                    case "runfloorbase": meta.RunFloorBase = Math.Max(0, ParseInt(value, 0)); break;
                     case "rundeck":
                         meta.RunDeck.Clear();
                         foreach (var piece in Split(value))

@@ -55,6 +55,13 @@ namespace Slime.Core
         public static int ScaleHp(int baseHp, int chapter, int floor, bool elite)
         {
             int hp = baseHp + floor / 2;
+            // 无限年的虚拟章节（>4）：基础血量按每段 17% 继续抬，与伤害曲线同速。
+            // 普通章节的章节差异已烘焙进模板 baseHp，这里不能再乘章节系数。
+            if (chapter > TotalChapters)
+            {
+                hp = hp * (100 + (chapter - TotalChapters) * 17) / 100;
+            }
+
             if (elite)
             {
                 hp = hp * 5 / 4;
@@ -75,7 +82,9 @@ namespace Slime.Core
         /// </summary>
         public static int ScaleDamage(int baseDamage, int chapter, int floor, bool elite)
         {
-            int ch = ClampChapter(chapter);
+            // 无限年会传虚拟章节（>4）进来，只设下限、不设上限：
+            // 伤害必须跟玩家血量同速增长，否则深层是单方面挨打。
+            int ch = chapter < 1 ? 1 : chapter;
             // 100/115/130/150：与 PlayerHpForChapter 同向。
             // 关键是「按百分比长」而不是「+1/章」——后者四章下来只涨 3 点，
             // 而玩家血量涨了 50，敌人相对威胁反而在下降，全局曲线是反的。
@@ -200,6 +209,16 @@ namespace Slime.Core
                 case 3: return Get("boss_dragon_lord");
                 default: return Get("boss_chaos_seed");
             }
+        }
+
+        /// <summary>
+        /// 无限年的 Boss 轮换。absoluteFloor 是 0 起的全局层数，Boss 固定压在段末
+        /// （第 9、19、29…层）：顺序 4/1/2/3，混沌深渊打头，与「规则崩坏」的氛围衔接。
+        /// </summary>
+        public static EnemyDef EndlessBossFor(int absoluteFloor)
+        {
+            int[] order = { 4, 1, 2, 3 };
+            return BossOf(order[(absoluteFloor / 10) % order.Length]);
         }
 
         /// <summary>怪物所属章节。Generated 时写入 EnemyDef.Chapter，升章后仍能正确归属。</summary>

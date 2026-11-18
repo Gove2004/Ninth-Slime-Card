@@ -210,6 +210,50 @@ namespace Slime.Core
         }
 
         /// <summary>
+        /// 无限年的一个 10 层线段：每层单节点、单线推进——
+        /// 1~4 战斗、5 精英、6~8 战斗、9 篝火、10 Boss。层号是全局层数（baseFloor 起），
+        /// 篝火固定压在 Boss 前一层，与普通图的「倒数第二层篝火」同一逻辑。
+        /// </summary>
+        public static ChapterMap GenerateEndless(int seed, int baseFloor)
+        {
+            var map = new ChapterMap { Chapter = EnemyRoster.TotalChapters };
+            int prevId = 0;
+
+            for (int rel = 1; rel <= 10; rel++)
+            {
+                NodeKind kind;
+                switch (rel)
+                {
+                    case 5: kind = NodeKind.Elite; break;
+                    case 9: kind = NodeKind.Rest; break;
+                    case 10: kind = NodeKind.Boss; break;
+                    default: kind = NodeKind.Battle; break;
+                }
+
+                var node = new MapNode
+                {
+                    Id = rel,
+                    Kind = kind,
+                    Floor = baseFloor + rel - 1,
+                    Slot = 0,
+                    X = 0.5f,
+                    Y = (rel - 1) / 9f
+                };
+
+                map.Nodes.Add(node);
+                if (prevId != 0)
+                {
+                    node.Prev.Add(prevId);
+                    map.Get(prevId).Next.Add(node.Id);
+                }
+
+                prevId = node.Id;
+            }
+
+            return map;
+        }
+
+        /// <summary>
         /// 保证每条通往 Boss 的路线都够补给。
         ///
         /// 篝火只是「地图上有」不够用：它可能挂在一条玩家根本不会走的支路上，

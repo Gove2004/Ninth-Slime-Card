@@ -65,7 +65,15 @@ namespace Slime.Game
             int turns = session != null ? session.TurnNumber : 0;
 
             var director = App.Director;
-            BuildStat(stats, "抵达章节", director.Chapter + " / " + EnemyRoster.TotalChapters, Theme.Gold, 0.02f);
+            if (director.LastRunWasEndless)
+            {
+                BuildStat(stats, "到达层数", director.LastRunFloor.ToString(), Theme.Gold, 0.02f);
+            }
+            else
+            {
+                BuildStat(stats, "抵达章节", director.Chapter + " / " + EnemyRoster.TotalChapters, Theme.Gold, 0.02f);
+            }
+
             BuildStat(stats, "总伤害", dealt.ToString(), Theme.Danger, 0.08f);
             BuildStat(stats, "单回合最高", best.ToString(), Theme.SeriesFire, 0.14f);
             BuildStat(stats, "回合数", turns.ToString(), Theme.Mana, 0.20f);
@@ -97,7 +105,8 @@ namespace Slime.Game
 
         private void Restart()
         {
-            App.Director.StartNewRun();
+            // 「再来一局」保持刚才的模式：无限年打完接着无限年，别偷偷换回普通周目
+            App.Director.StartNewRun(App.Director.LastRunWasEndless);
             App.PersistMeta();
             App.Fade(0f, 1f, Theme.Fast, () =>
             {

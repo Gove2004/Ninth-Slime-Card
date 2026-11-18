@@ -58,8 +58,11 @@ namespace Slime.Game
 
             // 层号必须写在标题栏：窗口式地图只显示当前附近五层，
             // 玩家看不到全貌，得有个地方告诉他「这章还剩多少」。
-            string sub = "第 " + (director.Floor + 1) + " / " + EnemyRoster.FloorsPerChapter + " 层 · "
-                + director.ChapterSubtitle;
+            // 无限年没有总层数，只报当前层。
+            string sub = director.Endless
+                ? "第 " + (director.Floor + 1) + " 层 · " + director.ChapterSubtitle
+                : "第 " + (director.Floor + 1) + " / " + EnemyRoster.FloorsPerChapter + " 层 · "
+                    + director.ChapterSubtitle;
             var header = BuildHeader(director.ChapterName, sub, null);
             BuildHeaderStats(header);
             BuildLegend();
@@ -189,7 +192,8 @@ namespace Slime.Game
 
             // 窗口贴边：当前层在首末两层时不再强行居中，否则一半屏幕是空的。
             // 贴住上下边缘后，任何时刻都能看到满 VisibleSpan*2+1 层。
-            int maxFloor = EnemyRoster.FloorsPerChapter - 1;
+            // 上限取地图自身而不是章节常量——无限年的线段层数与普通图不同。
+            int maxFloor = map.MaxFloor;
             centerFloor = Mathf.Clamp(director.Floor, VisibleSpan,
                 Mathf.Max(VisibleSpan, maxFloor - VisibleSpan));
 

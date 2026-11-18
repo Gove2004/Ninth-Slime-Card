@@ -197,13 +197,14 @@ namespace Slime.Game
                 new Vector2(0f, FooterY), new Vector2(ColW, 76f));
 
             const float gap = 24f;
-            const float w = (ColW - gap * 2f) / 3f;
+            const float w = (ColW - gap * 3f) / 4f;
 
             Entry(bar, "Codex", "牌 库", -ColW * 0.5f + w * 0.5f, w,
                 () => App.Push(new CodexScreen(CodexScreen.Tab.Cards)));
-            Entry(bar, "Settings", "设 置", -ColW * 0.5f + w * 0.5f + w + gap, w,
+            Entry(bar, "Endless", "无限年", -ColW * 0.5f + w * 0.5f + w + gap, w, ConfirmEndless);
+            Entry(bar, "Settings", "设 置", -ColW * 0.5f + w * 0.5f + (w + gap) * 2f, w,
                 () => App.Push(new SettingsScreen()));
-            Entry(bar, "Restart", "重开一局", -ColW * 0.5f + w * 0.5f + (w + gap) * 2f, w, RestartRun);
+            Entry(bar, "Restart", "重开一局", -ColW * 0.5f + w * 0.5f + (w + gap) * 3f, w, RestartRun);
         }
 
         private void Entry(RectTransform bar, string name, string caption, float x, float w, System.Action onClick)
@@ -236,6 +237,27 @@ namespace Slime.Game
                 App.Toast("已重开一局");
                 App.Replace(new HomeScreen());
             });
+        }
+
+        private void ConfirmEndless()
+        {
+            // 手上有一局没打完才需要警告；空档期直接进
+            if (App.Director.DeckCount > 0)
+            {
+                App.ShowConfirm("进入无限年会放弃当前进度\n（奖杯与图鉴记录保留）", "进入", "取消", StartEndless);
+                return;
+            }
+
+            StartEndless();
+        }
+
+        private void StartEndless()
+        {
+            App.Audio.PlaySfx("mana");
+            App.Director.StartNewRun(true);
+            App.PersistMeta();
+            App.Toast("无限年 · 第 1 层");
+            App.Replace(new HomeScreen());
         }
     }
 }

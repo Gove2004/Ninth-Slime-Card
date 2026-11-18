@@ -1505,7 +1505,10 @@ namespace Slime.Game
                     // 击败章节 Boss 后进入下一章。这里必须直接回地图：
                     // 若走结算屏，玩家只能选「再来一局」（会清空当前进度）或「返回主页」，
                     // 等于逼着人多点两下才能继续，还很容易误点把这一局丢掉。
-                    app.Toast("第 " + director.Chapter + " 章　" + director.ChapterName);
+                    // 无限年同走此分支（段终开新段）：报的是「无限年 · 第 N 层」。
+                    app.Toast(director.Endless
+                        ? "无限年 · 第 " + (director.Floor + 1) + " 层"
+                        : "第 " + director.Chapter + " 章　" + director.ChapterName);
                     app.Replace(new MapScreen());
                 }
                 else

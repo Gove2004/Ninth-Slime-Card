@@ -42,6 +42,21 @@ namespace Slime.Core
 
         public RunPhase Phase = RunPhase.Map;
 
+        /// <summary>当前局是否为无限年模式（由 Meta.RunMode 持久化）。</summary>
+        public bool Endless { get { return Meta != null && Meta.RunMode == 1; } }
+
+        /// <summary>无限年当前线段的基座层数（段内节点层号 = 基座 + 1..10），随存档持久化。</summary>
+        private int EndlessBase;
+
+        /// <summary>
+        /// 无限年的难度阶梯：第 1~10 层按第四章数值，之后每 10 层 +1 档（虚拟章节）。
+        /// 普通模式恒等于 Chapter。
+        /// </summary>
+        public int VirtualChapter
+        {
+            get { return Endless ? EnemyRoster.TotalChapters + Floor / 10 : Chapter; }
+        }
+
         /// <summary>金币。商店与事件用。</summary>
         public int Gold;
 
@@ -59,6 +74,10 @@ namespace Slime.Core
         public bool LastWasElite;
         public bool LastWasBoss;
         public bool RunJustEnded;
+        /// <summary>刚结束的一局是不是无限年。结算会把 RunMode 清零，界面展示只能从这里读。</summary>
+        public bool LastRunWasEndless;
+        /// <summary>刚结束的一局到达的层数（1 起）。无限年结算屏展示用。</summary>
+        public int LastRunFloor;
 
         public RunDirector(CardDatabase cards, AchievementDatabase achievements, MetaState meta, int seed)
         {
@@ -76,9 +95,25 @@ namespace Slime.Core
 
         public MapNode CurrentNode { get { return Map != null ? Map.Get(CurrentNodeId) : null; } }
 
-        public string ChapterName { get { return EnemyRoster.ChapterNames[EnemyRoster.ClampChapter(Chapter) - 1]; } }
+        public string ChapterName
+        {
+            get
+            {
+                return Endless
+                    ? "无限年"
+                    : EnemyRoster.ChapterNames[EnemyRoster.ClampChapter(Chapter) - 1];
+            }
+        }
 
-        public string ChapterSubtitle { get { return EnemyRoster.ChapterSubtitles[EnemyRoster.ClampChapter(Chapter) - 1]; } }
+        public string ChapterSubtitle
+        {
+            get
+            {
+                return Endless
+                    ? "越走越深，敌人无限变强"
+                    : EnemyRoster.ChapterSubtitles[EnemyRoster.ClampChapter(Chapter) - 1];
+            }
+        }
 
         /// <summary>本局已推进的层数，用于 UI 显示进度。</summary>
         public int Floor
@@ -92,7 +127,18 @@ namespace Slime.Core
 
         public void StartNewRun()
         {
-            Chapter = 1;
+            StartNewRun(false);
+        }
+
+        /// <summary>
+        /// 开新局。<paramref name="endless"/> = true 进入无限年：
+        /// 新春构筑起手，Chapter 固定在第四章（全部怪池可用），难度由 VirtualChapter 接管。
+        /// </summary>
+        public void StartNewRun(bool endless)
+        {
+            Meta.RunMode = endless ? 1 : 0;
+            EndlessBase = 0;
+            Chapter = endless ? EnemyRoster.TotalChapters : 1;
             Gold = 0;
             GoldEarned = 0;
             Phase = RunPhase.Map;
@@ -101,14 +147,29 @@ namespace Slime.Core
             Reachable.Clear();
 
             Deck.Clear();
-            Deck.AddRange(DeckRules.BuildStarter(Cards));
+            if (endless)
+            {
+                Deck.AddRange(DeckRules.BuildEndlessStarter(Cards));
+            }
+            else
+            {
+                Deck.AddRange(DeckRules.BuildStarter(Cards));
+            }
 
             HpMax = EnemyRoster.PlayerHpForChapter(Chapter);
             Hp = HpMax;
 
             Meta.RunsPlayed++;
             DiscoverDeck();
-            BuildChapterMap();
+            if (endless)
+            {
+                BuildEndlessSegment();
+            }
+            else
+            {
+                BuildChapterMap();
+            }
+
             SyncRun();
         }
 
@@ -158,7 +219,15 @@ namespace Slime.Core
                     }
                 }
 
-                BuildChapterMap(Meta.RunMapSeed);
+                if (Meta.RunMode == 1)
+                {
+                    EndlessBase = Math.Max(0, Meta.RunFloorBase);
+                    BuildEndlessSegment(Meta.RunMapSeed);
+                }
+                else
+                {
+                    BuildChapterMap(Meta.RunMapSeed);
+                }
 
                 // 旧存档没有地图种子，读出来是 0 → 会重建一张全新的地图，
                 // 原来的 NodeId 在上面可能根本不存在，那样 Reachable 会是空的，
@@ -188,6 +257,7 @@ namespace Slime.Core
             Meta.RunGold = Gold;
             Meta.RunNodeId = CurrentNodeId;
             Meta.RunMapSeed = MapSeed;
+            Meta.RunFloorBase = EndlessBase;
             Meta.RunDeck.Clear();
             Meta.RunDeckLevels.Clear();
             for (int i = 0; i < Deck.Count; i++)
@@ -235,12 +305,45 @@ namespace Slime.Core
             }
         }
 
+        /// <summary>
+        /// 生成无限年的下一个 10 层线段。seed 为 0 时从局的随机流取新种子——
+        /// 种子随 SyncRun 持久化，读档复现同一段；跨段推进时新种子也走同一入口。
+        /// 段基座用 EndlessBase（随存档持久化）：读档建段发生在还原层数之前，层数反推是循环依赖。
+        /// </summary>
+        private void BuildEndlessSegment()
+        {
+            BuildEndlessSegment(0);
+        }
+
+        private void BuildEndlessSegment(int seed)
+        {
+            if (seed == 0)
+            {
+                seed = (int)(rng.Next() + EndlessBase * 131 + 7);
+            }
+
+            MapSeed = seed;
+            Map = MapGenerator.GenerateEndless(seed, EndlessBase);
+
+            CurrentNodeId = 0;
+            Reachable.Clear();
+            Reachable.Add(1);   // 线段首节点固定 id=1
+        }
+
         private void RebuildReachable()
         {
             Reachable.Clear();
 
             if (CurrentNodeId == 0)
             {
+                // 无限年线段的层号是全局层数（基座起），按第 0 层找节点会找不到——
+                // 段首固定是 id=1。
+                if (Endless)
+                {
+                    Reachable.Add(1);
+                    return;
+                }
+
                 var first = Map.FloorNodes(0);
                 for (int i = 0; i < first.Count; i++)
                 {
@@ -301,7 +404,7 @@ namespace Slime.Core
                     EnemyDef basis;
                     if (boss)
                     {
-                        basis = EnemyRoster.BossOf(Chapter);
+                        basis = Endless ? EnemyRoster.EndlessBossFor(node.Floor) : EnemyRoster.BossOf(Chapter);
                     }
                     else
                     {
@@ -311,7 +414,7 @@ namespace Slime.Core
                         basis = pool.Count > 0 ? pool[0] : EnemyRoster.Default;
                     }
 
-                    return Scale(basis, Chapter, node.Floor, elite);
+                    return Scale(basis, VirtualChapter, node.Floor, elite);
                 }
 
                 var fallback = EnemyRoster.NormalPool(Chapter);
@@ -401,7 +504,7 @@ namespace Slime.Core
             EnemyDef baseDef;
             if (boss)
             {
-                baseDef = EnemyRoster.BossOf(Chapter);
+                baseDef = Endless ? EnemyRoster.EndlessBossFor(Floor) : EnemyRoster.BossOf(Chapter);
             }
             else if (elite)
             {
@@ -414,7 +517,7 @@ namespace Slime.Core
                 baseDef = pool[rng.Range(0, pool.Count)];
             }
 
-            return Scale(baseDef, Chapter, Floor, elite);
+            return Scale(baseDef, VirtualChapter, Floor, elite);
         }
 
         /// <summary>按章节与层数生成一个缩放后的战斗实例（不修改模板）。</summary>
@@ -476,10 +579,11 @@ namespace Slime.Core
             var rules = BattleRules.Default();
             // 能量随章节成长。敌人血量逐章抬升，玩家如果始终只有 3 点能量，
             // 输出就不会变强，Boss 战必然变成单方面挨打。
-            rules.EnergyPerTurn = 3 + (Chapter - 1);
+            // 无限年按虚拟章节继续涨，封顶 10——能量无上限会让深层变成一回合清屏表演。
+            rules.EnergyPerTurn = Math.Min(3 + (VirtualChapter - 1), 10);
             // 手牌目标同样随章节 +1：后期牌库更杂，多一张选择才撑得住场面。
             // 注意这是「补齐到几张」，不是「抽几张」——见 BattleRules.HandTarget。
-            rules.HandTarget = Chapter >= 3 ? 6 : 5;
+            rules.HandTarget = VirtualChapter >= 3 ? 6 : 5;
 
             var session = new BattleSession(Cards, enemy, Deck, seed, rules);
             session.Chapter = Chapter;
@@ -521,6 +625,36 @@ namespace Slime.Core
             Accumulate(facts);
 
             RunJustEnded = false;
+
+            if (Endless)
+            {
+                int reached = Floor + 1;
+                if (reached > Meta.BestFloor)
+                {
+                    Meta.BestFloor = reached;
+                }
+
+                LastRunWasEndless = true;
+                LastRunFloor = reached;
+
+                if (LastWasBoss)
+                {
+                    // 无限年段终：不开新章而是开新段。小抬生命上限并回复三成，
+                    // 让「打过一个 Boss」是明确的喘息点而不是数值陷阱。
+                    HpMax += 5;
+                    Hp = Math.Min(HpMax, Hp + HpMax * 30 / 100);
+                    EndlessBase = Floor + 1;    // Boss 在段末（基座+9），下一段从下一层起
+                    BuildEndlessSegment();
+                    Phase = RunPhase.Map;
+                }
+                else
+                {
+                    Phase = RunPhase.Reward;
+                }
+
+                SyncRun();
+                return gold;
+            }
 
             if (LastWasBoss)
             {
@@ -564,6 +698,23 @@ namespace Slime.Core
             var facts = BattleFacts.Capture(session, Hp);
             Meta.Losses++;
             Accumulate(facts);
+
+            // 无限年阵亡也要记层数：死在第 9 层就是到达过第 9 层。
+            if (Endless)
+            {
+                int reached = Floor + 1;
+                if (reached > Meta.BestFloor)
+                {
+                    Meta.BestFloor = reached;
+                }
+
+                LastRunWasEndless = true;
+                LastRunFloor = reached;
+            }
+            else
+            {
+                LastRunWasEndless = false;
+            }
 
             Phase = RunPhase.Defeat;
             RunJustEnded = true;
@@ -639,6 +790,17 @@ namespace Slime.Core
             {
                 Meta.Flags.Add("test");
             }
+
+            // 无限年里程碑。这两个 flag 将来绑成就，后台建成就行时要用同名 ID。
+            if (Endless && Floor + 1 >= 10)
+            {
+                Meta.Flags.Add("endless_10");
+            }
+
+            if (Endless && Floor + 1 >= 30)
+            {
+                Meta.Flags.Add("endless_30");
+            }
         }
 
         // ---------------------------------------------------------- 奖励
@@ -646,7 +808,9 @@ namespace Slime.Core
         /// <summary>战斗奖励：普通战 3 选 1，精英战 4 选 1。</summary>
         public List<CardDef> BuildRewardChoices(int count)
         {
-            var pool = DeckRules.RewardPool(Cards, Chapter, LastWasElite);
+            var pool = Endless
+                ? DeckRules.EndlessRewardPool(Cards, Floor, LastWasElite)
+                : DeckRules.RewardPool(Cards, Chapter, LastWasElite);
             var result = new List<CardDef>();
             if (pool.Count == 0)
             {
@@ -680,6 +844,27 @@ namespace Slime.Core
             for (int i = 0; i < groups.Count; i++)
             {
                 rng.Shuffle(groups[i]);
+            }
+
+            // 无限年：新春系列锁定一个奖励位（池里有时必出现），
+            // 这是模式给新春构筑的兑现通道，其余位仍走全池分散。
+            if (Endless)
+            {
+                List<CardDef> spring = null;
+                for (int i = 0; i < groups.Count; i++)
+                {
+                    if (groups[i][0].Series == CardSeries.Spring)
+                    {
+                        spring = groups[i];
+                        groups.RemoveAt(i);
+                        break;
+                    }
+                }
+
+                if (spring != null && result.Count < count)
+                {
+                    result.Add(spring[0]);
+                }
             }
 
             for (int i = 0; i < groups.Count && result.Count < count; i++)

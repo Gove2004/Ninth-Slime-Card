@@ -230,6 +230,34 @@ namespace Slime.Core
         }
 
         /// <summary>
+        /// 无限年起手「新春构筑」：开门炮（灼烧核心）+ 饺子护盾（盾奶）领衔，
+        /// 斩击/格挡/火球打底保下限，烟花补前期爆发。10 张与普通起手同规模。
+        /// </summary>
+        public static readonly int[] EndlessStarterDeck = { 145, 146, 1, 1, 1, 129, 129, 129, 148, 33 };
+
+        public static List<CardInstance> BuildEndlessStarter(CardDatabase db)
+        {
+            var list = new List<CardInstance>();
+            for (int i = 0; i < EndlessStarterDeck.Length; i++)
+            {
+                var def = db != null ? db.Get(EndlessStarterDeck[i]) : null;
+                if (def != null)
+                {
+                    list.Add(CardInstance.Wrap(def));
+                }
+            }
+
+            // 表异常时退回普通起手，保证模式永远可玩
+            if (list.Count < EndlessStarterDeck.Length && db != null)
+            {
+                list.Clear();
+                list.AddRange(BuildStarter(db));
+            }
+
+            return list;
+        }
+
+        /// <summary>
         /// 奖励池：按章节开放稀有度，避免前期就拿到终结牌。
         /// 自由混池——不按职业筛，只按稀有度与系列分布。
         ///
@@ -246,6 +274,40 @@ namespace Slime.Core
             {
                 var def = db.All[i];
                 if (def.Rarity <= maxRarity)
+                {
+                    pool.Add(def);
+                }
+            }
+
+            if (pool.Count == 0)
+            {
+                pool.AddRange(db.All);
+            }
+
+            return pool;
+        }
+
+        /// <summary>
+        /// 无限年的奖励池。稀有度按全局层数开放（约每 8 层一档），
+        /// 新春系列每档提前解锁——这是模式给新春系列的主场待遇。
+        /// </summary>
+        public static List<CardDef> EndlessRewardPool(CardDatabase db, int floor, bool elite)
+        {
+            int band = floor / 8;                       // 0..：层数越深稀有度越开
+            int maxRarity = elite ? 2 : Math.Min(2, band);
+            if (elite && band >= 1)
+            {
+                maxRarity = 2;
+            }
+
+            var pool = new List<CardDef>();
+            for (int i = 0; i < db.All.Count; i++)
+            {
+                var def = db.All[i];
+                bool spring = def.Series == CardSeries.Spring;
+                // 新春卡普通战即可出场（稀有 1 从第 1 段起、稀有 2 从第 2 段起）
+                int gate = spring ? Math.Min(2, band + 1) : maxRarity;
+                if (def.Rarity <= gate)
                 {
                     pool.Add(def);
                 }
