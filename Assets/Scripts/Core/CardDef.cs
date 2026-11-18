@@ -247,6 +247,12 @@ namespace Slime.Core
             if (seg.Length > 1 && NeedsText(op.Kind))
             {
                 op.Text = seg[1].Trim();
+
+                // 这类 op 的格式是「op:名称:数量」，seg[1] 是系列名/牌名，
+                // 数值段从 seg[2] 起算——否则 Arg 会把「秘术」这类非数字
+                // 当成数量解析成 0，「复制」实际一张牌都加不出来。
+                op.A = seg.Length > 2 ? Arg(seg[2], v1, v2, v3, 0) : 0;
+                op.B = seg.Length > 3 ? Arg(seg[3], v1, v2, v3, 0) : 0;
             }
 
             return op;
@@ -395,7 +401,9 @@ namespace Slime.Core
         Thunder = 5,  // 雷咒 · 多段与感电
         Light = 6,    // 光咒 · 治疗与守护
         Dark = 7,     // 暗咒 · 中毒与诅咒
-        Arcane = 8    // 秘术 · 抽牌与能量
+        Arcane = 8,   // 秘术 · 抽牌与能量
+        Spring = 9,   // 新春 · 爆竹与团圆
+        Anniversary = 10  // 一周年 · 纪念与庆典
     }
 
     public static class Series
@@ -403,7 +411,8 @@ namespace Slime.Core
         public static readonly CardSeries[] All =
         {
             CardSeries.Strike, CardSeries.Blade, CardSeries.Fire, CardSeries.Ice,
-            CardSeries.Thunder, CardSeries.Light, CardSeries.Dark, CardSeries.Arcane
+            CardSeries.Thunder, CardSeries.Light, CardSeries.Dark, CardSeries.Arcane,
+            CardSeries.Spring, CardSeries.Anniversary
         };
 
         public static string DisplayName(CardSeries s)
@@ -418,6 +427,8 @@ namespace Slime.Core
                 case CardSeries.Light: return "光咒";
                 case CardSeries.Dark: return "暗咒";
                 case CardSeries.Arcane: return "秘术";
+                case CardSeries.Spring: return "新春";
+                case CardSeries.Anniversary: return "一周年";
                 default: return "无系";
             }
         }
@@ -434,6 +445,8 @@ namespace Slime.Core
                 case CardSeries.Light: return "light";
                 case CardSeries.Dark: return "dark";
                 case CardSeries.Arcane: return "arcane";
+                case CardSeries.Spring: return "spring";
+                case CardSeries.Anniversary: return "anniversary";
                 default: return "none";
             }
         }
@@ -469,6 +482,8 @@ namespace Slime.Core
                 case CardSeries.Light: return "治疗与护盾，站得住才打得久";
                 case CardSeries.Dark: return "中毒与诅咒，慢性绞杀";
                 case CardSeries.Arcane: return "抽牌与能量，把牌握在手里";
+                case CardSeries.Spring: return "爆竹与团圆，喜庆的爆发";
+                case CardSeries.Anniversary: return "与史莱姆共度的第一年";
                 default: return string.Empty;
             }
         }

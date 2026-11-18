@@ -28,7 +28,7 @@ namespace Slime.Game
         public static readonly Color Shield = Hex("#9FB4CC");
         public static readonly Color Hp = Hex("#E8556B");
 
-        // ---- 八系列配色（战技 / 剑技 / 炎咒 / 冰咒 / 雷咒 / 光咒 / 暗咒 / 秘术）----
+        // ---- 系列配色（战技 / 剑技 / 炎咒 / 冰咒 / 雷咒 / 光咒 / 暗咒 / 秘术 / 新春 / 一周年）----
         public static readonly Color SeriesStrike = Hex("#8FA6BF");  // 战技 · 中性钢灰
         public static readonly Color SeriesBlade = Hex("#D9553F");   // 剑技 · 火焰赤
         public static readonly Color SeriesFire = Hex("#E8862A");    // 炎咒 · 橙金
@@ -37,6 +37,8 @@ namespace Slime.Game
         public static readonly Color SeriesLight = Hex("#EFE3B0");    // 光咒 · 暖白
         public static readonly Color SeriesDark = Hex("#8465D6");     // 暗咒 · 幽紫
         public static readonly Color SeriesArcane = Hex("#4FC0A8");   // 秘术 · 青碧
+        public static readonly Color SeriesSpring = Hex("#D8402F");   // 新春 · 灯笼红（比剑技的火焰赤更深更沉）
+        public static readonly Color SeriesAnniversary = Hex("#C9A227"); // 一周年 · 香槟金（比雷咒的电黄更暗更暖）
 
         // 字号按「手机横屏能不能看清」定，不按桌面显示器能不能看清定。
         // 画布参考 1920×1080、match 0.5，在 2400×1080 的手机上缩放约 1.12 倍；
@@ -77,6 +79,8 @@ namespace Slime.Game
                 case CardSeries.Light: return SeriesLight;
                 case CardSeries.Dark: return SeriesDark;
                 case CardSeries.Arcane: return SeriesArcane;
+                case CardSeries.Spring: return SeriesSpring;
+                case CardSeries.Anniversary: return SeriesAnniversary;
                 default: return TextFaint;
             }
         }

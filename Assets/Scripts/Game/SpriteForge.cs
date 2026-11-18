@@ -317,6 +317,63 @@ namespace Slime.Game
                     break;
                 }
 
+                case CardSeries.Spring:
+                {
+                    // 新春：红灯笼 —— 顶盖、卵形灯体、横向骨架、流苏
+                    DrawLine(canvas, c, c - maxW * 1.18f, c, c - maxW * 0.94f, maxW * 0.10f, deep);   // 挂绳
+                    DrawDisc(canvas, c, c - maxW * 0.92f, maxW * 0.13f, deep, 0f);                    // 挂环
+                    DrawLine(canvas, c - maxW * 0.46f, c - maxW * 0.76f, c + maxW * 0.46f, c - maxW * 0.76f,
+                        maxW * 0.16f, deep);                                                          // 顶盖
+                    FillShape(canvas, c, c - maxW * 0.68f, c + maxW * 1.06f,
+                        t => maxW * 1.04f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Clamp01(t)), 1.25f) + 0.5f,
+                        deep, color, 0.8f);                                                           // 灯体
+                    for (int i = -1; i <= 1; i++)                                                     // 横向骨架
+                    {
+                        float fy = c + maxW * (0.16f + i * 0.34f);
+                        float fw = maxW * 1.04f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Clamp01((fy - (c - maxW * 0.68f)) / (maxW * 1.74f))), 1.25f);
+                        DrawLine(canvas, c - fw + 1f, fy, c + fw - 1f, fy, maxW * 0.055f, deep);
+                    }
+
+                    DrawLine(canvas, c - maxW * 0.40f, c + maxW * 1.08f, c + maxW * 0.40f, c + maxW * 1.08f,
+                        maxW * 0.14f, deep);                                                          // 底盖
+                    DrawDisc(canvas, c, c + maxW * 0.06f, maxW * 0.22f, bright, 0f);                  // 灯芯亮部
+                    DrawLine(canvas, c, c + maxW * 1.16f, c, c + maxW * 1.48f, maxW * 0.07f, bright); // 流苏穗
+                    DrawDisc(canvas, c, c + maxW * 1.54f, maxW * 0.09f, bright, 0f);
+                    break;
+                }
+
+                case CardSeries.Anniversary:
+                {
+                    // 一周年：周年蜡烛 —— 烛柱、火苗、环绕的光环
+                    DrawRing(canvas, c, c, maxW * 1.34f, maxW * 1.22f, deep);
+                    for (int i = 0; i < 6; i++)                                                       // 环上的星点
+                    {
+                        float a = Mathf.PI / 3f * i + Mathf.PI * 0.26f;
+                        DrawDisc(canvas, c + Mathf.Cos(a) * maxW * 1.28f, c + Mathf.Sin(a) * maxW * 1.28f,
+                            maxW * 0.085f, bright, 0f);
+                    }
+
+                    DrawPoly(canvas,
+                        new[] { c - maxW * 0.24f, c + maxW * 0.24f, c + maxW * 0.24f, c - maxW * 0.24f },
+                        new[] { c - maxW * 0.34f, c - maxW * 0.34f, c + maxW * 1.02f, c + maxW * 1.02f }, deep);  // 烛柱
+                    DrawPoly(canvas,
+                        new[] { c - maxW * 0.14f, c + maxW * 0.14f, c + maxW * 0.14f, c - maxW * 0.14f },
+                        new[] { c - maxW * 0.24f, c - maxW * 0.24f, c + maxW * 0.92f, c + maxW * 0.92f }, color); // 烛芯色
+                    for (int i = 0; i < 3; i++)                                                       // 柱身斜纹
+                    {
+                        float sy = c + maxW * (0.02f + i * 0.30f);
+                        DrawLine(canvas, c - maxW * 0.14f, sy + maxW * 0.10f, c + maxW * 0.14f, sy - maxW * 0.02f,
+                            maxW * 0.06f, deep);
+                    }
+
+                    FillShape(canvas, c, c - maxW * 0.88f, c - maxW * 0.30f,
+                        t => maxW * 0.30f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Clamp01(t)), 1.5f) * (1f - t * 0.30f) + 0.4f,
+                        color, bright, 0.7f);                                                         // 火苗
+                    DrawLine(canvas, c - maxW * 0.52f, c + maxW * 1.10f, c + maxW * 0.52f, c + maxW * 1.10f,
+                        maxW * 0.13f, deep);                                                          // 烛台
+                    break;
+                }
+
                 default:
                 {
                     // 秘术：双环法阵 + 中心星
@@ -498,6 +555,24 @@ namespace Slime.Game
                     DrawDisc(canvas, c, c + r * 0.14f, r * 0.80f, color, 0f);
                     EraseDisc(canvas, c - r * 0.34f, c + r * 0.32f, r * 0.22f);
                     EraseDisc(canvas, c + r * 0.34f, c + r * 0.32f, r * 0.22f);
+                    break;
+
+                case CardSeries.Spring:
+                    // 简化灯笼：顶盖、圆灯体、双竖骨架、流苏
+                    DrawLine(canvas, c - r * 0.62f, c - r * 0.86f, c + r * 0.62f, c - r * 0.86f, r * 0.16f, color);
+                    DrawDisc(canvas, c, c + r * 0.10f, r * 0.74f, color, 0f);
+                    DrawLine(canvas, c - r * 0.28f, c - r * 0.50f, c - r * 0.28f, c + r * 0.68f, r * 0.09f, Theme.Lighten(color, 0.5f));
+                    DrawLine(canvas, c + r * 0.28f, c - r * 0.50f, c + r * 0.28f, c + r * 0.68f, r * 0.09f, Theme.Lighten(color, 0.5f));
+                    DrawLine(canvas, c, c + r * 0.88f, c, c + r * 1.20f, r * 0.10f, color);
+                    break;
+
+                case CardSeries.Anniversary:
+                    // 简化蜡烛：烛柱、火苗点、烛台
+                    DrawPoly(canvas,
+                        new[] { c - r * 0.26f, c + r * 0.26f, c + r * 0.26f, c - r * 0.26f },
+                        new[] { c - r * 0.28f, c - r * 0.28f, c + r * 0.86f, c + r * 0.86f }, color);
+                    DrawDisc(canvas, c, c - r * 0.52f, r * 0.20f, Theme.Lighten(color, 0.5f), 0f);
+                    DrawLine(canvas, c - r * 0.62f, c + r * 0.94f, c + r * 0.62f, c + r * 0.94f, r * 0.14f, color);
                     break;
 
                 default:
