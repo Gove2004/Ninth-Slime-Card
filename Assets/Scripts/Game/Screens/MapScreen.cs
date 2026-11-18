@@ -42,6 +42,17 @@ namespace Slime.Game
         private TextMeshProUGUI goldLabel;
         private TextMeshProUGUI deckLabel;
 
+        private readonly BattleSession rewardFrom;
+
+        /// <param name="rewardSession">
+        /// 战斗胜利后带奖进来：地图直接把奖励弹层盖在自己身上，
+        /// 不再单独切一块战利品屏——少一次过场，战后节奏更顺。
+        /// </param>
+        public MapScreen(BattleSession rewardSession = null)
+        {
+            rewardFrom = rewardSession;
+        }
+
         protected override void Build()
         {
             App.Audio.PlayMusic("title1");
@@ -65,10 +76,25 @@ namespace Slime.Game
                     + director.ChapterSubtitle;
             var header = BuildHeader(director.ChapterName, sub, null);
             BuildHeaderStats(header);
-            BuildLegend();
+            BuildHint();
             BuildMap();
             RefreshNodes();
             RefreshStats();
+
+            // 战斗胜利带奖进来：奖励弹层盖在地图上，选完由 OnRewardComplete 接手
+            if (rewardFrom != null && director.Phase == RunPhase.Reward)
+            {
+                new RewardOverlay(rewardFrom, OnRewardComplete).Build(Root);
+            }
+        }
+
+        /// <summary>奖励弹层收尾：推进层并原地换一份新地图（无过场，层号与可达节点即时更新）。</summary>
+        private void OnRewardComplete()
+        {
+            var director = App.Director;
+            director.LeaveNode();
+            App.PersistMeta();
+            App.Replace(new MapScreen());
         }
 
         /// <summary>
@@ -118,53 +144,20 @@ namespace Slime.Game
             });
         }
 
-        // ---------------------------------------------------------------- 图例
+        // ---------------------------------------------------------------- 地图
 
         /// <summary>
-        /// 图例压成屏幕底部一条，提示语占最左一格。
+        /// 底部只留一行提示语。
         ///
-        /// 原来它是竖排在右侧栏里的两列 4 行，占掉 250 高、还把地图挤窄。
-        /// 七种节点横排一行足够，而且玩家的视线本来就在底部与地图之间来回，
-        /// 图例贴着地图底边比贴在侧边更好扫。
+        /// 七项图例已删：每个节点下面本来就写着它的名字（战斗/精英/篝火…），
+        /// 图例是同一信息说第二遍，纯占版面。提示语留在原来图例的最左格。
         /// </summary>
-        private void BuildLegend()
+        private void BuildHint()
         {
-            var kinds = new[]
-            {
-                NodeKind.Battle, NodeKind.Elite, NodeKind.Rest, NodeKind.Treasure,
-                NodeKind.Shop, NodeKind.Event, NodeKind.Boss
-            };
-
-            const float railW = 1560f;
-            const float legendW = 1200f;
-            const float legendLeft = railW - legendW;   // 图例靠右，左边留给提示语
-            float slotW = legendW / kinds.Length;
-
-            var rail = Ui.Node("Legend", Root);
-            Ui.Fixed(rail, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, EdgeMargin + 22f), new Vector2(railW, 44f));
-
-            hintLabel = Ui.Label("Hint", rail, string.Empty, Theme.Caption, Theme.TextFaint,
+            hintLabel = Ui.Label("Hint", Root, string.Empty, Theme.Caption, Theme.TextFaint,
                 TextAlignmentOptions.Left);
-            Ui.Fixed(hintLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(0f, 0f), new Vector2(340f, 32f));
-
-            for (int i = 0; i < kinds.Length; i++)
-            {
-                Color color = KindColor(kinds[i]);
-                float slotX = legendLeft + slotW * i;
-
-                var dot = Ui.Panel("Dot", rail,
-                    SpriteForge.Circle(32, color, Theme.Lighten(color, 0.35f), 1), Color.white);
-                dot.raycastTarget = false;
-                Ui.Fixed(dot.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(slotX, 0f), new Vector2(20f, 20f));
-
-                var label = Ui.Label("L", rail, NodeKinds.DisplayName(kinds[i]), Theme.Body,
-                    Theme.TextDim, TextAlignmentOptions.Left);
-                Ui.Fixed(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(slotX + 28f, 0f), new Vector2(130f, 32f));
-            }
+            Ui.Fixed(hintLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(-780f, EdgeMargin + 22f), new Vector2(340f, 32f));
         }
 
         private void RefreshStats()

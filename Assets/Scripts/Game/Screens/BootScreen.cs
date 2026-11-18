@@ -74,7 +74,23 @@ namespace Slime.Game
             {
                 advanced = true;
                 App.Audio.PlayMusic("title1");
-                App.Replace(new LoginScreen());
+
+                // 登录链路合并：启动条走完直接在这层试恢复登录态——
+                // 恢复成功（老玩家的常态）免掉整块登录屏直接进主页；
+                // 失败才落进登录屏（它内部会再试一次，网络抖动时还能兜回来）。
+                tip.text = "正在恢复登录态…";
+                App.Tap.TryRestoreSession(ok =>
+                {
+                    if (ok)
+                    {
+                        App.Toast("欢迎回来 · " + App.Tap.Nickname);
+                        App.Replace(new HomeScreen());
+                    }
+                    else
+                    {
+                        App.Replace(new LoginScreen());
+                    }
+                });
             }
         }
     }

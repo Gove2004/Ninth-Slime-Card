@@ -81,6 +81,10 @@ namespace Slime.Game
         private bool enemyDeathAnimating;
         private bool deathAnimPlayed;
 
+        // 收尾加速：结算只允许走一次；透明全屏按钮负责把演出快进掉
+        private GameObject endSkipCatcher;
+        private bool resultShown;
+
         private Screen backTo;
 
         // 敌方
@@ -1506,18 +1510,70 @@ namespace Slime.Game
         {
             busy = true;
             RefreshHand();
+            EnableEndSkip(victory);
             yield return new WaitForSeconds(delay);
             GoResult(victory);
         }
 
+        /// <summary>
+        /// 收尾加速：战斗一结束就铺一层透明的全屏按钮，点一下直接跳到结算——
+        /// 胜负已定之后的那点演出（顿帧、死亡淡出）不值得让急性子干等。
+        /// </summary>
+        private void EnableEndSkip(bool victory)
+        {
+            if (endSkipCatcher != null)
+            {
+                return;
+            }
+
+            endSkipCatcher = Ui.Solid("EndSkip", Root, new Color(0f, 0f, 0f, 0f), true).gameObject;
+            var btn = endSkipCatcher.gameObject.AddComponent<Button>();
+            btn.onClick.AddListener(() =>
+            {
+                if (resultShown)
+                {
+                    return;
+                }
+
+                ShowResult(victory);
+            });
+        }
+
         private void GoResult(bool victory)
         {
-            // 死亡演出只播一次：先把倒下的一方淡出下沉，再走结算换屏
+            if (resultShown)
+            {
+                return;
+            }
+
+            // 死亡演出只播一次：先把倒下的一方淡出下沉，再走结算换屏。
+            // 等不及的玩家点任意处直接跳过（见 EnableEndSkip）。
             if (!deathAnimPlayed)
             {
                 deathAnimPlayed = true;
-                PlayDeath(victory, () => GoResult(victory));
+                PlayDeath(victory, () =>
+                {
+                    if (resultShown)
+                    {
+                        return;
+                    }
+
+                    resultShown = true;
+                    ShowResult(victory);
+                });
                 return;
+            }
+
+            resultShown = true;
+            ShowResult(victory);
+        }
+
+        private void ShowResult(bool victory)
+        {
+            if (endSkipCatcher != null)
+            {
+                Object.Destroy(endSkipCatcher);
+                endSkipCatcher = null;
             }
 
             var app = GameApp.I;
@@ -1530,8 +1586,8 @@ namespace Slime.Game
 
                 if (director.Phase == RunPhase.Reward)
                 {
-                    // 地图流程：回地图界面选奖励，而不是弹独立结算屏
-                    app.Replace(new RewardScreen(session));
+                    // 地图流程：带着奖励回地图，弹层直接盖在地图上选，不再单独切战利品屏
+                    app.Replace(new MapScreen(session));
                 }
                 else if (director.Phase == RunPhase.Map)
                 {

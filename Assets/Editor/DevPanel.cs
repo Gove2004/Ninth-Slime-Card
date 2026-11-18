@@ -149,7 +149,7 @@ namespace Slime.DevTools
                     EnsureRun(app);
                     {
                         var session = WinBattle(app, NodeKind.Battle);
-                        app.Replace(new RewardScreen(session));
+                        app.Replace(new MapScreen(session));
                     }
                     break;
 
@@ -158,7 +158,7 @@ namespace Slime.DevTools
                     {
                         // 精英战奖励是两轮，用来验收"再选一张"
                         var session = WinBattle(app, NodeKind.Elite);
-                        app.Replace(new RewardScreen(session));
+                        app.Replace(new MapScreen(session));
                     }
                     break;
 
@@ -173,7 +173,7 @@ namespace Slime.DevTools
                         }
 
                         var session = WinBattle(app, NodeKind.Battle);
-                        app.Replace(new RewardScreen(session));
+                        app.Replace(new MapScreen(session));
                     }
                     break;
 
@@ -222,11 +222,11 @@ namespace Slime.DevTools
                         AddByName(app, picked, "冰川");
                         AddByName(app, picked, "圣裁");
                         AddByName(app, picked, "斩击");
-                        RewardScreen.ForcedChoices = picked;
-                        RewardScreen.ForcedDeck = new List<CardDef>();
+                        RewardOverlay.ForcedChoices = picked;
+                        RewardOverlay.ForcedDeck = new List<CardDef>();
 
                         var session = WinBattle(app, NodeKind.Battle);
-                        app.Replace(new RewardScreen(session));
+                        app.Replace(new MapScreen(session));
                     }
                     break;
 

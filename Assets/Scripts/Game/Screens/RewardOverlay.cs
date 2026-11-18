@@ -7,17 +7,20 @@ using UnityEngine.UI;
 namespace Slime.Game
 {
     /// <summary>
-    /// 战利品结算。每场胜利 3 选 1；关底宗师战给两轮（第二轮锁定该宗师系列）。
+    /// 战利品弹层：盖在地图上选奖励，不再单独切一块屏。
+    /// 每场胜利 3 选 1；精英战给两轮（第二轮锁定该系列）。
     /// 牌组到达上限后奖励转为「替换」——选一张移出，再把新牌放进去，
-    /// 这样廿七战走下来牌组不会膨胀到 40 张，构筑反而越打越精。
+    /// 这样一路打下来牌组不会膨胀到 40 张，构筑反而越打越精。
     /// </summary>
-    public sealed class RewardScreen : Screen
+    public sealed class RewardOverlay
     {
         private const float CardScale = 1.15f;
         private const float CardGap = 48f;
 
         private readonly BattleSession session;
+        private readonly System.Action onDone;
 
+        private RectTransform root;
         private RectTransform content;
         private TextMeshProUGUI headline;
         private TextMeshProUGUI subtitle;
@@ -42,30 +45,28 @@ namespace Slime.Game
 
         private int round;
 
-        public RewardScreen(BattleSession battle)
+        public RewardOverlay(BattleSession battle, System.Action done)
         {
             session = battle;
+            onDone = done;
         }
 
-        /// <summary>精英与首领额外多给一轮奖励，普通战一轮。</summary>
-        private int TotalRounds { get { return session != null && (session.IsElite || session.IsBoss) ? 2 : 1; } }
+        /// <summary>精英额外多给一轮奖励，普通战一轮（Boss 战走章节推进，不进弹层）。</summary>
+        private int TotalRounds { get { return session != null && session.IsElite ? 2 : 1; } }
 
-        protected override void Build()
+        public void Build(RectTransform host)
         {
-            App.Audio.PlayMusic("title2");
+            root = Ui.Node("RewardOverlay", host);
 
-            var director = App.Director;
+            // 压暗地图并挡住它的点击：弹层期间地图不参与交互
+            Ui.Solid("Dim", root, new Color(0f, 0f, 0f, 0.82f), true);
+
+            var director = GameApp.I.Director;
             var defeated = director.LastEnemy;
-
-            BuildHeader("战 利 品",
-                (defeated != null ? defeated.Name : "对手") + " 已被击败"
-                + "  ·  第 " + (director.Floor + 1) + " 层"
-                + "  ·  生命 " + director.Hp + " / " + director.HpMax,
-                string.Empty);
 
             // 「选一张牌」和战斗统计原来直接裸摆在背景上，正好落在月亮和城堡的亮部，
             // 灰字读不出来。给它们一条半透明底板，文字才有地方站。
-            var banner = Ui.Rounded("Banner", Root, Theme.RadiusM,
+            var banner = Ui.Rounded("Banner", root, Theme.RadiusM,
                 Theme.WithAlpha(Theme.Panel, 0.86f), Theme.WithAlpha(Theme.Border, 0.45f), 1);
             Ui.Fixed(banner.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -160f), new Vector2(920f, 100f));
@@ -81,10 +82,18 @@ namespace Slime.Game
                 new Vector2(0f, -22f), new Vector2(880f, 30f));
             Tween.FadeIn(subtitle, 0.3f, 0.12f, 0f, 1f);
 
-            content = Ui.Node("Content", Root);
+            var context = Ui.Label("Context", root, string.Empty, Theme.Caption,
+                Theme.TextFaint, TextAlignmentOptions.Center);
+            Ui.Fixed(context.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -136f), new Vector2(1200f, 28f));
+            context.text = (defeated != null ? defeated.Name : "对手") + " 已被击败"
+                + "  ·  第 " + (director.Floor + 1) + " 层"
+                + "  ·  生命 " + director.Hp + " / " + director.HpMax;
+
+            content = Ui.Node("Content", root);
             Ui.Stretch(content, 0f, 272f, 0f, 120f);
 
-            deckInfo = Ui.Label("DeckInfo", Root, string.Empty, Theme.Caption,
+            deckInfo = Ui.Label("DeckInfo", root, string.Empty, Theme.Caption,
                 Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(deckInfo.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 16f), new Vector2(1200f, 28f));
@@ -108,7 +117,7 @@ namespace Slime.Game
 
         private void RefreshDeckInfo()
         {
-            var director = App.Director;
+            var director = GameApp.I.Director;
             int count = director.DeckCount;
             int cap = DeckRules.DeckCap;
 
@@ -125,21 +134,21 @@ namespace Slime.Game
 
             if (round >= TotalRounds)
             {
-                Advance();
+                Complete();
                 return;
             }
 
             var list = ForcedChoices != null && round == 0
                 ? new List<CardDef>(ForcedChoices)
-                : App.Director.BuildRewardChoices(3);
+                : GameApp.I.Director.BuildRewardChoices(3);
             if (list.Count == 0)
             {
-                Advance();
+                Complete();
                 return;
             }
 
             // 候选一出现就记入图鉴：单局没选的牌，跨局仍然会慢慢集齐
-            App.Director.MarkSeen(list);
+            GameApp.I.Director.MarkSeen(list);
 
             bool bonus = round > 0;
             headline.text = bonus
@@ -193,7 +202,7 @@ namespace Slime.Game
         ///
         /// 抽卡的这一刻是玩家真正做构筑决策的时候。卡面只写「做什么」，
         /// 而「引爆冻结」这类牌的价值完全取决于手上有没有冻结 ——
-        /// 不在这里说清楚，玩家就得靠记住 144 张卡来推断，那不可能。
+        /// 不在这里说清楚，玩家就得靠记住所有卡来推断，那不可能。
         /// </summary>
         private void BuildRoleHint(RectTransform parent, CardDef def, float x, float delay)
         {
@@ -256,7 +265,7 @@ namespace Slime.Game
             }
 
             var list = new List<CardDef>();
-            var deck = App.Director.Deck;
+            var deck = GameApp.I.Director.Deck;
             for (int i = 0; i < deck.Count; i++)
             {
                 if (deck[i] != null && deck[i].Def != null)
@@ -305,17 +314,17 @@ namespace Slime.Game
                 return;
             }
 
-            App.Audio.PlaySfx("mana");
+            GameApp.I.Audio.PlaySfx("mana");
 
             // 牌组满员：先请玩家弃一张，再入库
-            if (App.Director.AtDeckCap)
+            if (GameApp.I.Director.AtDeckCap)
             {
                 ShowReplacePrompt(def);
                 return;
             }
 
-            App.Director.TakeReward(def);
-            App.Toast("加入牌组 · " + def.Name);
+            GameApp.I.Director.TakeReward(def);
+            GameApp.I.Toast("加入牌组 · " + def.Name);
             round++;
             RefreshDeckInfo();
             Render();
@@ -323,7 +332,7 @@ namespace Slime.Game
 
         private void Skip()
         {
-            App.Audio.PlaySfx("ui");
+            GameApp.I.Audio.PlaySfx("ui");
             round = TotalRounds;
             RefreshDeckInfo();
             Render();
@@ -335,7 +344,7 @@ namespace Slime.Game
         /// </summary>
         private void ShowReplacePrompt(CardDef incoming)
         {
-            var overlay = Ui.Solid("ReplaceOverlay", Root, new Color(0f, 0f, 0f, 0.72f), true);
+            var overlay = Ui.Solid("ReplaceOverlay", root, new Color(0f, 0f, 0f, 0.72f), true);
             overlay.rectTransform.SetAsLastSibling();
 
             var panel = Ui.Rounded("ReplacePanel", overlay.transform, Theme.RadiusL,
@@ -345,7 +354,7 @@ namespace Slime.Game
             Tween.PopIn(panel.rectTransform, 0f, 0.9f);
 
             var title = Ui.Label("Title", panel.transform,
-                "牌组已满 " + App.Director.DeckCount + " / " + DeckRules.DeckCap,
+                "牌组已满 " + GameApp.I.Director.DeckCount + " / " + DeckRules.DeckCap,
                 Theme.H2, Theme.Gold, TextAlignmentOptions.Center);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -30f), new Vector2(1200f, 44f));
@@ -361,12 +370,12 @@ namespace Slime.Game
             Ui.Fixed(scroll.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -22f), new Vector2(1180f, 520f));
 
-            var composition = App.Director.DeckComposition();
+            var composition = GameApp.I.Director.DeckComposition();
             var ids = new List<int>(composition.Keys);
             ids.Sort((a, b) =>
             {
-                var da = App.Cards.Get(a);
-                var db = App.Cards.Get(b);
+                var da = GameApp.I.Cards.Get(a);
+                var db = GameApp.I.Cards.Get(b);
                 if (da == null || db == null)
                 {
                     return 0;
@@ -377,7 +386,7 @@ namespace Slime.Game
 
             for (int i = 0; i < ids.Count; i++)
             {
-                var def = App.Cards.Get(ids[i]);
+                var def = GameApp.I.Cards.Get(ids[i]);
                 if (def == null)
                 {
                     continue;
@@ -387,10 +396,10 @@ namespace Slime.Game
                 int owned = composition[ids[i]];
                 var row = BuildDeckRow(listContent, def, owned, () =>
                 {
-                    App.Director.RemoveFromDeck(def.Id);
-                    App.Director.TakeReward(incoming);
-                    App.Audio.PlaySfx("mana");
-                    App.Toast("换入《" + incoming.Name + "》，移出《" + def.Name + "》");
+                    GameApp.I.Director.RemoveFromDeck(def.Id);
+                    GameApp.I.Director.TakeReward(incoming);
+                    GameApp.I.Audio.PlaySfx("mana");
+                    GameApp.I.Toast("换入《" + incoming.Name + "》，移出《" + def.Name + "》");
 
                     Object.Destroy(overlay.gameObject);
                     round++;
@@ -406,7 +415,7 @@ namespace Slime.Game
             var cancel = Ui.TextButton("Cancel", panel.transform, "保留原牌组（放弃本次奖励）", Theme.Body,
                 Theme.PanelRaised, Theme.TextDim, () =>
                 {
-                    App.Audio.PlaySfx("ui");
+                    GameApp.I.Audio.PlaySfx("ui");
                     Object.Destroy(overlay.gameObject);
                     round = TotalRounds;
                     Render();
@@ -427,7 +436,7 @@ namespace Slime.Game
             btn.targetGraphic = img;
             btn.onClick.AddListener(() =>
             {
-                App.Audio.PlaySfx("ui");
+                GameApp.I.Audio.PlaySfx("ui");
                 Tween.Punch(img.rectTransform, 0.03f, 0.2f);
                 onPick();
             });
@@ -461,15 +470,16 @@ namespace Slime.Game
             return img.gameObject;
         }
 
-        private void Advance()
+        /// <summary>奖励流程收尾：先撤弹层，再让宿主地图接手（推进层并刷新）。</summary>
+        private void Complete()
         {
-            App.Director.LeaveNode();
-            App.PersistMeta();
-            App.Fade(0f, 1f, Theme.Fast, () =>
+            if (root != null)
             {
-                App.Replace(new MapScreen());
-                App.Fade(1f, 0f, Theme.Normal, null);
-            });
+                Object.Destroy(root.gameObject);
+                root = null;
+            }
+
+            onDone?.Invoke();
         }
     }
 }
