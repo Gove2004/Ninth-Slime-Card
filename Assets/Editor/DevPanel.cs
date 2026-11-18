@@ -40,6 +40,16 @@ namespace Slime.DevTools
                     app.Replace(new HomeScreen());
                     break;
 
+                case "festival":
+                {
+                    // 新春装饰偏好循环：跟随日期 → 常开 → 关闭。回主页直接看效果。
+                    var meta = app.Meta;
+                    meta.FestivalPref = (meta.FestivalPref + 1) % 3;
+                    app.PersistMeta();
+                    app.Replace(new HomeScreen());
+                    return "festival pref=" + meta.FestivalPref + " active=" + Festival.IsActive;
+                }
+
                 case "map":
                     EnsureRun(app);
                     app.Replace(new MapScreen());
