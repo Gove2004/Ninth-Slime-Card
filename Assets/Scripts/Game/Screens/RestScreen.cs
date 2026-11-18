@@ -16,6 +16,8 @@ namespace Slime.Game
 
         protected override string Title { get { return "篝 火"; } }
 
+        public override string BgKey { get { return "bg_rest"; } }
+
         protected override string Subtitle { get { return "火光够撑到天亮。休息，或者磨一磨手里的牌。"; } }
 
         protected override Color Accent { get { return Theme.Accent; } }

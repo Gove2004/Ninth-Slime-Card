@@ -53,6 +53,11 @@ namespace Slime.Game
             rewardFrom = rewardSession;
         }
 
+        public override string BgKey
+        {
+            get { return App.Director != null && App.Director.Endless ? "bg_endless" : "bg_map"; }
+        }
+
         protected override void Build()
         {
             App.Audio.PlayMusic("title1");

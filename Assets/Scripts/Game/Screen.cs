@@ -27,6 +27,12 @@ namespace Slime.Game
 
         public RectTransform Root { get; private set; }
 
+        /// <summary>
+        /// 本屏的场景背景图 key（Art/Bg 下）。null = 默认主城背景。
+        /// 由 GameApp 在 Push/Pop/PopTo 时统一应用，屏幕自己不用管切换时机。
+        /// </summary>
+        public virtual string BgKey { get { return null; } }
+
         protected GameApp App { get { return GameApp.I; } }
 
         public void Attach(RectTransform parent)

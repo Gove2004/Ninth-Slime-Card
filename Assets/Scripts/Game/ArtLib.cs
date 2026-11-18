@@ -36,6 +36,17 @@ namespace Slime.Game
             return Load("Art/Monsters/" + spriteName);
         }
 
+        /// <summary>场景背景图，key 对应 Art/Bg 下的图名（如 bg_battle）。取不到返回 null，调用方回退默认背景。</summary>
+        public static Sprite Bg(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                return null;
+            }
+
+            return Load("Art/Bg/" + key);
+        }
+
         public static Sprite BgMain { get { return Load("Art/Bg/bg_main"); } }
         public static Sprite Hero { get { return Load("Art/Char/hero"); } }
         public static Sprite Mana { get { return Load("Art/Icon/mana"); } }

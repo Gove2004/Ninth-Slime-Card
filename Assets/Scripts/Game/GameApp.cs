@@ -33,6 +33,7 @@ namespace Slime.Game
         private readonly List<ToastEntry> toasts = new List<ToastEntry>();
         private Canvas canvas;
         private Image fadeImage;
+        private Image bgArtImage;
         private Image toastBox;
         private TextMeshProUGUI toastLabel;
 
@@ -183,11 +184,9 @@ namespace Slime.Game
             Sprite bgArt = ArtLib.BgMain;
             if (bgArt != null)
             {
-                var art = Ui.Panel("BgArt", BackgroundLayer, bgArt, new Color(0.86f, 0.9f, 0.92f, 1f));
-                art.raycastTarget = false;
-                float artW = 1080f * 1440f / 645f;
-                Ui.Fixed(art.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                    Vector2.zero, new Vector2(artW, 1080f));
+                bgArtImage = Ui.Panel("BgArt", BackgroundLayer, bgArt, new Color(0.86f, 0.9f, 0.92f, 1f));
+                bgArtImage.raycastTarget = false;
+                FitBackground(bgArt);
 
                 // 顶部压暗必须是一条竖直渐变，不能再用径向 Glow：背景图里的月亮
                 // 正好落在标题栏左侧，径向光只会把正中间压暗，月亮照样亮着，
@@ -225,6 +224,42 @@ namespace Slime.Game
             toastLabel = Ui.Label("Toast", toastBox.transform, string.Empty, Theme.H4, Theme.Text, TextAlignmentOptions.Center);
             Ui.Stretch(toastLabel.rectTransform, 22f, 8f, 22f, 8f);
             toastBox.gameObject.SetActive(false);
+        }
+
+        /// <summary>按当前 sprite 的宽高比铺背景：高度固定 1080，按高度等比放大、横向溢出，形状不走样。</summary>
+        private void FitBackground(Sprite s)
+        {
+            if (s == null || bgArtImage == null)
+            {
+                return;
+            }
+
+            float w = 1080f * (s.rect.width / s.rect.height);
+            Ui.Fixed(bgArtImage.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(Mathf.Max(w, 1920f), 1080f));
+        }
+
+        /// <summary>切换场景背景图。key 为 null 回默认主城背景；key 对应 Art/Bg 下图名，缺图自动回退。</summary>
+        public void SetBackground(string key)
+        {
+            if (bgArtImage == null)
+            {
+                return;
+            }
+
+            Sprite s = key == null ? ArtLib.BgMain : ArtLib.Bg(key);
+            if (s == null)
+            {
+                s = ArtLib.BgMain;
+            }
+
+            if (s == null || bgArtImage.sprite == s)
+            {
+                return;
+            }
+
+            bgArtImage.sprite = s;
+            FitBackground(s);
         }
 
         private void BuildServices()
@@ -292,6 +327,7 @@ namespace Slime.Game
             stack.Add(screen);
             screen.Attach(ScreenLayer);
             screen.SetVisible(true);
+            SetBackground(screen.BgKey);
         }
 
         public void Pop()
@@ -308,6 +344,7 @@ namespace Slime.Game
             if (Current != null)
             {
                 Current.SetVisible(true);
+                SetBackground(Current.BgKey);
             }
         }
 
@@ -335,6 +372,7 @@ namespace Slime.Game
             if (Current != null)
             {
                 Current.SetVisible(true);
+                SetBackground(Current.BgKey);
             }
         }
 

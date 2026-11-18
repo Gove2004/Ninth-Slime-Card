@@ -201,6 +201,11 @@ namespace Slime.Game
             session = app.Director.CreateBattle(app.Director.DeckCount * 131 + app.Director.Chapter * 7919);
         }
 
+        public override string BgKey
+        {
+            get { return session != null && session.IsBoss ? "bg_boss" : "bg_battle"; }
+        }
+
         protected override void Build()
         {
             BuildArena();

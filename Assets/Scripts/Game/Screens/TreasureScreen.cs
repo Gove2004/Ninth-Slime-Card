@@ -21,6 +21,8 @@ namespace Slime.Game
 
         protected override string Title { get { return "宝 箱"; } }
 
+        public override string BgKey { get { return "bg_treasure"; } }
+
         protected override string Subtitle { get { return "锁扣一掰就开了，里面躺着一件还没被取走的东西。"; } }
 
         protected override Color Accent { get { return Theme.Gold; } }
