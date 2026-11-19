@@ -568,7 +568,7 @@ namespace Slime.Game
 
             // 结束回合：贴右缘、垂直居中偏下，是整屏第二醒目的按钮。
             // 金浮雕底图优先；可用性改用 tint 表达，不再整块换 sprite。
-            Sprite endSkin = ArtLib.UiArt("ui_button_gold", new Vector4(110f, 110f, 110f, 110f));
+            Sprite endSkin = ArtLib.UiArt("ui_button_gold", new Vector4(14f, 14f, 14f, 14f));
             hasEndTurnSkin = endSkin != null;
             if (endSkin != null)
             {

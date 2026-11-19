@@ -159,8 +159,9 @@ namespace Slime.Game
 
         public static Button TextButton(string name, Transform parent, string caption, int fontSize, Color fill, Color textColor, Action onClick)
         {
-            // 真图按钮底（金框石板）优先；参数 fill 在真图模式下不再染色，统一质感
-            Image img = Skinned(name, parent, "ui_button", new Vector4(110f, 110f, 110f, 110f));
+            // 真图按钮底（金框石板）优先；参数 fill 在真图模式下不再染色，统一质感。
+            // 边距 14 与纹理金框厚度一致：按钮普遍只有 60~96 高，再大会把纵向切片压裂
+            Image img = Skinned(name, parent, "ui_button", new Vector4(14f, 14f, 14f, 14f));
             Button btn;
             if (img != null)
             {
@@ -187,7 +188,7 @@ namespace Slime.Game
         /// </summary>
         public static Button PrimaryButton(string name, Transform parent, string caption, int fontSize, Action onClick)
         {
-            Image img = Skinned(name, parent, "ui_button_gold", new Vector4(110f, 110f, 110f, 110f));
+            Image img = Skinned(name, parent, "ui_button_gold", new Vector4(14f, 14f, 14f, 14f));
             Button btn;
             if (img != null)
             {

@@ -47,7 +47,7 @@ namespace Slime.Game
                 (resolved ? "" : full ? "　·　生命已满" : "　·　休息可回复 " + actual),
                 Theme.H3, full && !resolved ? Theme.Accent : Theme.Hp, TextAlignmentOptions.Center);
             Ui.Fixed(hpInfo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -10f), new Vector2(900f, 40f));
+                new Vector2(0f, -6f), new Vector2(900f, 40f));
 
             if (resolved)
             {
@@ -57,21 +57,64 @@ namespace Slime.Game
                 return;
             }
 
-            var restBtn = Ui.TextButton("Rest", body, full ? "休 息（生命已满）" : "休 息（+" + actual + " 生命）",
-                Theme.H3, Theme.AccentDeep, Theme.Text, OnRest);
-            restBtn.interactable = !full;
-            Ui.Fixed(restBtn.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-260f, -10f), new Vector2(440f, 90f));
-
-            var forgeBtn = Ui.TextButton("Forge", body, "锻 造（升级一张牌）", Theme.H3,
-                Theme.PanelRaised, Theme.Gold, OnForge);
-            Ui.Fixed(forgeBtn.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(260f, -10f), new Vector2(440f, 90f));
+            // 两个选项做成等宽大卡：标题 + 说明 + 图形，占满正文区中段。
+            // 原来是两枚悬浮文字按钮挤在中线，上下各留 200 空屏，一屏只有三行字。
+            // body 高 520：血量行贴顶（-6），选项卡居中（高 250，中心 -40），提示贴底（26）。
+            BuildOption("Rest", -40f, full, "休 息", "回复 " + actual + " 点生命",
+                full ? "生命已满，休息不会有收益" : "火光能撑到天亮", Theme.Accent, OnRest);
+            BuildOption("Forge", -40f, true, "锻 造", "升级一张牌",
+                "数值提高，费用不变", Theme.Gold, OnForge);
 
             var tip = Ui.Label("Tip", body, "升级后的牌数值提高，费用不变——长局里比一次回血更值钱。",
                 Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
             Ui.Fixed(tip.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 30f), new Vector2(900f, 26f));
+                new Vector2(0f, 26f), new Vector2(900f, 26f));
+        }
+
+        /// <summary>一枚 400x250 的竖排选项卡，横轴居中偏移 offsetX。</summary>
+        private void BuildOption(string name, float offsetY, bool enabled,
+            string title, string highlight, string note, Color accent, System.Action onClick)
+        {
+            const float w = 400f;
+            const float h = 250f;
+
+            var card = Ui.Rounded(name, body, Theme.RadiusL,
+                Theme.WithAlpha(Theme.PanelRaised, 0.97f), Theme.WithAlpha(accent, enabled ? 0.65f : 0.25f), 2, true);
+            Ui.Fixed(card.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(name == "Rest" ? -230f : 230f, offsetY), new Vector2(w, h));
+
+            if (enabled)
+            {
+                var btn = card.gameObject.AddComponent<Button>();
+                btn.targetGraphic = card;
+                btn.onClick.AddListener(() =>
+                {
+                    App.Audio.PlaySfx("ui");
+                    Tween.Punch(card.rectTransform, 0.06f, 0.2f);
+                    onClick();
+                });
+            }
+
+            var mark = Ui.Panel("Mark", card.transform, SpriteForge.Circle(96,
+                Theme.Darken(accent, 0.5f), Theme.Lighten(accent, 0.3f), 3), Color.white);
+            mark.raycastTarget = false;
+            Ui.Fixed(mark.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -58f), new Vector2(64f, 64f));
+
+            var t = Ui.Label("Title", card.transform, title, Theme.H3, enabled ? accent : Theme.TextFaint,
+                TextAlignmentOptions.Center);
+            Ui.Fixed(t.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -118f), new Vector2(w, 40f));
+
+            var hl = Ui.Label("Highlight", card.transform, highlight, Theme.Body,
+                enabled ? Theme.Text : Theme.TextFaint, TextAlignmentOptions.Center);
+            Ui.Fixed(hl.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -162f), new Vector2(w - 40f, 30f));
+
+            var n = Ui.Label("Note", card.transform, note, Theme.Caption, Theme.TextDim,
+                TextAlignmentOptions.Center);
+            Ui.Fixed(n.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -198f), new Vector2(w - 40f, 26f));
         }
 
         private void OnRest()

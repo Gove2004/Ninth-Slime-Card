@@ -88,8 +88,9 @@ namespace Slime.Game
                 fu.localRotation = Quaternion.Euler(0f, 0f, 45f);
             }
 
+            // 福字：顶栏中段的空地。x 偏到 -120 避开右侧「最远章节」读数（其框体伸到 x=140）
             Ui.Fixed(fu, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 474f), new Vector2(116f, 116f));
+                new Vector2(-120f, 474f), new Vector2(116f, 116f));
             Tween.PopIn(fu, 0.32f, 0.5f, 0.4f);
         }
 
@@ -228,7 +229,7 @@ namespace Slime.Game
             Color accent = Theme.SeriesColor(info.Accent);
 
             // 主卡底：金框石板真图优先，缺图回退程序化圆角
-            Sprite panelSkin = ArtLib.UiArt("ui_panel", new Vector4(110f, 110f, 110f, 110f));
+            Sprite panelSkin = ArtLib.UiArt("ui_panel", new Vector4(16f, 16f, 16f, 16f));
             Image card;
             if (panelSkin != null)
             {

@@ -137,11 +137,11 @@ namespace Slime.Game
             var director = App.Director;
 
             // 金币曾经横在副标题和商品之间，字号比标题还大，把视线从货上拽走。
-            // 它是「读数」不是「标题」，缩成右上角一枚筹码。
+            // 它是「读数」不是「标题」，钉在正文右上角，与卡片行对齐。
             var goldBox = Ui.Rounded("GoldBox", body, Theme.RadiusS,
                 Theme.WithAlpha(Theme.PanelSunken, 0.95f), Theme.WithAlpha(Theme.Gold, 0.45f), 1);
-            Ui.Fixed(goldBox.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                Vector2.zero, new Vector2(230f, 42f));
+            Ui.Fixed(goldBox.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-6f, -6f), new Vector2(230f, 42f));
 
             goldLabel = Ui.Label("Gold", goldBox.transform, "金币 " + director.Gold, Theme.H4,
                 Theme.Gold, TextAlignmentOptions.Center);

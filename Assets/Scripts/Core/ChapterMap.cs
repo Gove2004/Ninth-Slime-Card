@@ -209,6 +209,11 @@ namespace Slime.Core
             return map;
         }
 
+        private static float Clamp(float v, float lo, float hi)
+        {
+            return v < lo ? lo : (v > hi ? hi : v);
+        }
+
         /// <summary>
         /// 无限年的一个 10 层线段：每层单节点、单线推进——
         /// 1~4 战斗、5 精英、6~8 战斗、9 篝火、10 Boss。层号是全局层数（baseFloor 起），
@@ -236,7 +241,9 @@ namespace Slime.Core
                     Kind = kind,
                     Floor = baseFloor + rel - 1,
                     Slot = 0,
-                    X = 0.5f,
+                    // 单线段也要有横向起伏：全 0.5 时地图是一条竖列，
+                    // 五层窗口里读不出「路」的形状。偏移由种子决定，读档重现同一张图。
+                    X = Clamp(0.5f + (((seed / 7 + rel * 137) % 5) - 2) * 0.09f, 0.26f, 0.74f),
                     Y = (rel - 1) / 9f
                 };
 
