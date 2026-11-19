@@ -474,8 +474,8 @@ namespace Slime.Game
 
         private void buildChoices()
         {
-            const float step = 126f;
-            const float top = -142f;
+            const float step = 130f;
+            const float top = -146f;
 
             for (int i = 0; i < encounter.Choices.Count; i++)
             {

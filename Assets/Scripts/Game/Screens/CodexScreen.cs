@@ -299,7 +299,7 @@ namespace Slime.Game
             bodyText.margin = new Vector4(22f, 16f, 22f, 12f);
             Ui.Stretch(bodyText.rectTransform, 0f, 0f, 0f, 0f);
 
-            // 升级预览
+            // 升级预览：高度按实际行数算（长说明会折两行，写死 52 会裁字）
             string upText = def.Text(1);
             string upCaption = upText == def.Text(0)
                 ? "升级：费用 " + def.Cost + " → " + Mathf.Max(0, def.Cost - 1)
@@ -308,14 +308,17 @@ namespace Slime.Game
             var up = Ui.Label("Upgrade", panel.transform, upCaption, Theme.Caption,
                 Theme.Gold, TextAlignmentOptions.TopLeft);
             up.margin = new Vector4(4f, 0f, 4f, 0f);
+            float upH = Mathf.Max(Ui.MeasureTextHeight(upCaption, 992f, Theme.Caption) + 6f, 34f);
+            float upTop = -246f;
             Ui.Fixed(up.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -246f), new Vector2(1000f, 52f));
+                new Vector2(0f, upTop), new Vector2(1000f, upH));
 
-            // 相关机制
+            // 相关机制标题：贴在升级预览之下（间距 18），不再和滚动区之间留大空洞
+            float mechTop = upTop - upH - 18f;
             var mechTitle = Ui.Label("MechTitle", panel.transform, "相关机制", Theme.H4,
                 Theme.TextDim, TextAlignmentOptions.Left);
             Ui.Fixed(mechTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -300f), new Vector2(1000f, 30f));
+                new Vector2(0f, mechTop), new Vector2(1000f, 30f));
 
             var entries = Glossary.Match(def.Raw);
             if (entries.Count == 0)
@@ -323,16 +326,16 @@ namespace Slime.Game
                 var none = Ui.Label("NoMech", panel.transform, "这张牌不涉及特殊机制。", Theme.Caption,
                     Theme.TextFaint, TextAlignmentOptions.Left);
                 Ui.Fixed(none.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                    new Vector2(0f, -336f), new Vector2(1000f, 30f));
+                    new Vector2(0f, mechTop - 36f), new Vector2(1000f, 30f));
             }
             else
             {
-                // 滚动区顶边必须落在标题下沿之下：面板 760 高，标题占 300..330，
-                // 滚动区底距 96 + 高 320 → 顶边 416，留 86 的间隔给标题。
+                // 滚动区高度 = 从标题下沿到「关闭」按钮上方（底距 96）之间的全部空间
+                float scrollH = 760f + mechTop - 30f - 18f - 96f;
                 RectTransform listContent;
                 var scroll = Ui.VerticalScroll("MechList", panel.transform, out listContent);
                 Ui.Fixed(scroll.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                    new Vector2(0f, 96f), new Vector2(1000f, 320f));
+                    new Vector2(0f, 96f), new Vector2(1000f, scrollH));
 
                 for (int i = 0; i < entries.Count; i++)
                 {

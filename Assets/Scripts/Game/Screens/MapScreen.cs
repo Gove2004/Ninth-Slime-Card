@@ -116,10 +116,11 @@ namespace Slime.Game
             Ui.Fixed(abandon.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
                 new Vector2(-20f, 0f), new Vector2(176f, 64f));
 
-            // 从右往左排，紧贴放弃按钮。宽度按最长文案给足：中文框一窄就被折成两行。
-            deckLabel = HeaderStat(header, -220f, Theme.Accent);
-            goldLabel = HeaderStat(header, -448f, Theme.Gold);
-            hpLabel = HeaderStat(header, -672f, Theme.Hp);
+            // 从右往左排，紧贴放弃按钮，组间距统一 250（宽 216 + 34 空隙）。
+            // 中文框一窄就被折成两行，宽度按最长文案给足。
+            deckLabel = HeaderStat(header, -230f, Theme.Accent);
+            goldLabel = HeaderStat(header, -480f, Theme.Gold);
+            hpLabel = HeaderStat(header, -730f, Theme.Hp);
         }
 
         private TextMeshProUGUI HeaderStat(RectTransform header, float rightOffset, Color color)
@@ -160,9 +161,9 @@ namespace Slime.Game
         private void BuildHint()
         {
             hintLabel = Ui.Label("Hint", Root, string.Empty, Theme.Caption, Theme.TextFaint,
-                TextAlignmentOptions.Left);
+                TextAlignmentOptions.Center);
             Ui.Fixed(hintLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(-780f, EdgeMargin + 22f), new Vector2(340f, 32f));
+                new Vector2(0f, EdgeMargin + 18f), new Vector2(420f, 32f));
         }
 
         private void RefreshStats()

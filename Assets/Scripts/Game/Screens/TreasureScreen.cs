@@ -54,7 +54,7 @@ namespace Slime.Game
             // 那一枚字符既不像箱子，也让整块 720 高的面板空得像没做完。
             var chest = Ui.Node("Chest", body);
             Ui.Fixed(chest, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 96f), new Vector2(360f, 300f));
+                new Vector2(0f, 60f), new Vector2(360f, 300f));
 
             var glow = Ui.Panel("Glow", chest, SpriteForge.Glow(256, Theme.Gold),
                 Theme.WithAlpha(Color.white, 0.20f));
@@ -97,9 +97,9 @@ namespace Slime.Game
             var hint = Ui.Label("Hint", body, "打开它会直接得到一张卡牌，不占奖励次数。",
                 Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -110f), new Vector2(900f, 32f));
+                new Vector2(0f, -130f), new Vector2(900f, 32f));
 
-            var open = ActionButton(body, "打 开 宝 箱", new Vector2(0f, 20f), new Vector2(440f, 88f), Theme.Gold);
+            var open = ActionButton(body, "打 开 宝 箱", new Vector2(0f, -6f), new Vector2(440f, 88f), Theme.Gold);
             open.GetComponentInChildren<TextMeshProUGUI>().color = Theme.BgDeep;
             open.onClick.AddListener(onOpen);
         }

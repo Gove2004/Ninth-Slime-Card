@@ -314,11 +314,26 @@ namespace Slime.Game
             enemyHpText.text = e.Hp + " / " + e.HpMax;
 
             RebuildStatus(enemyStatusRow, e, true);
-            // 敌人不持牌组，靠招式池行动——这行改成展示它本回合的行动次数与谱系
+            // 敌人不持牌组，靠招式池行动——这行改成展示谱系与行动次数，空段不拼
             var enemyInfo = session.EnemyInfo;
             int acts = enemyInfo != null ? enemyInfo.ActionsPerTurn : 1;
-            string actHint = acts > 1 ? "  ·  每回合 " + acts + " 动" : string.Empty;
-            enemySubLabel.text = enemyInfo.Family + "  ·  " + enemyInfo.Title + actHint;
+            var parts = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrEmpty(enemyInfo.Family))
+            {
+                parts.Add(enemyInfo.Family);
+            }
+
+            if (!string.IsNullOrEmpty(enemyInfo.Title))
+            {
+                parts.Add(enemyInfo.Title);
+            }
+
+            if (acts > 1)
+            {
+                parts.Add("每回合 " + acts + " 动");
+            }
+
+            enemySubLabel.text = string.Join("  ·  ", parts);
         }
 
         #endregion
@@ -582,7 +597,7 @@ namespace Slime.Game
             }
 
             Ui.Fixed(endTurnImage.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(EndTurnX, EndTurnY), new Vector2(200f, 74f));
+                new Vector2(EndTurnX, EndTurnY), new Vector2(264f, 78f));
 
             endTurnButton = endTurnImage.gameObject.AddComponent<Button>();
             endTurnButton.targetGraphic = endTurnImage;

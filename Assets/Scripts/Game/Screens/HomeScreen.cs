@@ -31,7 +31,7 @@ namespace Slime.Game
         private const float CardBottom = -300f;
         private const float CardH = CardTop - CardBottom;   // 672
 
-        private const float FooterY = -430f;
+        private const float FooterY = -423f;
 
         protected override void Build()
         {
@@ -199,7 +199,7 @@ namespace Slime.Game
                 var ic = Ui.Panel("Icon", box, icon, Color.white);
                 ic.preserveAspect = true;
                 Ui.Fixed(ic.rectTransform, new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(26f, 14f), new Vector2(40f, 40f));
+                    new Vector2(20f, 14f), new Vector2(48f, 48f));
             }
 
             var v = Ui.Label("Value", box, value, Theme.H2, Theme.Text, TextAlignmentOptions.Right);

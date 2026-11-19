@@ -58,8 +58,9 @@ namespace Slime.Game
         {
             root = Ui.Node("RewardOverlay", host);
 
-            // 压暗地图并挡住它的点击：弹层期间地图不参与交互
-            Ui.Solid("Dim", root, new Color(0f, 0f, 0f, 0.82f), true);
+            // 压暗地图并挡住它的点击：弹层期间地图不参与交互。
+            // 0.88 起步——0.82 时可达节点的高亮色还是能透出来抢视线。
+            Ui.Solid("Dim", root, new Color(0f, 0f, 0f, 0.88f), true);
 
             var director = GameApp.I.Director;
             var defeated = director.LastEnemy;
@@ -69,7 +70,7 @@ namespace Slime.Game
             var banner = Ui.Rounded("Banner", root, Theme.RadiusM,
                 Theme.WithAlpha(Theme.Panel, 0.86f), Theme.WithAlpha(Theme.Border, 0.45f), 1);
             Ui.Fixed(banner.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -160f), new Vector2(920f, 100f));
+                new Vector2(0f, -196f), new Vector2(920f, 100f));
 
             headline = Ui.Label("Headline", banner.transform, string.Empty, Theme.H2, Theme.Gold,
                 TextAlignmentOptions.Center);
