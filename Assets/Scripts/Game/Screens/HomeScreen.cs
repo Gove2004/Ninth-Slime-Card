@@ -50,7 +50,7 @@ namespace Slime.Game
         }
 
         /// <summary>
-        /// 新春装饰：左右春联、檐口双灯笼、顶部福字。全部 SpriteForge 程序化，无新素材。
+        /// 新春装饰：左右春联、檐口双灯笼、顶部福字。Art/Decor 真图优先，缺图回退 SpriteForge 程序化。
         /// 只占屏幕四角的空地，中轴（顶栏与主卡）一个像素都不碰。
         /// </summary>
         private void BuildFestivalDecor()
@@ -67,29 +67,58 @@ namespace Slime.Game
             BuildLantern(640f, 0.12f);
 
             // ---- 福字：顶栏中段的空地，一枚红底金字的菱印 ----
-            var fu = Ui.Rounded("Fu", Root, Theme.RadiusS,
-                Theme.WithAlpha(Theme.Darken(red, 0.2f), 0.94f), Theme.WithAlpha(gold, 0.85f), 2);
-            Ui.Fixed(fu.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 474f), new Vector2(92f, 92f));
-            fu.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            var fuArt = ArtLib.Decor("fu");
+            RectTransform fu;
+            if (fuArt != null)
+            {
+                var fuImg = Ui.Panel("Fu", Root, fuArt, Color.white);
+                fuImg.raycastTarget = false;
+                fuImg.preserveAspect = true;
+                fu = fuImg.rectTransform;
+            }
+            else
+            {
+                var plaque = Ui.Rounded("Fu", Root, Theme.RadiusS,
+                    Theme.WithAlpha(Theme.Darken(red, 0.2f), 0.94f), Theme.WithAlpha(gold, 0.85f), 2);
+                var fuText = Ui.Label("FuText", plaque.transform, "福", Theme.H3, gold, TextAlignmentOptions.Center);
+                Ui.Fixed(fuText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(130f, 130f));
+                fuText.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -45f);
+                fu = plaque.rectTransform;
+                fu.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            }
 
-            var fuText = Ui.Label("FuText", fu.transform, "福", Theme.H3, gold, TextAlignmentOptions.Center);
-            Ui.Fixed(fuText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(130f, 130f));
-            fuText.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -45f);
-            Tween.PopIn(fu.rectTransform, 0.32f, 0.5f, 0.4f);
+            Ui.Fixed(fu, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 474f), new Vector2(116f, 116f));
+            Tween.PopIn(fu, 0.32f, 0.5f, 0.4f);
         }
 
         private void BuildCouplet(float x, string verticalText, float delay)
         {
             Color red = Theme.SeriesSpring;
+            var scrollArt = ArtLib.Decor("couplet");
 
-            var strip = Ui.Rounded("Couplet", Root, Theme.RadiusS,
-                Theme.WithAlpha(Theme.Darken(red, 0.15f), 0.94f), Theme.WithAlpha(Theme.Gold, 0.6f), 2);
-            Ui.Fixed(strip.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(x, 60f), new Vector2(64f, 560f));
-            Tween.SlideIn(strip.rectTransform, new Vector2(x > 0 ? 120f : -120f, 0f), 0.42f, delay);
+            RectTransform strip;
+            if (scrollArt != null)
+            {
+                // 真图含上下木轴，整体略宽于纸面；竖向轻拉到 560 高，装饰条上看不出变形
+                var img = Ui.Panel("Couplet", Root, scrollArt, Color.white);
+                img.raycastTarget = false;
+                strip = img.rectTransform;
+                Ui.Fixed(strip, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    new Vector2(x, 60f), new Vector2(150f, 560f));
+            }
+            else
+            {
+                var rounded = Ui.Rounded("Couplet", Root, Theme.RadiusS,
+                    Theme.WithAlpha(Theme.Darken(red, 0.15f), 0.94f), Theme.WithAlpha(Theme.Gold, 0.6f), 2);
+                strip = rounded.rectTransform;
+                Ui.Fixed(strip, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    new Vector2(x, 60f), new Vector2(64f, 560f));
+            }
+            Tween.SlideIn(strip, new Vector2(x > 0 ? 120f : -120f, 0f), 0.42f, delay);
 
+            // 字永远由 UI 叠：AI 写中文常出错别字，真图只画空白纸面
             var text = Ui.Label("Text", strip.transform, verticalText, Theme.Body,
                 Theme.Gold, TextAlignmentOptions.Center);
             Ui.Stretch(text.rectTransform, 4f, 8f, 4f, 8f);
@@ -107,10 +136,17 @@ namespace Slime.Game
             Ui.Fixed(rope.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(x, -34f), new Vector2(2.5f, 68f));
 
-            var lantern = Ui.Panel("Lantern", Root, SpriteForge.Lantern(160, red, gold), Color.white);
+            var lanternArt = ArtLib.Decor("lantern");
+            var lantern = Ui.Panel("Lantern", Root,
+                lanternArt != null
+                    ? lanternArt
+                    : SpriteForge.Lantern(160, red, gold),
+                Color.white);
             lantern.raycastTarget = false;
+            // 真图自带流苏与挂绳头，整体比程序化版大一号、略往下沉
             Ui.Fixed(lantern.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(x, -122f), new Vector2(124f, 148f));
+                new Vector2(x, lanternArt != null ? -150f : -122f),
+                lanternArt != null ? new Vector2(160f, 160f) : new Vector2(124f, 148f));
             lantern.preserveAspect = true;
             Tween.SlideIn(lantern.rectTransform, new Vector2(0f, 110f), 0.5f, delay);
         }

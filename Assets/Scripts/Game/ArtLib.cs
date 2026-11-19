@@ -48,6 +48,17 @@ namespace Slime.Game
         }
 
         public static Sprite BgMain { get { return Load("Art/Bg/bg_main"); } }
+
+        /// <summary>节日装饰小图（Art/Decor 下，透明底）。缺图返回 null，调用方回退程序化绘制。</summary>
+        public static Sprite Decor(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                return null;
+            }
+
+            return Load("Art/Decor/" + key);
+        }
         public static Sprite Hero { get { return Load("Art/Char/hero"); } }
         public static Sprite Mana { get { return Load("Art/Icon/mana"); } }
         public static Sprite Blood { get { return Load("Art/Icon/blood"); } }

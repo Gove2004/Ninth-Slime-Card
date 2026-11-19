@@ -20,6 +20,12 @@ namespace Slime.Game
             session = battle;
         }
 
+        /// <summary>带战局的结算延续战斗背景；无战局（通关/终局入口）回默认主城。</summary>
+        public override string BgKey
+        {
+            get { return session != null ? (session.IsBoss ? "bg_boss" : "bg_battle") : null; }
+        }
+
         protected override void Build()
         {
             App.Audio.PlayMusic(victory ? "title2" : "title1");
