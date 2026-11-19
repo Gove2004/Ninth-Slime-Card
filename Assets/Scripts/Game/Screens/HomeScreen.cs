@@ -178,20 +178,28 @@ namespace Slime.Game
             // --- 右：三个数字，从右缘往左依次排，每个是「数值在上、标签在下」 ---
             int best = App.Meta.BestChapter > 0 ? App.Meta.BestChapter : App.Director.Chapter;
 
-            // 从右往左：奖杯（最重要，放最右） → 金币 → 最远章节
+            // 从右往左：奖杯（最重要，放最右） → 金币（带金币图标） → 最远章节
             Stat(bar, "Trophy", App.Meta.Trophy.ToString(), "奖杯", 0f);
-            Stat(bar, "Gold", App.Director.Gold.ToString(), "金币", -200f);
+            Stat(bar, "Gold", App.Director.Gold.ToString(), "金币", -200f, ArtLib.UiArt("icon_gold", Vector4.zero));
             Stat(bar, "Chapter", best + " / " + EnemyRoster.TotalChapters, "最远章节", -400f);
         }
 
-        /// <summary>一枚右对齐的数字块。<paramref name="rightOffset"/> 是距顶栏右缘的距离。</summary>
-        private void Stat(RectTransform bar, string name, string value, string caption, float rightOffset)
+        /// <summary>一枚右对齐的数字块。<paramref name="rightOffset"/> 是距顶栏右缘的距离；icon 可选，画在数值左侧。</summary>
+        private void Stat(RectTransform bar, string name, string value, string caption, float rightOffset, Sprite icon = null)
         {
             const float w = 180f;
 
             var box = Ui.Node(name, bar);
             Ui.Fixed(box, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
                 new Vector2(rightOffset, 0f), new Vector2(w, 92f));
+
+            if (icon != null)
+            {
+                var ic = Ui.Panel("Icon", box, icon, Color.white);
+                ic.preserveAspect = true;
+                Ui.Fixed(ic.rectTransform, new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f),
+                    new Vector2(26f, 14f), new Vector2(40f, 40f));
+            }
 
             var v = Ui.Label("Value", box, value, Theme.H2, Theme.Text, TextAlignmentOptions.Right);
             Ui.Fixed(v.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
@@ -219,8 +227,20 @@ namespace Slime.Game
             var info = director.NextEnemyPreview;
             Color accent = Theme.SeriesColor(info.Accent);
 
-            var card = Ui.Rounded("Hero", Root, Theme.RadiusL,
-                Theme.WithAlpha(Theme.Panel, 0.96f), Theme.WithAlpha(accent, 0.5f), 2);
+            // 主卡底：金框石板真图优先，缺图回退程序化圆角
+            Sprite panelSkin = ArtLib.UiArt("ui_panel", new Vector4(110f, 110f, 110f, 110f));
+            Image card;
+            if (panelSkin != null)
+            {
+                card = Ui.Panel("Hero", Root, panelSkin, Color.white);
+                card.type = Image.Type.Sliced;
+            }
+            else
+            {
+                card = Ui.Rounded("Hero", Root, Theme.RadiusL,
+                    Theme.WithAlpha(Theme.Panel, 0.96f), Theme.WithAlpha(accent, 0.5f), 2);
+            }
+
             Ui.Fixed(card.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, (CardTop + CardBottom) * 0.5f), new Vector2(ColW, CardH));
             Tween.SlideIn(card.rectTransform, new Vector2(0f, -40f), 0.36f, 0.05f);
@@ -286,11 +306,10 @@ namespace Slime.Game
                 Theme.Caption, Theme.Text, TextAlignmentOptions.Center);
             Ui.Stretch(hpText.rectTransform, 0f, 0f, 0f, 0f);
 
-            // 主按钮：整屏唯一的实心高饱和色块
-            var start = Ui.TextButton("Start", card.transform, "继 续 冒 险", Theme.H3,
-                Theme.AccentDeep, Theme.Text, StartRun);
+            // 主按钮：整屏唯一的金色浮雕 CTA
+            var start = Ui.PrimaryButton("Start", card.transform, "继 续 冒 险", Theme.H3, StartRun);
             Ui.Fixed(start.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 32f), new Vector2(600f, 90f));
+                new Vector2(0f, 32f), new Vector2(600f, 96f));
         }
 
         // ---------------------------------------------------------------- 底栏

@@ -77,5 +77,31 @@ namespace Slime.Game
             cache[path] = sprite;
             return sprite;
         }
+
+        /// <summary>
+        /// UI 骨架素材（Art/Ui 下，黑底已抠透明），按九宫格边距切成 Sliced 可用的 sprite。
+        /// 走 Texture2D + Sprite.Create 而不是 Resources.Load&lt;Sprite&gt;：九宫格 border
+        /// 是运行时参数，不依赖纹理导入器的 meta 设置。
+        /// </summary>
+        public static Sprite UiArt(string key, Vector4 border)
+        {
+            string cacheKey = "uiart_" + key + "_" + border;
+            Sprite sprite;
+            if (cache.TryGetValue(cacheKey, out sprite))
+            {
+                return sprite;
+            }
+
+            var tex = Resources.Load<Texture2D>("Art/Ui/" + key);
+            if (tex == null)
+            {
+                return null;
+            }
+
+            sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
+                new Vector2(0.5f, 0.5f), 100f, 0u, SpriteMeshType.FullRect, border);
+            cache[cacheKey] = sprite;
+            return sprite;
+        }
     }
 }

@@ -124,6 +124,7 @@ namespace Slime.Game
         private RectTransform handRoot;
         private Button endTurnButton;
         private Image endTurnImage;
+        private bool hasEndTurnSkin;
         private TextMeshProUGUI endTurnLabel;
         private TextMeshProUGUI emptyHint;
 
@@ -565,8 +566,21 @@ namespace Slime.Game
         {
             handRoot = Ui.Node("Hand", Root);
 
-            // 结束回合：贴右缘、垂直居中偏下，是整屏第二醒目的按钮
-            endTurnImage = Ui.Rounded("EndTurn", Root, Theme.RadiusM, Theme.AccentDeep, Theme.Accent, 3, true);
+            // 结束回合：贴右缘、垂直居中偏下，是整屏第二醒目的按钮。
+            // 金浮雕底图优先；可用性改用 tint 表达，不再整块换 sprite。
+            Sprite endSkin = ArtLib.UiArt("ui_button_gold", new Vector4(110f, 110f, 110f, 110f));
+            hasEndTurnSkin = endSkin != null;
+            if (endSkin != null)
+            {
+                endTurnImage = Ui.Panel("EndTurn", Root, endSkin, Color.white);
+                endTurnImage.type = Image.Type.Sliced;
+                endTurnImage.raycastTarget = true;
+            }
+            else
+            {
+                endTurnImage = Ui.Rounded("EndTurn", Root, Theme.RadiusM, Theme.AccentDeep, Theme.Accent, 3, true);
+            }
+
             Ui.Fixed(endTurnImage.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(EndTurnX, EndTurnY), new Vector2(200f, 74f));
 
@@ -574,7 +588,8 @@ namespace Slime.Game
             endTurnButton.targetGraphic = endTurnImage;
             endTurnButton.onClick.AddListener(OnEndTurnClicked);
 
-            endTurnLabel = Ui.Label("EndTurnLabel", endTurnImage.transform, "结束回合", Theme.H3, Theme.BgDeep, TextAlignmentOptions.Center);
+            endTurnLabel = Ui.Label("EndTurnLabel", endTurnImage.transform, "结束回合", Theme.H3,
+                endSkin != null ? Theme.Darken(Theme.Gold, 0.62f) : Theme.BgDeep, TextAlignmentOptions.Center);
             Ui.Stretch(endTurnLabel.rectTransform, 0f, 0f, 0f, 0f);
 
             // 手牌出空时，提示语正好落在出牌区的位置上——那块地方空着总得说明它为什么空
@@ -1297,7 +1312,16 @@ namespace Slime.Game
         {
             bool on = !busy && session.Phase == BattlePhase.PlayerTurn && !session.Finished;
             endTurnButton.interactable = on;
-            endTurnLabel.color = on ? Theme.BgDeep : Theme.TextFaint;
+            endTurnLabel.color = on
+                ? (hasEndTurnSkin ? Theme.Darken(Theme.Gold, 0.62f) : Theme.BgDeep)
+                : Theme.TextFaint;
+
+            if (hasEndTurnSkin)
+            {
+                // 金浮雕底图：可用性用明暗表达，整块换 sprite 会丢质感
+                endTurnImage.color = on ? Color.white : new Color(0.45f, 0.42f, 0.40f, 1f);
+                return;
+            }
 
             var fill = on ? Theme.AccentDeep : Theme.PanelRaised;
             var border = on ? Theme.Accent : Theme.Border;

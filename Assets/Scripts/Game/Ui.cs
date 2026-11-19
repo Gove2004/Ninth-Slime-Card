@@ -116,12 +116,23 @@ namespace Slime.Game
             return tmp;
         }
 
-        public static Button TextButton(string name, Transform parent, string caption, int fontSize, Color fill, Color textColor, Action onClick)
+        /// <summary>九宫格按钮/面板底图。缺素材返回 null，调用方回退程序化圆角。</summary>
+        private static Image Skinned(string name, Transform parent, string key, Vector4 border)
         {
-            var img = Rounded(name, parent, Theme.RadiusM, fill, Theme.Lighten(fill, 0.18f), 2, true);
-            var btn = img.gameObject.AddComponent<Button>();
-            btn.targetGraphic = img;
+            Sprite skin = ArtLib.UiArt(key, border);
+            if (skin == null)
+            {
+                return null;
+            }
 
+            var img = Panel(name, parent, skin, Color.white);
+            img.type = Image.Type.Sliced;
+            img.raycastTarget = true;
+            return img;
+        }
+
+        private static void AttachClickFeedback(Button btn, Image img, Action onClick)
+        {
             var colors = btn.colors;
             colors.normalColor = Color.white;
             colors.highlightedColor = new Color(1.12f, 1.12f, 1.12f, 1f);
@@ -129,10 +140,7 @@ namespace Slime.Game
             colors.disabledColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);
             colors.fadeDuration = 0.08f;
             btn.colors = colors;
-
-            var label = Label("Caption", img.transform, caption, fontSize, textColor, TextAlignmentOptions.Center);
-            label.margin = new Vector4(12f, 0f, 12f, 0f);
-            label.characterSpacing = 2f;
+            btn.targetGraphic = img;
 
             if (onClick != null)
             {
@@ -147,6 +155,57 @@ namespace Slime.Game
                     onClick();
                 });
             }
+        }
+
+        public static Button TextButton(string name, Transform parent, string caption, int fontSize, Color fill, Color textColor, Action onClick)
+        {
+            // 真图按钮底（金框石板）优先；参数 fill 在真图模式下不再染色，统一质感
+            Image img = Skinned(name, parent, "ui_button", new Vector4(110f, 110f, 110f, 110f));
+            Button btn;
+            if (img != null)
+            {
+                btn = img.gameObject.AddComponent<Button>();
+                AttachClickFeedback(btn, img, onClick);
+            }
+            else
+            {
+                img = Rounded(name, parent, Theme.RadiusM, fill, Theme.Lighten(fill, 0.18f), 2, true);
+                btn = img.gameObject.AddComponent<Button>();
+                AttachClickFeedback(btn, img, onClick);
+            }
+
+            var label = Label("Caption", img.transform, caption, fontSize, textColor, TextAlignmentOptions.Center);
+            label.margin = new Vector4(12f, 0f, 12f, 0f);
+            label.characterSpacing = 2f;
+
+            return btn;
+        }
+
+        /// <summary>
+        /// 主 CTA：金色浮雕板底（继续冒险这类一屏唯一的大按钮）。缺素材回退 TextButton。
+        /// 金亮面上深色字比白字清楚得多。
+        /// </summary>
+        public static Button PrimaryButton(string name, Transform parent, string caption, int fontSize, Action onClick)
+        {
+            Image img = Skinned(name, parent, "ui_button_gold", new Vector4(110f, 110f, 110f, 110f));
+            Button btn;
+            if (img != null)
+            {
+                btn = img.gameObject.AddComponent<Button>();
+                AttachClickFeedback(btn, img, onClick);
+                fontSize += 4;
+            }
+            else
+            {
+                img = Rounded(name, parent, Theme.RadiusM, Theme.Gold, Theme.Lighten(Theme.Gold, 0.25f), 2, true);
+                btn = img.gameObject.AddComponent<Button>();
+                AttachClickFeedback(btn, img, onClick);
+            }
+
+            var label = Label("Caption", img.transform, caption, fontSize, Theme.Darken(Theme.Gold, 0.62f), TextAlignmentOptions.Center);
+            label.margin = new Vector4(16f, 0f, 16f, 0f);
+            label.characterSpacing = 4f;
+            label.fontStyle = FontStyles.Bold;
 
             return btn;
         }
