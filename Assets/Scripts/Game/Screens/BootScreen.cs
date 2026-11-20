@@ -5,30 +5,36 @@ using TMPro;
 namespace Slime.Game
 {
     /// <summary>
-    /// 开屏演出。不是「Logo 挂在那里等进度条」——所有元素分四波进场，
-    /// LOGO 落地后保持呼吸，星尘环绕漂浮，光晕脉动，进度条 smoothstep 充能。
+    /// 开屏演出。画面 = bg_title 主视觉插画（贴纸史莱姆 + 新春灯笼 + 城堡剪影夜景）
+    /// 压一层轻遮罩，海报式金字标题压在上部留空区，副标题金框徽章紧随其下。
+    /// 所有元素分三波进场，标题落地后星尘环绕漂浮，进度条 smoothstep 充能。
     /// 时间轴（演出 2.2s，之后交棒给登录恢复）：
-    ///   0.08 光晕展开 → 0.15 LOGO 弹入 → 0.50 落地挤压 → 0.55/0.75 标题/副标题滑入
-    ///   → 0.90 星尘显形 → 0.95 进度条充能 → 2.2 完成转场
+    ///   0.15 标题弹入 → 0.50 落地挤压 → 0.55/0.95 徽章/进度条 → 0.90 星尘显形 → 2.2 转场
+    ///
+    /// 注意：标题描边用 UI.Shadow 四向叠加（顶点复制），不能用 TMP 的 outline
+    /// keyword——运行时动态字体图集没有描边 padding，采样会取到相邻字素的像素，
+    /// 字面渲染成黑色噪声块。
     /// </summary>
     public sealed class BootScreen : Screen
     {
+        public override string BgKey { get { return "bg_title"; } }
+
         private float elapsed;
         private Image barFill;
         private TextMeshProUGUI tip;
         private bool advanced;
+        private bool loginResolved;
+        private bool loginOk;
 
-        private Image slime;
-        private Image glow;
         private RectTransform[] dusts;
 
-        /// <summary>星尘的确定性分布：绕 LOGO 的椭圆环，避开中轴标题区。</summary>
+        /// <summary>星尘的确定性分布：绕开中央史莱姆与上部标题带的两侧空域。</summary>
         private static readonly Vector2[] DustSpots =
         {
-            new Vector2(-430f, 330f), new Vector2(410f, 360f),
-            new Vector2(-520f, 150f), new Vector2(510f, 130f),
-            new Vector2(-350f, 430f), new Vector2(330f, 445f),
-            new Vector2(-260f, 240f),
+            new Vector2(-620f, 300f), new Vector2(640f, 340f),
+            new Vector2(-540f, 110f), new Vector2(560f, 90f),
+            new Vector2(-700f, 430f), new Vector2(710f, 450f),
+            new Vector2(-460f, 190f),
         };
 
         private static readonly float[] DustSize = { 14f, 10f, 12f, 9f, 11f, 8f, 13f };
@@ -37,42 +43,34 @@ namespace Slime.Game
 
         protected override void Build()
         {
-            var backdrop = Ui.Solid("Backdrop", Root, Theme.BgDeep);
-            backdrop.raycastTarget = false;
+            // 主视觉插画由 GameApp.SetBackground(bg_title) 铺满，这里只压一层轻遮罩
+            // ——不遮也行，但插画下部饱和度高，白字会浮；22% 的黑让金字往下沉一沉。
+            var veil = Ui.Solid("Veil", Root, new Color(0f, 0f, 0f, 0.22f));
+            veil.raycastTarget = false;
 
-            // 光晕：第一波进场，从 0.4 倍展开 + 淡入，之后 Tick 持续脉动
-            glow = Ui.Panel("Glow", Root, SpriteForge.Glow(256, Theme.Accent), Theme.WithAlpha(Color.white, 0f));
-            Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 140f), new Vector2(760f, 760f));
-            glow.type = Image.Type.Simple;
-            glow.rectTransform.localScale = Vector3.one * 0.4f;
-            Tween.Scale(glow.rectTransform, 0.4f, 1f, 0.55f, Easing.OutCubic, null, 0.08f);
-            Tween.FadeIn(glow, 0.55f, 0.08f, 0f, 0.30f);
-
-            // LOGO：第二波，从 0.3 弹到 1，落地瞬间挤压一次
-            slime = Ui.Panel("Slime", Root,
-                SpriteForge.Slime(256, Theme.Accent, Theme.BgDeep, 20091, true, SlimeFace.Happy), Color.white);
-            slime.rectTransform.localScale = Vector3.one * 0.3f;
-            Ui.Fixed(slime.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 150f), new Vector2(300f, 300f));
-            Tween.PopIn(slime.rectTransform, 0.15f, 0.3f, 0.5f);
-            Tween.Punch(slime.rectTransform, 0.10f, 0.30f, 0.62f);
-
-            var title = Ui.Label("Title", Root, "第九张史莱姆牌", Theme.H1, Theme.Text, TextAlignmentOptions.Center);
-            title.characterSpacing = 6f;
+            // 标题：第一波，从 0.3 弹到 1，落地瞬间挤压一次。金字 + 四向投影描边压插画
+            var title = Ui.Label("Title", Root, "第九张史莱姆牌", 62, Theme.Gold, TextAlignmentOptions.Center);
+            title.characterSpacing = 8f;
+            AddOutline(title.gameObject, new Color(0.03f, 0.08f, 0.10f, 0.85f), 3f);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -70f), new Vector2(1200f, 70f));
-            Tween.SlideIn(title.rectTransform, new Vector2(0f, 46f), 0.42f, 0.55f);
-            Tween.FadeIn(title, 0.42f, 0.55f, 0f, 1f);
+                new Vector2(0f, 386f), new Vector2(1200f, 84f));
+            Tween.PopIn(title.rectTransform, 0.15f, 0.3f, 0.5f);
+            Tween.Punch(title.rectTransform, 0.10f, 0.30f, 0.62f);
+            Tween.FadeIn(title, 0.30f, 0.15f, 0f, 1f);
 
-            var sub = Ui.Label("Sub", Root, "一 对 一 · 卡 牌 对 决", Theme.H4, Theme.Accent, TextAlignmentOptions.Center);
+            // 副标题徽章：金框石板胶囊，第二波淡入
+            var badge = Ui.Rounded("Badge", Root, 12,
+                Theme.WithAlpha(Theme.PanelSunken, 0.88f), Theme.WithAlpha(Theme.Gold, 0.85f), 2);
+            Ui.Fixed(badge.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 296f), new Vector2(380f, 52f));
+            Tween.FadeIn(badge, 0.35f, 0.55f, 0f, 1f);
+
+            var sub = Ui.Label("Sub", badge.transform, "一 对 一 · 卡 牌 对 决",
+                Theme.H4, Theme.Gold, TextAlignmentOptions.Center);
             sub.characterSpacing = 3f;
-            Ui.Fixed(sub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -140f), new Vector2(900f, 40f));
-            Tween.SlideIn(sub.rectTransform, new Vector2(0f, 32f), 0.42f, 0.75f);
-            Tween.FadeIn(sub, 0.42f, 0.75f, 0f, 1f);
+            Ui.Stretch(sub.rectTransform, 0f, 0f, 0f, 0f);
 
-            // 星尘：第三波，环绕 LOGO 的呼吸小圆点，Tick 持续漂浮
+            // 星尘：第二波，环绕主视觉两侧的呼吸小圆点，Tick 持续漂浮
             dusts = new RectTransform[DustSpots.Length];
             for (int i = 0; i < DustSpots.Length; i++)
             {
@@ -86,46 +84,63 @@ namespace Slime.Game
                 dusts[i] = dot.rectTransform;
             }
 
-            // 进度条：第四波，充能起点与充能曲线都在 Tick 里
-            var barBg = Ui.Rounded("BarBg", Root, 10, Theme.PanelSunken, Theme.Border, 1);
+            // 进度条：金框石板底 + 金色充能，第三波淡入；充能起点与曲线都在 Tick 里
+            Sprite barSkin = ArtLib.UiArt("ui_panel", new Vector4(16f, 16f, 16f, 16f));
+            Image barBg = barSkin != null
+                ? Ui.Panel("BarBg", Root, barSkin, Color.white)
+                : Ui.Rounded("BarBg", Root, 10, Theme.PanelSunken, Theme.Border, 1);
+            barBg.type = Image.Type.Sliced;
             Ui.Fixed(barBg.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 120f), new Vector2(640f, 22f));
+                new Vector2(0f, 120f), new Vector2(640f, 26f));
             Tween.FadeIn(barBg, 0.3f, 0.95f, 0f, 1f);
 
-            barFill = Ui.Rounded("BarFill", barBg.transform, 10, Theme.Accent, Theme.Accent, 0);
+            barFill = Ui.Rounded("BarFill", barBg.transform, 8, Theme.Gold, Theme.Gold, 0);
             var fillRt = barFill.rectTransform;
             fillRt.anchorMin = new Vector2(0f, 0f);
             fillRt.anchorMax = new Vector2(0f, 1f);
             fillRt.pivot = new Vector2(0f, 0.5f);
-            fillRt.offsetMin = new Vector2(3f, 3f);
-            fillRt.offsetMax = new Vector2(3f, -3f);
-            fillRt.sizeDelta = new Vector2(0f, -6f);
+            fillRt.offsetMin = new Vector2(5f, 5f);
+            fillRt.offsetMax = new Vector2(5f, -5f);
+            fillRt.sizeDelta = new Vector2(0f, -10f);
             barFill.color = new Color(1f, 1f, 1f, 0f);
             Tween.FadeIn(barFill, 0.3f, 0.95f, 0f, 1f);
 
             tip = Ui.Label("Tip", Root, "正在洗牌…", Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(tip.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 84f), new Vector2(1200f, 30f));
+                new Vector2(0f, 78f), new Vector2(1200f, 30f));
             Tween.FadeIn(tip, 0.3f, 0.95f, 0f, 1f);
+
+            // 登录恢复与演出并行：请求现在发出，结果等演出放完再落地（见 Tick）
+            App.Tap.TryRestoreSession(ok =>
+            {
+                loginOk = ok;
+                loginResolved = true;
+            });
+        }
+
+        /// <summary>
+        /// 四向 Shadow 叠加模拟描边。纯顶点偏移复制，不触碰字体图集——
+        /// TMP 的 OUTLINE keyword 在运行时动态图集上会渲染成噪声（见类注释）。
+        /// </summary>
+        private static void AddOutline(GameObject go, Color color, float dist)
+        {
+            var offsets = new Vector2[]
+            {
+                new Vector2(dist, 0f), new Vector2(-dist, 0f),
+                new Vector2(0f, dist), new Vector2(0f, -dist),
+            };
+            foreach (var off in offsets)
+            {
+                var shadow = go.AddComponent<Shadow>();
+                shadow.effectColor = color;
+                shadow.effectDistance = off;
+                shadow.useGraphicAlpha = true;
+            }
         }
 
         public override void Tick(float deltaTime)
         {
             elapsed += deltaTime;
-
-            // LOGO 呼吸：等弹入（0.15+0.5s）结束后由 Tick 接管缩放，
-            // 与 Tween 的一次性补间不再抢同一个通道
-            if (elapsed > 0.75f && slime != null)
-            {
-                float breathe = 1f + Mathf.Sin((elapsed - 0.75f) * 3.0f) * 0.025f;
-                slime.rectTransform.localScale = Vector3.one * breathe;
-            }
-
-            // 光晕脉动：alpha 在 0.23~0.37 之间往复
-            if (glow != null)
-            {
-                glow.color = Theme.WithAlpha(Color.white, 0.30f + Mathf.Sin(elapsed * 1.8f) * 0.07f);
-            }
 
             // 星尘漂浮：围绕初始点位做正弦升降，相位与速度各不相同
             if (dusts != null)
@@ -146,7 +161,7 @@ namespace Slime.Game
             float t = Mathf.Clamp01((elapsed - 0.95f) / 1.2f);
             float progress = t * t * (3f - 2f * t);
             var rt = barFill.rectTransform;
-            rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 634f * progress);
+            rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 630f * progress);
 
             if (progress > 0.45f && progress < 0.5f)
             {
@@ -159,16 +174,20 @@ namespace Slime.Game
 
             if (elapsed >= 2.3f)
             {
-                advanced = true;
-                App.Audio.PlayMusic("title1");
+                if (!advanced)
+                {
+                    advanced = true;
+                    App.Audio.PlayMusic("title1");
+                    tip.text = "正在恢复登录态…";
+                }
 
-                // 登录链路合并：启动条走完直接在这层试恢复登录态——
+                // 登录链路合并：恢复请求在演出开始时就发出（异步），但结果必须等
+                // 演出放完才落地——本地秒回也不能把 2.3s 的入场演出腰斩。
                 // 恢复成功（老玩家的常态）免掉整块登录屏直接进主页；
                 // 失败才落进登录屏（它内部会再试一次，网络抖动时还能兜回来）。
-                tip.text = "正在恢复登录态…";
-                App.Tap.TryRestoreSession(ok =>
+                if (loginResolved)
                 {
-                    if (ok)
+                    if (loginOk)
                     {
                         App.Toast("欢迎回来 · " + App.Tap.Nickname);
                         App.Replace(new HomeScreen());
@@ -177,7 +196,7 @@ namespace Slime.Game
                     {
                         App.Replace(new LoginScreen());
                     }
-                });
+                }
             }
         }
     }
