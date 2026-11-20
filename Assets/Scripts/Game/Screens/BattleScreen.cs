@@ -223,6 +223,26 @@ namespace Slime.Game
 
             // 每次开战先弹一次玩法提示，别让人对着手牌点半天
             GameApp.I.Toast("拖动卡牌到中间的出牌区，松手即可打出");
+
+            // Boss 登场先吼一声，宣告「这一场不一样」
+            if (session.IsBoss)
+            {
+                GameApp.I.Audio.PlaySfx("boss_roar");
+            }
+        }
+
+        /// <summary>五系法术的出牌音：炎咒/冰咒/雷咒/光咒/暗咒各走专属音效，其余返回 null 用通用音。</summary>
+        private static string SeriesSfx(CardSeries s)
+        {
+            switch (s)
+            {
+                case CardSeries.Fire: return "fire";
+                case CardSeries.Ice: return "ice";
+                case CardSeries.Thunder: return "thunder";
+                case CardSeries.Light: return "holy";
+                case CardSeries.Dark: return "shadow";
+                default: return null;
+            }
         }
 
         #region 背景与战场
@@ -870,7 +890,7 @@ namespace Slime.Game
 
             SetStatusFade(0.12f);
             ShowDropZone(view.Instance);
-            GameApp.I.Audio.PlaySfx("ui");
+            GameApp.I.Audio.PlaySfx("ui_click");
         }
 
         /// <summary>拖拽期间把两侧 buff 状态行压暗——出牌区正好压在它们头上，不淡出会糊成一片。</summary>
@@ -923,7 +943,7 @@ namespace Slime.Game
             if (inside && !affordable)
             {
                 GameApp.I.Toast("魔力不足：" + view.Instance.Name + " 需要 " + view.Instance.Cost + " 点");
-                GameApp.I.Audio.PlaySfx("venom");
+                GameApp.I.Audio.PlaySfx("poison");
             }
 
             var released = view;
@@ -1091,7 +1111,7 @@ namespace Slime.Game
                 return;
             }
 
-            GameApp.I.Audio.PlaySfx("ui");
+            GameApp.I.Audio.PlaySfx("ui_click");
 
             dropZone.gameObject.SetActive(true);
             dropZone.localScale = Vector3.one * 0.94f;
@@ -1134,7 +1154,9 @@ namespace Slime.Game
                 return;
             }
 
-            GameApp.I.Audio.PlaySfx(attack ? "slash" : "play");
+            // 五系法术各走专属音；攻击/自用牌再落回通用斩击/出牌音
+            string seriesSfx = card.Def != null ? SeriesSfx(card.Def.Series) : null;
+            GameApp.I.Audio.PlaySfx(seriesSfx ?? (attack ? "slash" : "play_card"));
 
             // 飞出目标：攻击牌飞向敌人立绘，自用牌飞回玩家立绘。
             // 卡锚点是"卡底、参照父底边"：anchored.y = 目标中心坐标 + 半屏高。
@@ -1175,7 +1197,7 @@ namespace Slime.Game
 
         private void OnQuitClicked()
         {
-            GameApp.I.Audio.PlaySfx("ui");
+            GameApp.I.Audio.PlaySfx("ui_click");
             // 认输即本局结束：走统一的失败结算，而不是只记一次战斗
             GameApp.I.Director.SettleDefeat(session);
             GameApp.I.PersistMeta();
@@ -1427,7 +1449,7 @@ namespace Slime.Game
                 btn.colors = colors;
                 btn.onClick.AddListener(() =>
                 {
-                    App.Audio.PlaySfx("ui");
+                    App.Audio.PlaySfx("ui_click");
                     MechanicPopup.Show(Root, entry);
                 });
             }
@@ -1709,6 +1731,7 @@ namespace Slime.Game
                     case EventKind.Shield:
                         SpawnFloat(e.Text, Theme.Shield, at + new Vector2(Random.Range(-30f, 30f), 24f), 1.05f, 74f);
                         StartCast(e.OnEnemy);
+                        GameApp.I.Audio.PlaySfx("shield");
                         break;
                     case EventKind.Energy:
                         SpawnFloat(e.Text, Theme.Mana, at + new Vector2(Random.Range(-30f, 30f), 44f), 0.95f, 66f);
@@ -1724,14 +1747,14 @@ namespace Slime.Game
                         UpdateLog(e.Text);
                         break;
                     case EventKind.Play:
-                        GameApp.I.Audio.PlaySfx("play");
+                        GameApp.I.Audio.PlaySfx("play_card");
                         UpdateLog(e.Text);
                         break;
                     case EventKind.Debuff:
                         SpawnFloat(e.Text, Theme.SeriesDark, at + new Vector2(0f, 64f), 1.0f, 78f);
                         // 上负面的一方在「施法」：目标在自己对面
                         StartCast(!e.OnEnemy);
-                        GameApp.I.Audio.PlaySfx("venom");
+                        GameApp.I.Audio.PlaySfx("poison");
                         break;
                     case EventKind.Status:
                         // 状态变化不走飘字 —— 敌人每回合施加状态也发这个事件，
@@ -1745,7 +1768,8 @@ namespace Slime.Game
                         Flash(e.OnEnemy);
                         HitPunch(e.OnEnemy, 0.18f);
                         StartLunge(!e.OnEnemy);
-                        GameApp.I.Audio.PlaySfx("mana");
+                        // 兑现是爆发时刻：雷暴声压得住场面（mana 铃声太轻，配不上「攒了半天一次打出去」）
+                        GameApp.I.Audio.PlaySfx("thunder");
                         Tween.Shake(Root, e.OnEnemy ? 9f : 5f, 0.34f);
                         UpdateLog(e.Text);
                         break;

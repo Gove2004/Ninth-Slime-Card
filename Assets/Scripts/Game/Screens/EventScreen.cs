@@ -195,11 +195,11 @@ namespace Slime.Game
                         int win = cost * 2;
                         director.Gold += win;
                         director.GoldEarned += win;
-                        App.Audio.PlaySfx("mana");
+                        App.Audio.PlaySfx("coin");
                         return "他翻开一张空牌。「你赢了。」收回 " + win + " 金币。";
                     }
 
-                    App.Audio.PlaySfx("venom");
+                    App.Audio.PlaySfx("shadow");
                     return "他把金币扫进袖子里，没再看你。那 " + cost + " 金币没了。";
                 }
             });
@@ -341,7 +341,7 @@ namespace Slime.Game
                     var card = director.Deck[pick];
                     director.UpgradeCard(pick);
 
-                    App.Audio.PlaySfx("mana");
+                    App.Audio.PlaySfx("reward");
                     return "你付了 " + paid + " 金币，《" + card.Name + "》变得锋利了。";
                 }
             });
@@ -534,7 +534,7 @@ namespace Slime.Game
                 return;
             }
 
-            App.Audio.PlaySfx("ui");
+            App.Audio.PlaySfx("ui_click");
             receipt = choice.Apply != null ? choice.Apply() : "什么也没发生。";
 
             // 事件改变的是局内状态，立刻落盘，避免中途被杀进程丢进度

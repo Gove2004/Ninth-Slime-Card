@@ -29,6 +29,8 @@ namespace Slime.Game
         protected override void Build()
         {
             App.Audio.PlayMusic(victory ? "title2" : "title1");
+            // 胜负 jingle 只在进入结算瞬间放一次，音乐随后正常续播
+            App.Audio.PlaySfx(victory ? "victory" : "defeat");
 
             Color accent = victory ? Theme.Gold : Theme.Danger;
 

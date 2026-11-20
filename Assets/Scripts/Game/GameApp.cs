@@ -406,7 +406,7 @@ namespace Slime.Game
             var confirm = Ui.TextButton("Confirm", panel.transform, confirmCaption, Theme.H3,
                 Theme.Danger, Theme.Text, () =>
                 {
-                    Audio.PlaySfx("ui");
+                    Audio.PlaySfx("ui_click");
                     close();
                     if (onConfirm != null)
                     {
@@ -419,7 +419,7 @@ namespace Slime.Game
             var cancel = Ui.TextButton("Cancel", panel.transform, cancelCaption, Theme.H3,
                 Theme.PanelRaised, Theme.TextDim, () =>
                 {
-                    Audio.PlaySfx("ui");
+                    Audio.PlaySfx("ui_back");
                     close();
                 });
             Ui.Fixed(cancel.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),

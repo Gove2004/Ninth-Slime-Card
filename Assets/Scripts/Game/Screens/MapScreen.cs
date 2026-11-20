@@ -138,7 +138,7 @@ namespace Slime.Game
         /// </summary>
         private void ConfirmAbandon()
         {
-            App.Audio.PlaySfx("ui");
+            App.Audio.PlaySfx("ui_click");
             App.ShowConfirm("放弃本局？本局的牌组与进度都会清空。", "放 弃", "继 续 冒 险", () =>
             {
                 App.Director.AbandonRun();
@@ -420,7 +420,7 @@ namespace Slime.Game
                 return;
             }
 
-            App.Audio.PlaySfx("ui");
+            App.Audio.PlaySfx("ui_click");
             if (!director.EnterNode(nodeId))
             {
                 return;

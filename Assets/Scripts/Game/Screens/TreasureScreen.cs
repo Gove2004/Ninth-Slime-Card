@@ -106,7 +106,7 @@ namespace Slime.Game
 
         private void onOpen()
         {
-            App.Audio.PlaySfx("mana");
+            App.Audio.PlaySfx("treasure");
             card = App.Director.RollTreasureCard();
             opened = true;
 
@@ -165,7 +165,7 @@ namespace Slime.Game
             skip.GetComponentInChildren<TextMeshProUGUI>().color = Theme.TextDim;
             skip.onClick.AddListener(() =>
             {
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_back");
                 App.Toast("放弃了这张牌");
                 Leave();
             });
@@ -184,7 +184,7 @@ namespace Slime.Game
                 return;
             }
 
-            App.Audio.PlaySfx("mana");
+            App.Audio.PlaySfx("reward");
 
             // 牌组满员时不再弹替换面板：宝箱是顺手捡的东西，
             // 为一个可能不需要的牌打断流程去挑弃牌，代价比收益高。

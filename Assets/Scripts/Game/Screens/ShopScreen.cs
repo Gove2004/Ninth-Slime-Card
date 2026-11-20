@@ -277,14 +277,14 @@ namespace Slime.Game
             var director = App.Director;
             if (director.Gold < offer.Price)
             {
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_click");
                 App.Toast("金币不足（需要 " + offer.Price + "）");
                 return;
             }
 
             if (director.AtDeckCap)
             {
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_click");
                 App.Toast("牌组已满 " + director.DeckCount + " / " + DeckRules.DeckCap);
                 return;
             }
@@ -293,7 +293,7 @@ namespace Slime.Game
             director.TakeReward(offer.Def);
             offer.Sold = true;
 
-            App.Audio.PlaySfx("mana");
+            App.Audio.PlaySfx("coin");
             App.Toast("买下了《" + offer.Def.Name + "》");
             render();
         }
@@ -309,12 +309,12 @@ namespace Slime.Game
 
             if (director.Gold < removePrice)
             {
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_click");
                 App.Toast("金币不足（需要 " + removePrice + "）");
                 return;
             }
 
-            App.Audio.PlaySfx("ui");
+            App.Audio.PlaySfx("ui_click");
             showRemovePicker();
         }
 
@@ -380,7 +380,7 @@ namespace Slime.Game
                     App.Director.Gold -= removePrice;
                     removeUsed = true;
 
-                    App.Audio.PlaySfx("play");
+                    App.Audio.PlaySfx("play_card");
                     App.Toast("移除了《" + def.Name + "》");
                     Object.Destroy(overlay.gameObject);
                     render();
@@ -390,7 +390,7 @@ namespace Slime.Game
             var cancel = Ui.TextButton("Cancel", panel.transform, "算了，什么都不买", Theme.Body,
                 Theme.PanelRaised, Theme.TextDim, () =>
                 {
-                    App.Audio.PlaySfx("ui");
+                    App.Audio.PlaySfx("ui_click");
                     Object.Destroy(overlay.gameObject);
                 });
             Ui.Fixed(cancel.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
@@ -409,7 +409,7 @@ namespace Slime.Game
             btn.targetGraphic = img;
             btn.onClick.AddListener(() =>
             {
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_click");
                 Tween.Punch(img.rectTransform, 0.03f, 0.2f);
                 onPick();
             });

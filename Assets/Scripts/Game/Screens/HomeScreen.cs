@@ -363,7 +363,7 @@ namespace Slime.Game
 
         private void StartRun()
         {
-            App.Audio.PlaySfx("ui");
+            App.Audio.PlaySfx("ui_click");
             App.Fade(0f, 1f, Theme.Fast, () =>
             {
                 App.Replace(new MapScreen());
@@ -376,7 +376,7 @@ namespace Slime.Game
             // 重开会清掉当前局，属于不可撤回操作，必须二次确认
             App.ShowConfirm("重开一局会放弃当前进度\n（奖杯与图鉴记录保留）", "确认重开", "取消", () =>
             {
-                App.Audio.PlaySfx("mana");
+                App.Audio.PlaySfx("reward");
                 App.Director.StartNewRun();
                 App.PersistMeta();
                 App.Toast("已重开一局");
@@ -398,7 +398,7 @@ namespace Slime.Game
 
         private void StartEndless()
         {
-            App.Audio.PlaySfx("mana");
+            App.Audio.PlaySfx("reward");
             App.Director.StartNewRun(true);
             App.PersistMeta();
             App.Toast("无限年 · 第 1 层");

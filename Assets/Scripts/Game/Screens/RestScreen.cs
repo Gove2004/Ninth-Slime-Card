@@ -89,7 +89,7 @@ namespace Slime.Game
                 btn.targetGraphic = card;
                 btn.onClick.AddListener(() =>
                 {
-                    App.Audio.PlaySfx("ui");
+                    App.Audio.PlaySfx("ui_click");
                     Tween.Punch(card.rectTransform, 0.06f, 0.2f);
                     onClick();
                 });
@@ -128,7 +128,7 @@ namespace Slime.Game
 
         private void OnForge()
         {
-            App.Audio.PlaySfx("ui");
+            App.Audio.PlaySfx("ui_click");
             resolved = true;
             ShowUpgradePicker();
         }
@@ -164,7 +164,7 @@ namespace Slime.Game
                     {
                         btn.onClick.AddListener(() =>
                         {
-                            App.Audio.PlaySfx("mana");
+                            App.Audio.PlaySfx("reward");
                             App.Director.UpgradeCard(index);
                             App.Toast("已升级《" + card.Name + "》");
                             resolved = true;

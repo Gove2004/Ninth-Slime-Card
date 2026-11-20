@@ -148,7 +148,7 @@ namespace Slime.Game
                 {
                     if (GameApp.I != null)
                     {
-                        GameApp.I.Audio.PlaySfx("ui");
+                        GameApp.I.Audio.PlaySfx("ui_click");
                     }
 
                     Tween.Punch(img.rectTransform, 0.10f, 0.22f);

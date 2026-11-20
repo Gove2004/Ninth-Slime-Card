@@ -61,7 +61,7 @@ namespace Slime.Game
                 Theme.Body, Theme.PanelRaised, Theme.Text, () =>
                 {
                     meta.FestivalPref = (meta.FestivalPref + 1) % 3;
-                    App.Audio.PlaySfx("ui");
+                    App.Audio.PlaySfx("ui_click");
                     App.PersistMeta();
                     // 只改文字不重建节点：Destroy 当帧不生效，同帧重建会新旧按钮叠在一起
                     var label = btn.GetComponentInChildren<TMPro.TMP_Text>();
@@ -102,7 +102,7 @@ namespace Slime.Game
             BuildSlider(panel.transform, 0, "音乐音量", "标题与战斗背景音乐", App.Audio.MusicVolume, v =>
             {
                 App.Audio.SetMusicVolume(v);
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_click");
                 App.PersistMeta();
             });
 
@@ -117,7 +117,7 @@ namespace Slime.Game
             BuildSlider(panel.transform, 110, "音效音量", "出牌、爆发与界面反馈音", App.Audio.SfxVolume, v =>
             {
                 App.Audio.SetSfxVolume(v);
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_click");
                 App.PersistMeta();
             });
         }

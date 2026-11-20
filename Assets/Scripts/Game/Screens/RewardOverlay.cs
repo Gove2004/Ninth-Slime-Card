@@ -315,7 +315,7 @@ namespace Slime.Game
                 return;
             }
 
-            GameApp.I.Audio.PlaySfx("mana");
+            GameApp.I.Audio.PlaySfx("reward");
 
             // 牌组满员：先请玩家弃一张，再入库
             if (GameApp.I.Director.AtDeckCap)
@@ -333,7 +333,7 @@ namespace Slime.Game
 
         private void Skip()
         {
-            GameApp.I.Audio.PlaySfx("ui");
+            GameApp.I.Audio.PlaySfx("ui_click");
             round = TotalRounds;
             RefreshDeckInfo();
             Render();
@@ -399,7 +399,7 @@ namespace Slime.Game
                 {
                     GameApp.I.Director.RemoveFromDeck(def.Id);
                     GameApp.I.Director.TakeReward(incoming);
-                    GameApp.I.Audio.PlaySfx("mana");
+                    GameApp.I.Audio.PlaySfx("reward");
                     GameApp.I.Toast("换入《" + incoming.Name + "》，移出《" + def.Name + "》");
 
                     Object.Destroy(overlay.gameObject);
@@ -416,7 +416,7 @@ namespace Slime.Game
             var cancel = Ui.TextButton("Cancel", panel.transform, "保留原牌组（放弃本次奖励）", Theme.Body,
                 Theme.PanelRaised, Theme.TextDim, () =>
                 {
-                    GameApp.I.Audio.PlaySfx("ui");
+                    GameApp.I.Audio.PlaySfx("ui_back");
                     Object.Destroy(overlay.gameObject);
                     round = TotalRounds;
                     Render();
@@ -437,7 +437,7 @@ namespace Slime.Game
             btn.targetGraphic = img;
             btn.onClick.AddListener(() =>
             {
-                GameApp.I.Audio.PlaySfx("ui");
+                GameApp.I.Audio.PlaySfx("ui_click");
                 Tween.Punch(img.rectTransform, 0.03f, 0.2f);
                 onPick();
             });

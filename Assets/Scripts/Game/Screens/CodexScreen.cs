@@ -206,7 +206,7 @@ namespace Slime.Game
             // 而不是把卡面文字抄进一个小方块里再缩到看不清。
             var view = CardView.Create(cell, def, v =>
             {
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_click");
                 ShowCardDetail(def);
             });
 
@@ -572,11 +572,11 @@ namespace Slime.Game
             if (!App.Director.TryPurchase(def, out message))
             {
                 App.Toast(message);
-                App.Audio.PlaySfx("ui");
+                App.Audio.PlaySfx("ui_click");
                 return;
             }
 
-            App.Audio.PlaySfx("mana");
+            App.Audio.PlaySfx("reward");
             App.ReportAchievement(def);
             Show(Tab.Achievements);
         }
