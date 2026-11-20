@@ -183,6 +183,24 @@ namespace Slime.Game
         }
 
         /// <summary>
+        /// 哑光次级按钮：纯程序化石板，无金框。
+        /// 金框底图是稀缺资源，一屏只该有一两个主角；页脚入口、认输这类
+        /// 「不能抢 CTA 戏」的按钮一律用这个，层级靠质感差异立起来。
+        /// </summary>
+        public static Button GhostButton(string name, Transform parent, string caption, int fontSize, Action onClick)
+        {
+            var img = Rounded(name, parent, Theme.RadiusM,
+                Theme.WithAlpha(Theme.PanelRaised, 0.92f), Theme.Border, 1, true);
+            var btn = img.gameObject.AddComponent<Button>();
+            AttachClickFeedback(btn, img, onClick);
+
+            var label = Label("Caption", img.transform, caption, fontSize, Theme.TextDim, TextAlignmentOptions.Center);
+            label.margin = new Vector4(12f, 0f, 12f, 0f);
+            label.characterSpacing = 2f;
+            return btn;
+        }
+
+        /// <summary>
         /// 主 CTA：金色浮雕板底（继续冒险这类一屏唯一的大按钮）。缺素材回退 TextButton。
         /// 金亮面上深色字比白字清楚得多。
         /// </summary>

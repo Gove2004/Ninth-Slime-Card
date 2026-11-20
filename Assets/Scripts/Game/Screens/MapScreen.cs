@@ -21,12 +21,14 @@ namespace Slime.Game
         private const int VisibleSpan = 2;
 
         /// <summary>相邻两层的纵向间距。必须同时容下「节点直径 + 节点名」，否则名字会蹭到下一层。</summary>
-        private const float LayerGap = 158f;
+        private const float LayerGap = 170f;
 
-        private const float MapLeft = -750f;
-        private const float MapRight = 750f;
-        private const float MapBottom = -350f;
-        private const float MapTop = 340f;
+        // 画布铺满标题栏与底部提示之间的整块空地：节点缩在中央一小块时，
+        // 两侧大半屏幕全是空的背景剪影，地图反而像挂在一根柱子上。
+        private const float MapLeft = -830f;
+        private const float MapRight = 830f;
+        private const float MapBottom = -320f;
+        private const float MapTop = 350f;
 
         private const float NodeSize = 88f;
 
@@ -111,8 +113,7 @@ namespace Slime.Game
         /// </summary>
         private void BuildHeaderStats(RectTransform header)
         {
-            var abandon = Ui.TextButton("Abandon", header, "放弃本局", Theme.Body,
-                Theme.PanelRaised, Theme.TextDim, ConfirmAbandon);
+            var abandon = Ui.GhostButton("Abandon", header, "放弃本局", Theme.Body, ConfirmAbandon);
             Ui.Fixed(abandon.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
                 new Vector2(-20f, 0f), new Vector2(176f, 64f));
 
@@ -233,20 +234,19 @@ namespace Slime.Game
                     float thickness;
                     if (walked)
                     {
-                        color = Theme.WithAlpha(Theme.Gold, 0.8f);
+                        color = Theme.WithAlpha(Theme.Gold, 0.85f);
                         thickness = 6f;
                     }
                     else if (step)
                     {
-                        color = Theme.WithAlpha(Theme.Accent, 0.55f);
+                        color = Theme.WithAlpha(Theme.Accent, 0.75f);
                         thickness = 5f;
                     }
                     else
                     {
                         // 底纹要淡到「能看出有路」但「不参与抢注意力」。
-                        // 0.15 太淡了：底纹彻底消失后，玩家看不出这些节点之间有没有路，
-                        // 反而以为每个圆点是孤立的。0.26 能看出连线，又不抢焦点。
-                        color = Theme.WithAlpha(Theme.Border, 0.26f);
+                        // 画布扩大后节点间距变长，线太淡会彻底断开——0.34 保住连续感。
+                        color = Theme.WithAlpha(Theme.Border, 0.34f);
                         thickness = 4f;
                     }
 

@@ -47,6 +47,29 @@ namespace Slime.Game
         {
             body = panel;
             rollOffers();
+
+            // 金币读数只建一次（render 会随购买反复重建 body）：
+            // 一枚小金币图标 + 数字，挂在面板标题行右缘、与「商 人」同一基线。
+            // 正文右上会压住商品卡，底栏又被两个按钮占满。
+            // 注意 BuildContent 的 panel 参数就是 body 本身——必须挂到 body.parent
+            // （真正的面板），否则 render 的 ClearChildren 会把它一起清掉。
+            var plate = body.parent as RectTransform;
+            var goldIcon = Ui.Panel("GoldIcon", plate, ArtLib.UiArt("icon_gold", Vector4.zero), Color.white);
+            if (goldIcon.sprite == null)
+            {
+                goldIcon.sprite = Ui.White;
+                goldIcon.color = Theme.Gold;
+            }
+
+            goldIcon.preserveAspect = true;
+            Ui.Fixed(goldIcon.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-32f, -76f), new Vector2(40f, 40f));
+
+            goldLabel = Ui.Label("Gold", plate, string.Empty, Theme.H4,
+                Theme.Gold, TextAlignmentOptions.Right);
+            Ui.Fixed(goldLabel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-84f, -76f), new Vector2(220f, 40f));
+
             render();
         }
 
@@ -134,34 +157,19 @@ namespace Slime.Game
 
             views.Clear();
 
-            var director = App.Director;
-
-            // 金币曾经横在副标题和商品之间，字号比标题还大，把视线从货上拽走。
-            // 它是「读数」不是「标题」，钉在正文右上角，与卡片行对齐。
-            var goldBox = Ui.Rounded("GoldBox", body, Theme.RadiusS,
-                Theme.WithAlpha(Theme.PanelSunken, 0.95f), Theme.WithAlpha(Theme.Gold, 0.45f), 1);
-            Ui.Fixed(goldBox.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-6f, -6f), new Vector2(230f, 42f));
-
-            goldLabel = Ui.Label("Gold", goldBox.transform, "金币 " + director.Gold, Theme.H4,
-                Theme.Gold, TextAlignmentOptions.Center);
-            Ui.Stretch(goldLabel.rectTransform, 0f, 0f, 0f, 0f);
-
             buildOffers();
 
-            // 底部：删牌服务 + 离开
-            removeButton = Ui.TextButton("Remove", body,
-                "移除一张牌 · " + removePrice + " 金币", Theme.H3,
-                Theme.PanelRaised,
-                removeUsed ? Theme.TextFaint : Theme.Gold, onRemoveClicked);
+            // 底部：删牌服务 + 离开。两个都是哑光入口——本屏的主角是货架上的卡，
+            // 按钮铺金框只会和卡抢视线。
+            removeButton = Ui.GhostButton("Remove", body,
+                "移除一张牌 · " + removePrice + " 金币", Theme.H3, onRemoveClicked);
             removeCaption = removeButton.GetComponentInChildren<TextMeshProUGUI>();
             Ui.Fixed(removeButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(-240f, 16f), new Vector2(440f, 74f));
+                new Vector2(-240f, 20f), new Vector2(440f, 64f));
 
-            var leave = Ui.TextButton("Leave", body, "离 开 商 店", Theme.H3,
-                Theme.AccentDeep, Theme.Text, Leave);
+            var leave = Ui.GhostButton("Leave", body, "离 开 商 店", Theme.H3, Leave);
             Ui.Fixed(leave.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(240f, 16f), new Vector2(440f, 74f));
+                new Vector2(240f, 20f), new Vector2(440f, 64f));
 
             refreshAffordability();
         }

@@ -48,11 +48,11 @@ namespace Slime.Game
         private const float ZoneH = 124f;
         private const float ZoneSlack = 26f;       // 判定放宽，别让手抖毁掉一次出牌
 
-        // ---- 底部角位：魔力宝石 / 抽牌堆靠左，弃牌堆、结束回合靠右 ----
+        // ---- 底部角位：魔力宝石 / 抽牌堆靠左，弃牌堆、结束回合靠右（同一基线） ----
         private const float ManaX = -640f;
-        private const float ManaY = -396f;
+        private const float ManaY = -394f;
         private const float DrawPileX = -840f;
-        private const float PileY = -392f;
+        private const float PileY = -394f;
         private const float DiscardPileX = 840f;
         private const float EndTurnX = 800f;
         private const float EndTurnY = -200f;
@@ -390,9 +390,8 @@ namespace Slime.Game
             Ui.Fixed(banner.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -106f), new Vector2(760f, 32f));
 
-            // 右上：认输
-            var quit = Ui.TextButton("Quit", Root, "认输", Theme.Caption,
-                Theme.WithAlpha(Theme.PanelRaised, 0.9f), Theme.TextFaint, OnQuitClicked);
+            // 右上：认输。哑光 GhostButton——它是最不该被点到的按钮，不能和结束回合抢金
+            var quit = Ui.GhostButton("Quit", Root, "认输", Theme.Caption, OnQuitClicked);
             Ui.Fixed(quit.GetComponent<RectTransform>(), new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-TopInset, -TopInset), new Vector2(150f, 54f));
 
@@ -1204,7 +1203,11 @@ namespace Slime.Game
             drawPileCount.text = session.Player.DrawPile.Count.ToString();
             discardPileCount.text = session.Player.DiscardPile.Count.ToString();
 
-            turnLabel.color = Theme.SeriesColor(session.EnemyInfo.Accent);
+            // 回合胶囊是状态信息不是敌人属性：字色统一正文白，
+            // 只有「敌方行动中」这一种情况用暖色提醒「轮不到你」。
+            turnLabel.color = session.Phase == BattlePhase.EnemyTurn
+                ? Theme.Lighten(Theme.SeriesBlade, 0.25f)
+                : Theme.Text;
         }
 
         private void RefreshHand()
@@ -1308,8 +1311,10 @@ namespace Slime.Game
             {
                 float t = n == 1 ? 0.5f : i / (float)(n - 1);
                 float x = left + spacing * i;
-                float arc = Mathf.Sin(t * Mathf.PI) * 22f;
-                float rot = Mathf.Lerp(5.5f, -5.5f, t);
+                // 扇形收敛：弧高 16、摆角 ±3.5°。摆角一大，相邻卡的内侧描述文字
+                // 会被斜着的卡边切出锯齿，读起来比叠压还难受。
+                float arc = Mathf.Sin(t * Mathf.PI) * 16f;
+                float rot = Mathf.Lerp(3.5f, -3.5f, t);
                 float y = HandBottom + arc;
 
                 // 悬停的那张抬起来并拉平，是"牌是活的"最直接的暗示
