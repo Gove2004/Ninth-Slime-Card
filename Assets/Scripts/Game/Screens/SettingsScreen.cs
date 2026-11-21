@@ -152,13 +152,6 @@ namespace Slime.Game
             var row = Ui.Node("Row", parent);
             Ui.FixedSize(row.gameObject, 0f, 56f);
 
-            var info = Ui.Label("Info", row,
-                "灯笼春联会在 1 月 20 日至 2 月 28 日自动出现，纯装饰。",
-                Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Outline(info.gameObject, new Color(0f, 0f, 0f, 0.6f), 2.5f);
-            Ui.Fixed(info.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                Vector2.zero, new Vector2(1100f, 34f));
-
             var meta = App.Meta;
             Button btn = null;
             btn = Ui.TextButton("FestBtn", row, "装饰：" + Festival.PrefName(meta.FestivalPref),
@@ -198,15 +191,6 @@ namespace Slime.Game
                 Theme.H3, Theme.Text, TextAlignmentOptions.Right);
             Ui.Fixed(nick.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
                 Vector2.zero, new Vector2(600f, 40f));
-
-            // 只留玩家自己会关心的一句话。UnionId 与应用数据目录属于排查现场才需要的东西。
-            string line = logged
-                ? "成就已解锁 " + App.Meta.Unlocked.Count + " / " + App.Achievements.All.Count + "，记录会同步到 TapTap"
-                : "成就已解锁 " + App.Meta.Unlocked.Count + " / " + App.Achievements.All.Count + "，未登录时只记在本机";
-
-            var info = Ui.Label("Info", parent, line, Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Outline(info.gameObject, new Color(0f, 0f, 0f, 0.6f), 2.5f);
-            Ui.FixedSize(info.gameObject, 0f, 30f);
         }
 
         private void BuildDataSection(RectTransform parent)
@@ -215,13 +199,6 @@ namespace Slime.Game
 
             var row = Ui.Node("Row", parent);
             Ui.FixedSize(row.gameObject, 0f, 56f);
-
-            var note = Ui.Label("Text", row,
-                "进度只写在本机，换设备或卸载后不会自动恢复。",
-                Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Outline(note.gameObject, new Color(0f, 0f, 0f, 0.6f), 2.5f);
-            Ui.Fixed(note.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                Vector2.zero, new Vector2(1200f, 34f));
 
             var reset = Ui.TextButton("Reset", row, "清除本地存档", Theme.Body,
                 Theme.WithAlpha(Theme.Danger, 0.85f), Theme.Text, ConfirmReset);

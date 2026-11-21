@@ -21,7 +21,6 @@ namespace Slime.Game
 
         private float elapsed;
         private Image barFill;
-        private TextMeshProUGUI tip;
         private bool advanced;
         private bool loginResolved;
         private bool loginOk;
@@ -96,11 +95,6 @@ namespace Slime.Game
             barFill.color = new Color(1f, 1f, 1f, 0f);
             Tween.FadeIn(barFill, 0.3f, 0.95f, 0f, 1f);
 
-            tip = Ui.Label("Tip", Root, "正在洗牌…", Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(tip.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 84f), new Vector2(1200f, 30f));
-            Tween.FadeIn(tip, 0.3f, 0.95f, 0f, 1f);
-
             // 登录恢复与演出并行：请求现在发出，结果等演出放完再落地（见 Tick）
             App.Tap.TryRestoreSession(ok =>
             {
@@ -134,22 +128,12 @@ namespace Slime.Game
             var rt = barFill.rectTransform;
             rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 520f * progress);
 
-            if (progress > 0.45f && progress < 0.5f)
-            {
-                tip.text = "正在展开牌桌…";
-            }
-            else if (progress > 0.8f)
-            {
-                tip.text = "准备就绪";
-            }
-
             if (elapsed >= 2.3f)
             {
                 if (!advanced)
                 {
                     advanced = true;
                     App.Audio.PlayMusic("title1");
-                    tip.text = "正在恢复登录态…";
                 }
 
                 // 登录链路合并：恢复请求在演出开始时就发出（异步），但结果必须等

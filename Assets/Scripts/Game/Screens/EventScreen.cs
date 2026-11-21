@@ -495,12 +495,12 @@ namespace Slime.Game
                     choice.Caption + (enabled ? string.Empty : "（" + blocked + "）"),
                     Theme.H3, enabled ? Theme.Text : Theme.TextFaint, TextAlignmentOptions.Left);
                 Ui.Fixed(caption.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(40f, 22f), new Vector2(1200f, 38f));
+                    new Vector2(40f, 26f), new Vector2(1200f, 38f));
 
-                var detail = Ui.Label("Detail", row.transform, choice.Detail, Theme.Caption,
+                var detail = Ui.Label("Detail", row.transform, choice.Detail, Theme.Body,
                     enabled ? Theme.TextDim : Theme.TextFaint, TextAlignmentOptions.Left);
                 Ui.Fixed(detail.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(40f, -24f), new Vector2(1200f, 28f));
+                    new Vector2(40f, -22f), new Vector2(1200f, 32f));
 
                 if (enabled)
                 {

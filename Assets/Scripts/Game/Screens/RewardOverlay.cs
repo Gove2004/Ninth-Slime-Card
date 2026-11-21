@@ -23,8 +23,6 @@ namespace Slime.Game
         private RectTransform root;
         private RectTransform content;
         private TextMeshProUGUI headline;
-        private TextMeshProUGUI subtitle;
-        private TextMeshProUGUI deckInfo;
 
         private readonly List<CardView> choices = new List<CardView>();
         private readonly List<GameObject> hintNodes = new List<GameObject>();
@@ -35,13 +33,6 @@ namespace Slime.Game
         /// 奖励候选是随机的，靠反复跳转碰运气验证不了任何一种提示。真机包里恒为 null。
         /// </summary>
         public static List<CardDef> ForcedChoices;
-
-        /// <summary>
-        /// 调试用：临时替换「当前牌组」来算配套提示。
-        /// 想看「兑现牌缺铺垫」就得让牌组为空，但真清空会毁掉正在进行的存档局，
-        /// 所以只覆盖分析用的那份视图。真机包里恒为 null。
-        /// </summary>
-        public static List<CardDef> ForcedDeck;
 
         private int round;
 
@@ -62,10 +53,7 @@ namespace Slime.Game
             // 0.88 起步——0.82 时可达节点的高亮色还是能透出来抢视线。
             Ui.Solid("Dim", root, new Color(0f, 0f, 0f, 0.88f), true);
 
-            var director = GameApp.I.Director;
-            var defeated = director.LastEnemy;
-
-            // 「选一张牌」和战斗统计原来直接裸摆在背景上，正好落在月亮和城堡的亮部，
+            // 「选一张牌」原来直接裸摆在背景上，正好落在月亮和城堡的亮部，
             // 灰字读不出来。给它们一条半透明底板，文字才有地方站。
             var banner = Ui.Rounded("Banner", root, Theme.RadiusM,
                 Theme.WithAlpha(Theme.Panel, 0.86f), Theme.WithAlpha(Theme.Border, 0.45f), 1);
@@ -75,56 +63,12 @@ namespace Slime.Game
             headline = Ui.Label("Headline", banner.transform, string.Empty, Theme.H2, Theme.Gold,
                 TextAlignmentOptions.Center);
             Ui.Fixed(headline.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 18f), new Vector2(880f, 44f));
-
-            subtitle = Ui.Label("Subtitle", banner.transform, BuildSummary(), Theme.Caption,
-                Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(subtitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -22f), new Vector2(880f, 30f));
-            Tween.FadeIn(subtitle, 0.3f, 0.12f, 0f, 1f);
-
-            var context = Ui.Label("Context", root, string.Empty, Theme.Caption,
-                Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(context.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -136f), new Vector2(1200f, 28f));
-            context.text = (defeated != null ? defeated.Name : "对手") + " 已被击败"
-                + "  ·  第 " + (director.Floor + 1) + " 层"
-                + "  ·  生命 " + director.Hp + " / " + director.HpMax;
+                new Vector2(0f, 0f), new Vector2(880f, 44f));
 
             content = Ui.Node("Content", root);
             Ui.Stretch(content, 0f, 272f, 0f, 120f);
 
-            deckInfo = Ui.Label("DeckInfo", root, string.Empty, Theme.Caption,
-                Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(deckInfo.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 16f), new Vector2(1200f, 28f));
-
-            RefreshDeckInfo();
             Render();
-        }
-
-        private string BuildSummary()
-        {
-            if (session == null)
-            {
-                return "牌组已补强";
-            }
-
-            return "造成伤害 " + session.DamageDealtByPlayer
-                 + "  ·  单回合最高 " + session.BestTurnDamage
-                 + "  ·  出牌 " + session.CardsPlayedByPlayer
-                 + "  ·  用了 " + session.TurnNumber + " 回合";
-        }
-
-        private void RefreshDeckInfo()
-        {
-            var director = GameApp.I.Director;
-            int count = director.DeckCount;
-            int cap = DeckRules.DeckCap;
-
-            deckInfo.text = "当前牌组 " + count + " / " + cap
-                            + (count >= cap ? "　·　已满，奖励将以「替换」形式加入" : "　·　还可加入 " + (cap - count) + " 张");
-            deckInfo.color = count >= cap ? Theme.Gold : Theme.TextDim;
         }
 
         // ------------------------------------------------------------ 候选渲染
@@ -187,7 +131,7 @@ namespace Slime.Game
                     rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp((i - 1) * 6f, 0f, k));
                 }, Easing.OutCubic, null, 0.06f * i);
 
-                BuildRoleHint(content, def, left + step * i, 0.06f * i);
+                BuildRoleTag(content, def, left + step * i, 0.06f * i);
             }
 
             var skip = Ui.TextButton("Skip", content, TotalRounds > 1 ? "放弃剩余奖励" : "跳 过", Theme.Body,
@@ -198,14 +142,8 @@ namespace Slime.Game
             skipButton = skip.gameObject;
         }
 
-        /// <summary>
-        /// 卡片下方那两行：这张牌在链里是什么角色、和当前牌组配不配。
-        ///
-        /// 抽卡的这一刻是玩家真正做构筑决策的时候。卡面只写「做什么」，
-        /// 而「引爆冻结」这类牌的价值完全取决于手上有没有冻结 ——
-        /// 不在这里说清楚，玩家就得靠记住所有卡来推断，那不可能。
-        /// </summary>
-        private void BuildRoleHint(RectTransform parent, CardDef def, float x, float delay)
+        /// <summary>卡片下方的角色标签：这张牌在链里是铺垫还是兑现。</summary>
+        private void BuildRoleTag(RectTransform parent, CardDef def, float x, float delay)
         {
             var role = CardRoles.Role(def);
             Color roleColor = role == CardRole.Payoff ? Theme.Gold
@@ -216,8 +154,6 @@ namespace Slime.Game
 
             // 卡片底边在 y=260（见上面 SetPosition 的注释）。标签占 [200, 238]，
             // 与卡面留 22px —— 再靠上去就会被卡面下缘的深色描边吃掉上半截。
-            // 高度按字号给足：Caption 是 24px，30px 高的框去掉内边距只剩 26，
-            // TMP 会把字纵向裁掉一条。
             const float TagBottom = 200f;
             const float TagHeight = 38f;
             var tag = Ui.Rounded("Role" + def.Id, parent, Theme.RadiusS,
@@ -230,52 +166,6 @@ namespace Slime.Game
                 role == CardRole.Plain ? Theme.TextFaint : Theme.Lighten(roleColor, 0.3f),
                 TextAlignmentOptions.Center);
             Ui.Stretch(label.rectTransform, 6f, 4f, 6f, 4f);
-
-            string fit = CardRoles.Fit(def, DeckDefs());
-            if (string.IsNullOrEmpty(fit))
-            {
-                return;
-            }
-
-            // 只有「兑现牌但没有铺垫」才是真的打不出来，值得用警告色。
-            // 反过来「攒了层没人兑现」并不亏 —— 中毒照样掉血、护盾照样挡伤，
-            // 用红色说它不行，玩家会误以为这张牌是废的。
-            bool blocked = role == CardRole.Payoff && fit.Contains("打不出来");
-            var hint = Ui.Label("Fit" + def.Id, parent, fit, Theme.Caption,
-                blocked ? Theme.Danger : Theme.TextDim, TextAlignmentOptions.Top);
-            hint.enableWordWrapping = true;
-
-            // 高度按实际字数算：提示可能一到三行，给死高度会把后面的行裁掉。
-            // 位置从标签底边往上倒推 —— 提示块是底对齐（pivot 在底边），
-            // 写死 y 的话行数一变就会顶进标签里，把「铺垫」两个字糊掉。
-            float hintH = Mathf.Min(Ui.MeasureTextHeight(fit, 276f, Theme.Caption) + 4f, 104f);
-            Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(x, TagBottom - 8f - hintH), new Vector2(276f, hintH));
-
-            hint.alpha = 0f;
-            Tween.FadeIn(hint, 0.32f, 0.4f + delay, 0f, 1f);
-            hintNodes.Add(hint.gameObject);
-        }
-
-        /// <summary>当前牌组里的卡牌定义（角色分析要按 def 比对，不是按实例）。</summary>
-        private List<CardDef> DeckDefs()
-        {
-            if (ForcedDeck != null)
-            {
-                return ForcedDeck;
-            }
-
-            var list = new List<CardDef>();
-            var deck = GameApp.I.Director.Deck;
-            for (int i = 0; i < deck.Count; i++)
-            {
-                if (deck[i] != null && deck[i].Def != null)
-                {
-                    list.Add(deck[i].Def);
-                }
-            }
-
-            return list;
         }
 
         private void ClearChoices()
@@ -327,7 +217,6 @@ namespace Slime.Game
             GameApp.I.Director.TakeReward(def);
             GameApp.I.Toast("加入牌组 · " + def.Name);
             round++;
-            RefreshDeckInfo();
             Render();
         }
 
@@ -335,7 +224,6 @@ namespace Slime.Game
         {
             GameApp.I.Audio.PlaySfx("ui_click");
             round = TotalRounds;
-            RefreshDeckInfo();
             Render();
         }
 
@@ -360,16 +248,10 @@ namespace Slime.Game
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -30f), new Vector2(1200f, 44f));
 
-            var hint = Ui.Label("Hint", panel.transform,
-                "选一张移出牌组，为《" + incoming.Name + "》腾出位置",
-                Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -72f), new Vector2(1200f, 30f));
-
             RectTransform listContent;
             var scroll = Ui.VerticalScroll("List", panel.transform, out listContent);
             Ui.Fixed(scroll.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -22f), new Vector2(1180f, 520f));
+                new Vector2(0f, -14f), new Vector2(1180f, 580f));
 
             var composition = GameApp.I.Director.DeckComposition();
             var ids = new List<int>(composition.Keys);
@@ -404,7 +286,6 @@ namespace Slime.Game
 
                     Object.Destroy(overlay.gameObject);
                     round++;
-                    RefreshDeckInfo();
                     Render();
                 });
 

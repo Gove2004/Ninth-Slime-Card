@@ -102,8 +102,8 @@ namespace Slime.Game
             var valueLabel = Ui.Label("Value", box.transform, value, Theme.H2, valueColor, TextAlignmentOptions.Center);
             Ui.Fixed(valueLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 18f), new Vector2(206f, 48f));
 
-            var cap = Ui.Label("Cap", box.transform, caption, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(cap.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -30f), new Vector2(206f, 28f));
+            var cap = Ui.Label("Cap", box.transform, caption, Theme.H4, Theme.Text, TextAlignmentOptions.Center);
+            Ui.Fixed(cap.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -32f), new Vector2(206f, 34f));
 
             // 六块数据从左到右依次弹出来，比整排同时出现有节奏
             box.rectTransform.localScale = Vector3.one * 0.8f;

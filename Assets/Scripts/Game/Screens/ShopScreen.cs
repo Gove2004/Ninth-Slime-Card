@@ -332,16 +332,10 @@ namespace Slime.Game
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -28f), new Vector2(1000f, 44f));
 
-            var hint = Ui.Label("Hint", panel.transform,
-                "移除后本局不再出现。初始的斩击与格挡是最该换掉的东西。",
-                Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -68f), new Vector2(1000f, 30f));
-
             RectTransform listContent;
             var scroll = Ui.VerticalScroll("List", panel.transform, out listContent);
             Ui.Fixed(scroll.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -16f), new Vector2(1040f, 560f));
+                new Vector2(0f, -6f), new Vector2(1040f, 620f));
 
             var composition = App.Director.DeckComposition();
             var ids = new List<int>(composition.Keys);

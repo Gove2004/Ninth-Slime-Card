@@ -139,10 +139,6 @@ namespace Slime.Game
                 Theme.Lighten(color, 0.4f), TextAlignmentOptions.Left);
             Ui.Fixed(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(76f, 0f), new Vector2(200f, 40f));
 
-            var blurb = Ui.Label("Blurb", header.transform, Series.Blurb(series), Theme.Caption,
-                Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Fixed(blurb.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(266f, 0f), new Vector2(700f, 30f));
-
             var count = Ui.Label("Count", header.transform, "已发现 " + shown + " / " + list.Count, Theme.Body,
                 shown == list.Count ? Theme.Lighten(color, 0.25f) : Theme.TextDim, TextAlignmentOptions.Right);
             Ui.Fixed(count.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-26f, 0f), new Vector2(260f, 32f));
@@ -237,12 +233,7 @@ namespace Slime.Game
             var tip = Ui.Label("Tip", back.transform, "未解锁", Theme.Body, Theme.TextFaint,
                 TextAlignmentOptions.Center);
             Ui.Fixed(tip.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 82f), new Vector2(240f, 34f));
-
-            var sub = Ui.Label("Sub", back.transform, Series.DisplayName(def.Series), Theme.Caption,
-                Theme.WithAlpha(color, 0.55f), TextAlignmentOptions.Center);
-            Ui.Fixed(sub.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 46f), new Vector2(240f, 28f));
+                new Vector2(0f, 62f), new Vector2(240f, 34f));
         }
 
         /// <summary>
@@ -283,9 +274,9 @@ namespace Slime.Game
             Ui.Fixed(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(40f, -34f), new Vector2(600f, 46f));
 
             string meta = Series.DisplayName(def.Series) + " · " + KindName(def.Kind) + " · " + def.Cost + " 费";
-            var metaLabel = Ui.Label("Meta", panel.transform, meta, Theme.Caption,
+            var metaLabel = Ui.Label("Meta", panel.transform, meta, Theme.Body,
                 Theme.Lighten(color, 0.3f), TextAlignmentOptions.Right);
-            Ui.Fixed(metaLabel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-34f, -40f), new Vector2(420f, 30f));
+            Ui.Fixed(metaLabel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-34f, -38f), new Vector2(420f, 34f));
 
             // 当前效果
             var bodyBox = Ui.Rounded("Body", panel.transform, Theme.RadiusM,
@@ -304,30 +295,26 @@ namespace Slime.Game
                 ? "升级：费用 " + def.Cost + " → " + Mathf.Max(0, def.Cost - 1)
                 : "升级后：" + upText;
 
-            var up = Ui.Label("Upgrade", panel.transform, upCaption, Theme.Caption,
+            var up = Ui.Label("Upgrade", panel.transform, upCaption, Theme.Body,
                 Theme.Gold, TextAlignmentOptions.TopLeft);
             up.margin = new Vector4(4f, 0f, 4f, 0f);
-            float upH = Mathf.Max(Ui.MeasureTextHeight(upCaption, 992f, Theme.Caption) + 6f, 34f);
+            float upH = Mathf.Max(Ui.MeasureTextHeight(upCaption, 992f, Theme.Body) + 6f, 38f);
             float upTop = -246f;
             Ui.Fixed(up.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, upTop), new Vector2(1000f, upH));
 
             // 相关机制标题：贴在升级预览之下（间距 18），不再和滚动区之间留大空洞
             float mechTop = upTop - upH - 18f;
-            var mechTitle = Ui.Label("MechTitle", panel.transform, "相关机制", Theme.H4,
-                Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Fixed(mechTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, mechTop), new Vector2(1000f, 30f));
-
             var entries = Glossary.Match(def.Raw);
-            if (entries.Count == 0)
+            if (entries.Count > 0)
             {
-                var none = Ui.Label("NoMech", panel.transform, "这张牌不涉及特殊机制。", Theme.Caption,
-                    Theme.TextFaint, TextAlignmentOptions.Left);
-                Ui.Fixed(none.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                    new Vector2(0f, mechTop - 36f), new Vector2(1000f, 30f));
+                var mechTitle = Ui.Label("MechTitle", panel.transform, "相关机制", Theme.H4,
+                    Theme.TextDim, TextAlignmentOptions.Left);
+                Ui.Fixed(mechTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                    new Vector2(0f, mechTop), new Vector2(1000f, 30f));
             }
-            else
+
+            if (entries.Count > 0)
             {
                 // 滚动区高度 = 从标题下沿到「关闭」按钮上方（底距 96）之间的全部空间
                 float scrollH = 760f + mechTop - 30f - 18f - 96f;

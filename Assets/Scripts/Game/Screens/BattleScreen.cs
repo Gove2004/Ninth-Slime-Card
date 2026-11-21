@@ -40,7 +40,6 @@ namespace Slime.Game
         private const float HpY = -68f;
         private const float StatusY = -108f;       // 状态 chips / 增益流式区顶缘
         private const float HpBarW = 380f;
-        private const float EnemySubY = 316f;      // 敌人称号+手牌数（立绘上方）
 
         // ---- 出牌释放区：屏幕中段一整条「牌桌」，拖到这里松手才算打出 ----
         private const float ZoneY = -160f;
@@ -93,7 +92,6 @@ namespace Slime.Game
         private Image enemyHpBack;
         private TextMeshProUGUI enemyHpText;
         private TextMeshProUGUI enemyNameLabel;
-        private TextMeshProUGUI enemySubLabel;
         private RectTransform enemyStatusRow;
         private CanvasGroup enemyStatusFade;
         private CanvasGroup playerBuffsFade;
@@ -116,9 +114,7 @@ namespace Slime.Game
         // 顶部赛程牌
         private RectTransform stageChip;
         private Image stageChipFill;
-        private TextMeshProUGUI stageActLabel;
         private TextMeshProUGUI stageLabel;
-        private TextMeshProUGUI stageCountLabel;
         private readonly List<Image> stagePips = new List<Image>();
 
         private RectTransform handRoot;
@@ -132,11 +128,9 @@ namespace Slime.Game
         private RectTransform dropZone;
         private Image dropZoneFill;
         private Image dropZoneBorderImage;
-        private TextMeshProUGUI dropZoneCaption;
         private TextMeshProUGUI dropZoneLabel;
         private RectTransform targetRing;
         private Image targetRingImage;
-        private TextMeshProUGUI targetHint;
         private CardView dragView;
         private int dragIndex = -1;
         private Vector2 dragGrab;          // 手指与卡片锚点的偏移，保证"抓哪儿从哪儿跟手"
@@ -290,10 +284,6 @@ namespace Slime.Game
             enemyBaseScale = enemyPortrait.rectTransform.localScale;
             enemyBasePos = enemyPortrait.rectTransform.anchoredPosition;
 
-            enemySubLabel = Ui.Label("EnemySub", Root, info.Title, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(enemySubLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(StageX, EnemySubY), new Vector2(460f, 24f));
-
             enemyNameLabel = Ui.Label("EnemyName", Root, info.Name, Theme.H2, Theme.Text, TextAlignmentOptions.Center);
             Ui.Fixed(enemyNameLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(StageX, NameY), new Vector2(460f, 40f));
@@ -333,26 +323,6 @@ namespace Slime.Game
             enemyHpText.text = e.Hp + " / " + e.HpMax;
 
             RebuildStatus(enemyStatusRow, e, true);
-            // 敌人不持牌组，靠招式池行动——这行改成展示谱系与行动次数，空段不拼
-            var enemyInfo = session.EnemyInfo;
-            int acts = enemyInfo != null ? enemyInfo.ActionsPerTurn : 1;
-            var parts = new System.Collections.Generic.List<string>();
-            if (!string.IsNullOrEmpty(enemyInfo.Family))
-            {
-                parts.Add(enemyInfo.Family);
-            }
-
-            if (!string.IsNullOrEmpty(enemyInfo.Title))
-            {
-                parts.Add(enemyInfo.Title);
-            }
-
-            if (acts > 1)
-            {
-                parts.Add("每回合 " + acts + " 动");
-            }
-
-            enemySubLabel.text = string.Join("  ·  ", parts);
         }
 
         #endregion
@@ -370,13 +340,9 @@ namespace Slime.Game
             Ui.Fixed(stageChip, new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(TopInset, -TopInset), new Vector2(520f, 54f));
 
-            stageActLabel = Ui.Label("StageAct", stageChip, string.Empty, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Left);
-            Ui.Fixed(stageActLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(20f, 12f), new Vector2(320f, 22f));
-
             stageLabel = Ui.Label("StageName", stageChip, string.Empty, Theme.H4, Theme.Text, TextAlignmentOptions.Left);
             Ui.Fixed(stageLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(20f, -13f), new Vector2(260f, 26f));
+                new Vector2(20f, 0f), new Vector2(320f, 30f));
 
             // 本章进度点：按层数铺开，走过的点亮
             int pipCount = Mathf.Clamp(EnemyRoster.FloorsPerChapter / 2, 3, 7);
@@ -384,15 +350,11 @@ namespace Slime.Game
             {
                 var pip = Ui.Panel("StagePip" + i, stageChip,
                     SpriteForge.Circle(26, Theme.PanelSunken, Theme.WithAlpha(Theme.Border, 0.8f), 1), Color.white);
-                // 进度点整体落在下半行，和「第 N 层 · 普通」同一行，不再回头压住章节名
+                // 进度点居中偏右，和单行标题同一行
                 Ui.Fixed(pip.rectTransform, new Vector2(1f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(-24f - (pipCount - 1 - i) * 28f, -13f), new Vector2(16f, 16f));
+                    new Vector2(-24f - (pipCount - 1 - i) * 28f, 0f), new Vector2(16f, 16f));
                 stagePips.Add(pip);
             }
-
-            stageCountLabel = Ui.Label("StageCount", stageChip, string.Empty, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Right);
-            Ui.Fixed(stageCountLabel.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
-                new Vector2(-18f, 12f), new Vector2(120f, 22f));
 
             // 中：回合胶囊
             var capsule = Ui.Rounded("TurnCapsule", Root, Theme.RadiusM,
@@ -421,12 +383,9 @@ namespace Slime.Game
         private void RefreshStageChip()
         {
             Color accent = Theme.SeriesColor(session.EnemyInfo.Accent);
-            var director = GameApp.I.Director;
 
-            stageActLabel.text = director.ChapterName;
-            stageLabel.text = "第 " + (session.Floor + 1) + " 层 · " +
-                              (session.IsBoss ? "章节首领" : session.IsElite ? "精英" : "普通");
-            stageCountLabel.text = (session.Floor + 1) + " / " + EnemyRoster.FloorsPerChapter;
+            stageLabel.text = "第 " + (session.Floor + 1) + " 层" +
+                              (session.IsBoss ? " · 首领" : session.IsElite ? " · 精英" : string.Empty);
 
             Color border = session.IsBoss ? Theme.Danger : Theme.WithAlpha(accent, 0.55f);
             stageChipFill.sprite = SpriteForge.Panel(Theme.RadiusM, Theme.WithAlpha(Theme.Panel, 0.92f), border, 1);
@@ -478,11 +437,7 @@ namespace Slime.Game
 
             var count = Ui.Label("Count", pile.transform, "0", Theme.H3, Theme.Text, TextAlignmentOptions.Center);
             Ui.Fixed(count.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 36f), new Vector2(90f, 40f));
-
-            var cap = Ui.Label("Cap", pile.transform, caption, Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(cap.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 8f), new Vector2(90f, 24f));
+                new Vector2(0f, 22f), new Vector2(90f, 40f));
 
             return count;
         }
@@ -584,11 +539,7 @@ namespace Slime.Game
             var value = Ui.Label("ManaValue", manaRow, "/ " + p.EnergyMax, Theme.H3, Theme.Text,
                 TextAlignmentOptions.Left);
             Ui.Fixed(value.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(14f, 8f), new Vector2(120f, 40f));
-
-            var cap = Ui.Label("ManaCap", manaRow, "能量", Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Left);
-            Ui.Fixed(cap.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(14f, -26f), new Vector2(120f, 24f));
+                new Vector2(14f, 0f), new Vector2(120f, 40f));
         }
 
         #endregion
@@ -643,11 +594,6 @@ namespace Slime.Game
                 Theme.WithAlpha(Theme.PanelSunken, 0.10f), Theme.WithAlpha(Theme.Accent, 0.30f), 1);
             Ui.Stretch(dropZoneBorderImage.rectTransform, 12f, 12f, 12f, 12f);
 
-            dropZoneCaption = Ui.Label("ZoneCaption", dropZone, string.Empty, Theme.Caption,
-                Theme.WithAlpha(Theme.TextFaint, 0.9f), TextAlignmentOptions.Center);
-            Ui.Fixed(dropZoneCaption.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 20f), new Vector2(ZoneW - 80f, 26f));
-
             dropZoneLabel = Ui.Label("ZoneLabel", dropZone, "拖 到 此 处 打 出", Theme.H3,
                 Theme.Text, TextAlignmentOptions.Center);
             Ui.Fixed(dropZoneLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -662,11 +608,6 @@ namespace Slime.Game
 
             targetRingImage = Ui.Panel("RingArt", targetRing, null, Color.white);
             Ui.Stretch(targetRingImage.rectTransform, 0f, 0f, 0f, 0f);
-
-            targetHint = Ui.Label("TargetHint", targetRing, string.Empty, Theme.Caption,
-                Theme.Text, TextAlignmentOptions.Center);
-            Ui.Fixed(targetHint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -6f), new Vector2(300f, 28f));
 
             targetRing.gameObject.SetActive(false);
         }
@@ -697,15 +638,12 @@ namespace Slime.Game
 
             dropZoneLabel.text = "拖 到 此 处 打 出";
             dropZoneLabel.color = Theme.Text;
-            dropZoneCaption.text = enemyTarget ? "命中 " + session.EnemyInfo.Name : "只对自己生效";
-            dropZoneCaption.color = Theme.WithAlpha(Theme.TextFaint, 0.9f);
 
             // 入场：从 0.94 倍弹到 1 倍，配合整体缩放做一个"展开"感
             dropZone.localScale = Vector3.one * 0.94f;
             Tween.Scale(dropZone, 0.94f, 1f, 0.2f, Easing.OutBack);
             Tween.FadeIn(dropZoneFill, 0.18f, 0f, 0f, 1f);
             Tween.FadeIn(dropZoneLabel, 0.18f, 0f, 0f, 1f);
-            Tween.FadeIn(dropZoneCaption, 0.18f, 0.04f, 0f, 0.9f);
 
             // 目标环
             Ui.Fixed(targetRing, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -713,8 +651,6 @@ namespace Slime.Game
                 new Vector2(PortraitSize + 76f, PortraitSize + 76f));
             targetRingImage.sprite = SpriteForge.Circle(256, Color.clear, Theme.WithAlpha(accent, 0.85f), 6);
             targetRingImage.color = Color.white;
-            targetHint.text = enemyTarget ? "目标" : "自己";
-            targetHint.color = Theme.Lighten(accent, 0.35f);
             targetRing.gameObject.SetActive(true);
             targetRing.localScale = Vector3.one * 0.7f;
             Tween.Scale(targetRing, 0.7f, 1f, 0.24f, Easing.OutBack);
@@ -758,8 +694,6 @@ namespace Slime.Game
             {
                 dropZoneLabel.text = "魔 力 不 足";
                 dropZoneLabel.color = Theme.Danger;
-                dropZoneCaption.text = "需要 " + card.Cost + " 点，现有 " + session.Player.Energy + " 点 · 松手退回";
-                dropZoneCaption.color = Theme.WithAlpha(Theme.Danger, 0.85f);
 
                 var flash = Theme.WithAlpha(Theme.Danger, 0.9f);
                 targetRingImage.sprite = SpriteForge.Circle(256, Color.clear, flash, 6);
@@ -769,15 +703,11 @@ namespace Slime.Game
                 bool enemyTarget = !IsSelfTargeted(card);
                 dropZoneLabel.text = "松 手 · 对 " + (enemyTarget ? session.EnemyInfo.Name : "自己") + " 使用";
                 dropZoneLabel.color = Theme.Gold;
-                dropZoneCaption.text = "《" + card.Name + "》  ·  消耗 " + card.Cost + " 点魔力";
-                dropZoneCaption.color = Theme.WithAlpha(Theme.TextDim, 0.95f);
             }
             else
             {
                 dropZoneLabel.text = "拖 到 此 处 打 出";
                 dropZoneLabel.color = Theme.Text;
-                dropZoneCaption.text = !IsSelfTargeted(card) ? "命中 " + session.EnemyInfo.Name : "只对自己生效";
-                dropZoneCaption.color = Theme.WithAlpha(Theme.TextFaint, 0.9f);
             }
         }
 
@@ -1111,8 +1041,6 @@ namespace Slime.Game
 
             dropZoneLabel.text = "把 这 张 牌 拖 到 这 里";
             dropZoneLabel.color = Theme.Gold;
-            dropZoneCaption.text = "松手即打出，拖回去则取消";
-            dropZoneCaption.color = Theme.WithAlpha(Theme.TextFaint, 0.9f);
 
             zoneShownAt = Time.unscaledTime;
             GameApp.I.Toast("按住卡牌拖到出牌区，松手打出");

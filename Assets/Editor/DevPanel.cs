@@ -225,15 +225,12 @@ namespace Slime.DevTools
                 case "reward-preview":
                     EnsureRun(app);
                     {
-                        // 固定候选 + 空牌组，专门验收「兑现牌缺铺垫」那条红色警告。
-                        // 冰川要冻结、圣裁要护盾，空牌组里两张都该报打不出来。
-                        // 牌组只覆盖分析视图，不动真实存档局。
+                        // 固定候选，快速验收奖励弹层的卡面与角色标签。
                         var picked = new List<CardDef>();
                         AddByName(app, picked, "冰川");
                         AddByName(app, picked, "圣裁");
                         AddByName(app, picked, "斩击");
                         RewardOverlay.ForcedChoices = picked;
-                        RewardOverlay.ForcedDeck = new List<CardDef>();
 
                         var session = WinBattle(app, NodeKind.Battle);
                         app.Replace(new MapScreen(session));

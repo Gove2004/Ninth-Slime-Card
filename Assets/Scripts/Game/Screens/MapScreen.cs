@@ -72,13 +72,12 @@ namespace Slime.Game
                 return;
             }
 
-            // 层号必须写在标题栏：窗口式地图只显示当前附近五层，
-            // 玩家看不到全貌，得有个地方告诉他「这章还剩多少」。
-            // 无限年没有总层数，只报当前层。节点名不跟——地图节点上自己看得见。
-            string sub = director.Endless
-                ? "第 " + (director.Floor + 1) + " 层"
-                : "第 " + (director.Floor + 1) + " / " + EnemyRoster.FloorsPerChapter + " 层";
-            var header = BuildHeader(director.ChapterName, sub, null);
+            // 层号并进标题：窗口式地图只显示当前附近五层，得有个地方告诉玩家「这章还剩多少」。
+            // 无限年没有总层数，只报当前层。
+            string title = director.Endless
+                ? director.ChapterName + " · 第 " + (director.Floor + 1) + " 层"
+                : director.ChapterName + " · 第 " + (director.Floor + 1) + " / " + EnemyRoster.FloorsPerChapter + " 层";
+            var header = BuildHeader(title, null, null);
             BuildHeaderStats(header);
             BuildMap();
             RefreshNodes();
