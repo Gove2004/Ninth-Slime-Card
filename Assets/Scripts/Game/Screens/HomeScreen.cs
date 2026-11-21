@@ -6,40 +6,32 @@ using UnityEngine.UI;
 namespace Slime.Game
 {
     /// <summary>
-    /// 主界面。设计原则：**一屏只回答一个问题——「我现在要做什么」**。
+    /// 主界面。编辑式排版：**没有任何面板底**，所有元素直接落在场景背景上。
+    /// 信息量刻意收窄到「做决定所需的最小集」：这一局到哪了、下一个对手是谁、
+    /// 还剩多少血。身份与货币不在这里——它们在商店/图鉴里有专位，主页摆出来只是噪音。
     ///
-    /// 结构（自上而下三层，层与层之间只靠留白分隔，不画多余边框）：
-    ///   ① 顶栏：一条石板横条装下「我是谁」（左）+「我有什么」（右）
-    ///   ② 主卡：这一局打到哪、打谁、还有多少血、点这个继续 —— 唯一视觉重心，
-    ///      纵轴按统一节奏排布（间距 10/12/24，见 BuildHero 的纵轴表）
-    ///   ③ 底栏：牌库 / 无限年 / 设置 / 重开一局 —— 哑光 GhostButton，把金色让给 CTA
+    ///   ① 舞台：左栏文字（章节 → 标题 → 对手 → 血条 → CTA）共用一条左基线，
+    ///      右侧对手立绘浮在背景上，一圈系列色光晕给落点
+    ///   ② 页脚：四个纯文字导航入口，无按钮壳
     /// </summary>
     public sealed class HomeScreen : Screen
     {
-        // ---------------------------------------------------------------- 栅格
-        private const float ColW = 1080f;
-        private const float Pad = 36f;
-
-        private const float TopBarY = 464f;
-        private const float TopBarH = 100f;
-
-        // 主卡：上下界直接写死，内部元素全部相对卡片自身排布（详见 BuildHero 的纵轴表）
-        private const float CardTop = 372f;
-        private const float CardBottom = -300f;
-        private const float CardH = CardTop - CardBottom;   // 672
-
-        private const float FooterY = -452f;
+        /// <summary>左栏文字块的公共左缘。</summary>
+        private const float LeftX = -860f;
 
         protected override void Build()
         {
             App.Audio.PlayMusic("title1");
 
-            BuildTopBar();
-            BuildHero();
+            // 均匀暗幕只压背景不动 UI：左栏小字与对手名压在城堡剪影上时对比度不够
+            var veil = Ui.Solid("Veil", Root, new Color(0f, 0f, 0f, 0.38f));
+            veil.raycastTarget = false;
+
+            BuildStage();
             BuildFooter();
 
-            // 新春装饰最后挂到 Root（渲染在最上层），但只占屏幕四角的空地——
-            // 中轴的顶栏与主卡一个像素都不碰；窗口外或玩家在设置里关掉就整层不建。
+            // 新春装饰最后挂到 Root（渲染在最上层），只占屏幕四角的空地，
+            // 左栏与立绘所在的中轴区不碰；窗口外或玩家在设置里关掉就整层不建。
             if (Festival.IsActive)
             {
                 BuildFestivalDecor();
@@ -48,7 +40,7 @@ namespace Slime.Game
 
         /// <summary>
         /// 新春装饰：左右春联、檐口双灯笼、顶部福字。Art/Decor 真图优先，缺图回退 SpriteForge 程序化。
-        /// 只占屏幕四角的空地，中轴（顶栏与主卡）一个像素都不碰。
+        /// 只占屏幕四角的空地，左栏与立绘所在的中轴区一个像素都不碰。
         /// </summary>
         private void BuildFestivalDecor()
         {
@@ -63,7 +55,7 @@ namespace Slime.Game
             BuildLantern(-640f, 0f);
             BuildLantern(640f, 0.12f);
 
-            // ---- 福字：顶栏中段的空地，一枚红底金字的菱印 ----
+            // ---- 福字：一枚红底金字的菱印 ----
             var fuArt = ArtLib.Decor("fu");
             RectTransform fu;
             if (fuArt != null)
@@ -85,10 +77,9 @@ namespace Slime.Game
                 fu.localRotation = Quaternion.Euler(0f, 0f, 45f);
             }
 
-            // 福字：不做悬空的顶栏装饰，改当主卡左上角的「落款印章」——
-            // 印章要贴着框，与卡缘留 26 边距（卡左缘 -540，卡顶 372）
+            // 福字：当左栏章节行末尾的「落款印章」
             Ui.Fixed(fu, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-466f, 322f), new Vector2(96f, 96f));
+                new Vector2(-320f, 240f), new Vector2(84f, 84f));
             Tween.PopIn(fu, 0.32f, 0.5f, 0.4f);
         }
 
@@ -150,212 +141,108 @@ namespace Slime.Game
             Tween.SlideIn(lantern.rectTransform, new Vector2(0f, 110f), 0.5f, delay);
         }
 
-        // ---------------------------------------------------------------- 顶栏
-
-        private void BuildTopBar()
-        {
-            var bar = Ui.Node("TopBar", Root);
-            Ui.Fixed(bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, TopBarY), new Vector2(ColW, TopBarH));
-
-            // 顶栏底：一条与主卡同材质的石板横条，左右信息都「坐」在板上，不再悬浮
-            Sprite barSkin = ArtLib.UiArt("ui_panel", new Vector4(16f, 16f, 16f, 16f));
-            Image plate;
-            if (barSkin != null)
-            {
-                plate = Ui.Panel("Plate", bar, barSkin, Theme.WithAlpha(Color.white, 0.9f));
-                plate.type = Image.Type.Sliced;
-            }
-            else
-            {
-                plate = Ui.Rounded("Plate", bar, Theme.RadiusM,
-                    Theme.WithAlpha(Theme.Panel, 0.92f), Theme.BorderSoft, 1);
-            }
-
-            Ui.Stretch(plate.rectTransform, 0f, 0f, 0f, 0f);
-
-            // --- 左：身份（头像 + 名字）。技术上「是否登录」不再是主界面信息，挪到设置里去了 ---
-            // 头像用真立绘，和战斗里的主角保持同一张脸；缺图才回退到程序化史莱姆。
-            Sprite heroArt = ArtLib.Hero;
-            var avatar = Ui.Panel("Avatar", bar,
-                heroArt != null
-                    ? heroArt
-                    : SpriteForge.Slime(160, Theme.Accent, Theme.BgDeep, 4242, false, SlimeFace.Happy),
-                Color.white);
-            avatar.preserveAspect = true;
-            Ui.Fixed(avatar.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(26f, 0f), new Vector2(64f, 64f));
-
-            var name = Ui.Label("Name", bar, App.Tap.DisplayName, Theme.H4, Theme.Text, TextAlignmentOptions.Left);
-            Ui.Fixed(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(104f, 0f), new Vector2(320f, 40f));
-
-            // --- 右：两个数字，从右缘往左依次排 ---
-            // 「最远章节」读数已删：进度在地图标题栏有专位，顶栏重复一遍是噪音。
-
-            // 从右往左：奖杯（最重要，放最右） → 金币（带金币图标）
-            Stat(bar, "Trophy", App.Meta.Trophy.ToString(), "奖杯", -30f);
-            Stat(bar, "Gold", App.Director.Gold.ToString(), "金币", -230f, ArtLib.UiArt("icon_gold", Vector4.zero));
-        }
+        // ---------------------------------------------------------------- 舞台
 
         /// <summary>
-        /// 一枚右对齐的读数：「灰标签 + 白数值」写进同一个富文本 Label，垂直居中；
-        /// 图标（可选）贴在数值右侧。拆成两个右对齐框会让标签漂浮在空白上，
-        /// 与左邻读数叠字——单 Label 从结构上杜绝这个问题。
+        /// 左栏文字共一条左基线（距底坐标）：
+        ///   236  章节行（小字 + 福印落点）
+        ///   158  大标题（H1）
+        ///   108  系列色短划线
+        ///    58  对手名（系列色）
+        ///    -2  细血条 + 读数
+        ///  -122  主 CTA（实心金块 400×92）
+        /// 右侧立绘 430 见方，中心 (460, 40)，光晕垫底。
         /// </summary>
-        private void Stat(RectTransform bar, string name, string value, string caption, float rightOffset, Sprite icon = null)
-        {
-            const float w = 240f;
-            string dim = "#" + ColorUtility.ToHtmlStringRGBA(Theme.TextDim);
-
-            var box = Ui.Node(name, bar);
-            Ui.Fixed(box, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
-                new Vector2(rightOffset, 0f), new Vector2(w, TopBarH));
-
-            var label = Ui.Label("Stat", box,
-                "<color=" + dim + ">" + caption + "</color>  " + value,
-                Theme.H3, Theme.Text, TextAlignmentOptions.Right);
-            // 有图标时文字整体左移，让出图标位——图标建在文字之后，会盖住同位文字
-            Ui.Fixed(label.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
-                new Vector2(icon != null ? -52f : 0f, 0f), new Vector2(w, 40f));
-
-            if (icon != null)
-            {
-                var ic = Ui.Panel("Icon", box, icon, Color.white);
-                ic.preserveAspect = true;
-                Ui.Fixed(ic.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
-                    new Vector2(-6f, 0f), new Vector2(44f, 44f));
-            }
-        }
-
-        // ---------------------------------------------------------------- 主卡
-
-        /// <summary>
-        /// 唯一的重心：一块大地台，放章节 / 对手立绘 / 血条 / 主按钮。
-        /// 纵轴按统一节奏排（距底坐标，卡高 672）：
-        ///   30   主按钮（640×96）
-        ///   150  血条（640×36，与按钮同宽成组，间隙 24）
-        ///   200  下一个对手（h32）
-        ///   240  章节副标题（h44）
-        ///   296  对手立绘（300 见方）
-        ///   顶 22 章节·层 胶囊（320×44，收窄不再横贯全卡）
-        /// </summary>
-        private void BuildHero()
+        private void BuildStage()
         {
             var director = App.Director;
             var info = director.NextEnemyPreview;
             Color accent = Theme.SeriesColor(info.Accent);
 
-            // 主卡底：金框石板真图优先，缺图回退程序化圆角
-            Sprite panelSkin = ArtLib.UiArt("ui_panel", new Vector4(16f, 16f, 16f, 16f));
-            Image card;
-            if (panelSkin != null)
-            {
-                card = Ui.Panel("Hero", Root, panelSkin, Color.white);
-                card.type = Image.Type.Sliced;
-            }
-            else
-            {
-                card = Ui.Rounded("Hero", Root, Theme.RadiusL,
-                    Theme.WithAlpha(Theme.Panel, 0.96f), Theme.WithAlpha(accent, 0.5f), 2);
-            }
+            // ---- 右侧：对手立绘直接浮在背景上 ----
+            var glow = Ui.Panel("Glow", Root, SpriteForge.Glow(256, accent),
+                Theme.WithAlpha(Color.white, 0.32f));
+            Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(460f, 40f), new Vector2(600f, 600f));
 
-            Ui.Fixed(card.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, (CardTop + CardBottom) * 0.5f), new Vector2(ColW, CardH));
-            Tween.SlideIn(card.rectTransform, new Vector2(0f, -40f), 0.36f, 0.05f);
-
-            // 光晕压在立绘后面，给立绘一个"从暗场里亮出来"的落点
-            var glow = Ui.Panel("Glow", card.transform, SpriteForge.Glow(256, accent),
-                Theme.WithAlpha(Color.white, 0.30f));
-            Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -226f), new Vector2(460f, 460f));
-
-            var portrait = Ui.Panel("Enemy", card.transform, null, Color.white);
+            var portrait = Ui.Panel("Enemy", Root, null, Color.white);
             Sprite foeArt = ArtLib.Monster(info.Sprite);
             portrait.sprite = foeArt != null
                 ? foeArt
                 : SpriteForge.Slime(256, accent, Theme.BgDeep, info.Seed, true, SlimeFace.Fierce);
             portrait.preserveAspect = true;
-            Ui.Fixed(portrait.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -226f), new Vector2(300f, 300f));
-            Tween.PopIn(portrait.rectTransform, 0.12f, 0.85f);
+            Ui.Fixed(portrait.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(460f, 40f), new Vector2(430f, 430f));
+            Tween.PopIn(portrait.rectTransform, 0.10f, 0.85f);
 
-            // 章节 · 层：320 窄胶囊贴卡内顶部，留 22 边距——宽条横贯全卡只会读成补丁
-            var chip = Ui.Rounded("Level", card.transform, 22,
-                Theme.WithAlpha(Theme.Darken(accent, 0.62f), 0.96f), Theme.WithAlpha(accent, 0.85f), 1);
-            Ui.Fixed(chip.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -52f), new Vector2(320f, 44f));
+            // ---- 左栏：编辑式排版 ----
+            var chapter = Ui.Label("Chapter", Root,
+                director.ChapterName + " · 第 " + (director.Floor + 1) + " 层",
+                Theme.Caption, Theme.TextDim, TextAlignmentOptions.Left);
+            chapter.characterSpacing = 3f;
+            Ui.Outline(chapter.gameObject, new Color(0f, 0f, 0f, 0.65f), 2.5f);
+            Ui.Fixed(chapter.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(LeftX, 236f), new Vector2(900f, 34f));
 
-            var chipText = Ui.Label("LevelText", chip.transform,
-                director.ChapterName + "　·　第 " + (director.Floor + 1) + " 层",
-                Theme.Body, Theme.Lighten(accent, 0.45f), TextAlignmentOptions.Center);
-            Ui.Stretch(chipText.rectTransform, 0f, 0f, 0f, 0f);
+            var title = Ui.Label("Title", Root, director.ChapterSubtitle, Theme.H1, Theme.Text, TextAlignmentOptions.Left);
+            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(LeftX, 158f), new Vector2(960f, 74f));
+            Tween.SlideIn(title.rectTransform, new Vector2(-50f, 0f), 0.32f, 0.05f);
 
-            var title = Ui.Label("Title", card.transform, director.ChapterSubtitle,
-                Theme.H2, Theme.Text, TextAlignmentOptions.Center);
-            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -410f), new Vector2(ColW - Pad * 2f, 44f));
+            var rule = Ui.Solid("Rule", Root, Theme.WithAlpha(accent, 0.9f));
+            rule.raycastTarget = false;
+            Ui.Fixed(rule.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(LeftX, 108f), new Vector2(72f, 4f));
 
-            var foe = Ui.Label("Foe", card.transform, info.Name,
-                Theme.Body, Theme.WithAlpha(accent, 1f), TextAlignmentOptions.Center);
-            Ui.Fixed(foe.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -456f), new Vector2(ColW - Pad * 2f, 32f));
+            var foe = Ui.Label("Foe", Root, info.Name, Theme.H3, accent, TextAlignmentOptions.Left);
+            Ui.Outline(foe.gameObject, new Color(0f, 0f, 0f, 0.7f), 3f);
+            Ui.Fixed(foe.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(LeftX, 58f), new Vector2(600f, 40f));
 
-            // 血条与主按钮同宽成组：稀缺资源 + 唯一行动，视觉上是一体的
-            const float hpW = 640f;
-            var hpTrack = Ui.Panel("HpTrack", card.transform,
-                SpriteForge.Panel(12, Theme.PanelSunken, Theme.BorderSoft, 1), Color.white);
-            hpTrack.type = Image.Type.Sliced;
-            Ui.Fixed(hpTrack.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 150f), new Vector2(hpW, 36f));
-
+            // 细血条：一条线 + 一个读数，不再做成大板
             float hpPct = director.HpMax <= 0 ? 0f : (float)director.Hp / director.HpMax;
-            var hpFill = Ui.Panel("HpFill", hpTrack.transform,
-                SpriteForge.Panel(12, hpPct > 0.5f ? Theme.Hp : Theme.Danger,
-                    Theme.Lighten(Theme.Hp, 0.3f), 1), Color.white);
-            hpFill.type = Image.Type.Sliced;
+            const float hpW = 340f;
+            var hpTrack = Ui.Rounded("HpTrack", Root, 6,
+                Theme.WithAlpha(Theme.PanelSunken, 0.96f), Theme.BorderSoft, 1);
+            Ui.Fixed(hpTrack.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(LeftX, -2f), new Vector2(hpW, 14f));
+
+            var hpFill = Ui.Rounded("HpFill", hpTrack.transform, 5,
+                hpPct > 0.5f ? Theme.Hp : Theme.Danger, Color.clear, 0);
             Ui.Fixed(hpFill.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(3f, 0f), new Vector2(Mathf.Max(8f, (hpW - 6f) * hpPct), 30f));
+                new Vector2(2f, 0f), new Vector2(Mathf.Max(6f, (hpW - 4f) * hpPct), 10f));
 
-            var hpText = Ui.Label("HpText", hpTrack.transform,
-                "生命 " + director.Hp + " / " + director.HpMax,
-                Theme.Caption, Theme.Text, TextAlignmentOptions.Center);
-            Ui.Stretch(hpText.rectTransform, 0f, 0f, 0f, 0f);
+            var hpText = Ui.Label("HpText", Root, director.Hp + " / " + director.HpMax,
+                Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
+            Ui.Outline(hpText.gameObject, new Color(0f, 0f, 0f, 0.6f), 2.5f);
+            Ui.Fixed(hpText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(LeftX + hpW + 24f, -2f), new Vector2(220f, 32f));
 
-            // 主按钮：整屏唯一的金色浮雕 CTA
-            var start = Ui.PrimaryButton("Start", card.transform, "继 续 冒 险", Theme.H3, StartRun);
-            Ui.Fixed(start.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 30f), new Vector2(640f, 96f));
+            // 主 CTA：整屏唯一的实心亮色块
+            var start = Ui.PrimaryButton("Start", Root, "继 续 冒 险", Theme.H3, StartRun);
+            Ui.Fixed(start.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(LeftX, -122f), new Vector2(400f, 92f));
         }
 
-        // ---------------------------------------------------------------- 底栏
+        // ---------------------------------------------------------------- 页脚
 
-        /// <summary>
-        /// 底栏只放四个「玩家会主动想点」的入口，全部哑光 GhostButton——
-        /// 金色是 CTA 专属，页脚再铺金框就会把「继续冒险」埋掉。
-        /// </summary>
+        /// <summary>页脚：四个纯文字导航入口，无按钮壳，靠间距读成一行而不是四个格子。</summary>
         private void BuildFooter()
         {
-            var bar = Ui.Node("Footer", Root);
-            Ui.Fixed(bar, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, FooterY), new Vector2(ColW, 64f));
+            const float step = 256f;
+            float cx = -step * 1.5f;   // 最左入口的中心
 
-            const float gap = 24f;
-            const float w = (ColW - gap * 3f) / 4f;
-
-            Entry(bar, "Codex", "牌 库", -ColW * 0.5f + w * 0.5f, w,
-                () => App.Push(new CodexScreen(CodexScreen.Tab.Cards)));
-            Entry(bar, "Endless", "无限年", -ColW * 0.5f + w * 0.5f + w + gap, w, ConfirmEndless);
-            Entry(bar, "Settings", "设 置", -ColW * 0.5f + w * 0.5f + (w + gap) * 2f, w,
-                () => App.Push(new SettingsScreen()));
-            Entry(bar, "Restart", "重开一局", -ColW * 0.5f + w * 0.5f + (w + gap) * 3f, w, RestartRun);
+            FooterLink("Codex", "牌 库", cx, () => App.Push(new CodexScreen(CodexScreen.Tab.Cards)));
+            FooterLink("Endless", "无限年", cx + step, ConfirmEndless);
+            FooterLink("Settings", "设 置", cx + step * 2f, () => App.Push(new SettingsScreen()));
+            FooterLink("Restart", "重开一局", cx + step * 3f, RestartRun);
         }
 
-        private void Entry(RectTransform bar, string name, string caption, float x, float w, System.Action onClick)
+        private void FooterLink(string name, string caption, float x, System.Action onClick)
         {
-            var btn = Ui.GhostButton(name, bar, caption, Theme.Body, onClick);
+            var btn = Ui.LinkButton(name, Root, caption, Theme.Body, onClick);
             Ui.Fixed(btn.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(x, 0f), new Vector2(w, 64f));
+                new Vector2(x, -462f), new Vector2(200f, 56f));
         }
 
         // ---------------------------------------------------------------- 行为

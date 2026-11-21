@@ -6,10 +6,10 @@ namespace Slime.Game
 {
     /// <summary>
     /// 开屏演出。画面 = bg_title 主视觉插画（贴纸史莱姆 + 新春灯笼 + 城堡剪影夜景）
-    /// 压一层轻遮罩，海报式金字标题压在上部留空区，副标题金框徽章紧随其下。
-    /// 所有元素分三波进场，标题落地后星尘环绕漂浮，进度条 smoothstep 充能。
+    /// 压一层轻遮罩，海报式白色大标题压在上部留空区，一条系列色短划线 + 细进度线。
+    /// 所有元素分三波进场，标题落地后星尘环绕漂浮，进度线 smoothstep 充能。
     /// 时间轴（演出 2.2s，之后交棒给登录恢复）：
-    ///   0.15 标题弹入 → 0.50 落地挤压 → 0.55/0.95 徽章/进度条 → 0.90 星尘显形 → 2.2 转场
+    ///   0.15 标题弹入 → 0.50 落地挤压 → 0.55/0.95 副标/进度线 → 0.90 星尘显形 → 2.2 转场
     ///
     /// 注意：标题描边用 UI.Shadow 四向叠加（顶点复制），不能用 TMP 的 outline
     /// keyword——运行时动态字体图集没有描边 padding，采样会取到相邻字素的像素，
@@ -44,34 +44,26 @@ namespace Slime.Game
         protected override void Build()
         {
             // 主视觉插画由 GameApp.SetBackground(bg_title) 铺满，这里只压一层轻遮罩
-            // ——不遮也行，但插画下部饱和度高，白字会浮；22% 的黑让金字往下沉一沉。
-            var veil = Ui.Solid("Veil", Root, new Color(0f, 0f, 0f, 0.22f));
+            // ——不遮也行，但插画下部饱和度高，白字会浮；24% 的黑让白字往下沉一沉。
+            var veil = Ui.Solid("Veil", Root, new Color(0f, 0f, 0f, 0.24f));
             veil.raycastTarget = false;
 
-            // 标题：第一波，从 0.3 弹到 1，落地瞬间挤压一次。金字 + 四向投影描边压插画
-            var title = Ui.Label("Title", Root, "第九张史莱姆牌", 62, Theme.Gold, TextAlignmentOptions.Center);
-            title.characterSpacing = 8f;
-            AddOutline(title.gameObject, new Color(0.03f, 0.08f, 0.10f, 0.85f), 3f);
+            // 标题：第一波，从 0.5 弹到 1。白字 + 四向投影描边压插画
+            var title = Ui.Label("Title", Root, "第九张史莱姆牌", 72, Theme.Text, TextAlignmentOptions.Center);
+            title.characterSpacing = 10f;
+            Ui.Outline(title.gameObject, new Color(0.03f, 0.08f, 0.10f, 0.85f), 3f);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 386f), new Vector2(1200f, 84f));
-            // PopIn 签名是 (rt, delay, from, dur)。落地挤压不再叠 Punch——
-            // Punch 在 Build 期捕获 baseScale（此刻 PopIn 刚把缩放压到 from），
-            // 延迟触发后会把标题按 from 倍永久钉死，标题只剩徽章大小。
-            // OutBack 曲线自带落地质感，无需叠加。
+                new Vector2(0f, 380f), new Vector2(1200f, 96f));
+            // PopIn 签名是 (rt, delay, from, dur)。OutBack 曲线自带落地质感。
             Tween.PopIn(title.rectTransform, 0.15f, 0.5f, 0.3f);
             Tween.FadeIn(title, 0.30f, 0.15f, 0f, 1f);
 
-            // 副标题徽章：金框石板胶囊，第二波淡入
-            var badge = Ui.Rounded("Badge", Root, 12,
-                Theme.WithAlpha(Theme.PanelSunken, 0.88f), Theme.WithAlpha(Theme.Gold, 0.85f), 2);
-            Ui.Fixed(badge.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 296f), new Vector2(380f, 52f));
-            Tween.FadeIn(badge, 0.35f, 0.55f, 0f, 1f);
-
-            var sub = Ui.Label("Sub", badge.transform, "一 对 一 · 卡 牌 对 决",
-                Theme.H4, Theme.Gold, TextAlignmentOptions.Center);
-            sub.characterSpacing = 3f;
-            Ui.Stretch(sub.rectTransform, 0f, 0f, 0f, 0f);
+            // 标题下只留一条系列色短划线：品牌色锚点，一行多余的字都不要
+            var rule = Ui.Solid("Rule", Root, Theme.WithAlpha(Theme.Accent, 0.9f));
+            rule.raycastTarget = false;
+            Ui.Fixed(rule.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 312f), new Vector2(88f, 5f));
+            Tween.Scale(rule.rectTransform, 0f, 1f, 0.3f, Easing.OutBack, null, 0.55f);
 
             // 星尘：第二波，环绕主视觉两侧的呼吸小圆点，Tick 持续漂浮
             dusts = new RectTransform[DustSpots.Length];
@@ -87,30 +79,26 @@ namespace Slime.Game
                 dusts[i] = dot.rectTransform;
             }
 
-            // 进度条：金框石板底 + 金色充能，第三波淡入；充能起点与曲线都在 Tick 里
-            Sprite barSkin = ArtLib.UiArt("ui_panel", new Vector4(16f, 16f, 16f, 16f));
-            Image barBg = barSkin != null
-                ? Ui.Panel("BarBg", Root, barSkin, Color.white)
-                : Ui.Rounded("BarBg", Root, 10, Theme.PanelSunken, Theme.Border, 1);
-            barBg.type = Image.Type.Sliced;
-            Ui.Fixed(barBg.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 120f), new Vector2(640f, 26f));
-            Tween.FadeIn(barBg, 0.3f, 0.95f, 0f, 1f);
+            // 进度线：底部一条 4px 细线充能，第三波淡入；充能起点与曲线都在 Tick 里
+            var barTrack = Ui.Solid("BarTrack", Root, Theme.WithAlpha(Theme.Text, 0.14f));
+            Ui.Fixed(barTrack.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 118f), new Vector2(520f, 4f));
+            Tween.FadeIn(barTrack, 0.3f, 0.95f, 0f, 1f);
 
-            barFill = Ui.Rounded("BarFill", barBg.transform, 8, Theme.Gold, Theme.Gold, 0);
+            barFill = Ui.Solid("BarFill", barTrack.transform, Theme.Text);
             var fillRt = barFill.rectTransform;
             fillRt.anchorMin = new Vector2(0f, 0f);
             fillRt.anchorMax = new Vector2(0f, 1f);
             fillRt.pivot = new Vector2(0f, 0.5f);
-            fillRt.offsetMin = new Vector2(5f, 5f);
-            fillRt.offsetMax = new Vector2(5f, -5f);
-            fillRt.sizeDelta = new Vector2(0f, -10f);
+            fillRt.offsetMin = Vector2.zero;
+            fillRt.offsetMax = Vector2.zero;
+            fillRt.sizeDelta = new Vector2(0f, 0f);
             barFill.color = new Color(1f, 1f, 1f, 0f);
             Tween.FadeIn(barFill, 0.3f, 0.95f, 0f, 1f);
 
             tip = Ui.Label("Tip", Root, "正在洗牌…", Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
             Ui.Fixed(tip.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 78f), new Vector2(1200f, 30f));
+                new Vector2(0f, 84f), new Vector2(1200f, 30f));
             Tween.FadeIn(tip, 0.3f, 0.95f, 0f, 1f);
 
             // 登录恢复与演出并行：请求现在发出，结果等演出放完再落地（见 Tick）
@@ -119,26 +107,6 @@ namespace Slime.Game
                 loginOk = ok;
                 loginResolved = true;
             });
-        }
-
-        /// <summary>
-        /// 四向 Shadow 叠加模拟描边。纯顶点偏移复制，不触碰字体图集——
-        /// TMP 的 OUTLINE keyword 在运行时动态图集上会渲染成噪声（见类注释）。
-        /// </summary>
-        private static void AddOutline(GameObject go, Color color, float dist)
-        {
-            var offsets = new Vector2[]
-            {
-                new Vector2(dist, 0f), new Vector2(-dist, 0f),
-                new Vector2(0f, dist), new Vector2(0f, -dist),
-            };
-            foreach (var off in offsets)
-            {
-                var shadow = go.AddComponent<Shadow>();
-                shadow.effectColor = color;
-                shadow.effectDistance = off;
-                shadow.useGraphicAlpha = true;
-            }
         }
 
         public override void Tick(float deltaTime)
@@ -164,7 +132,7 @@ namespace Slime.Game
             float t = Mathf.Clamp01((elapsed - 0.95f) / 1.2f);
             float progress = t * t * (3f - 2f * t);
             var rt = barFill.rectTransform;
-            rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 630f * progress);
+            rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 520f * progress);
 
             if (progress > 0.45f && progress < 0.5f)
             {

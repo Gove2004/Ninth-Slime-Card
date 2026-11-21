@@ -116,19 +116,25 @@ namespace Slime.Game
             return tmp;
         }
 
-        /// <summary>九宫格按钮/面板底图。缺素材返回 null，调用方回退程序化圆角。</summary>
-        private static Image Skinned(string name, Transform parent, string key, Vector4 border)
+        /// <summary>
+        /// 四向 Shadow 叠加模拟描边。纯顶点偏移复制，不触碰字体图集——
+        /// TMP 的 OUTLINE keyword 在运行时动态图集上会渲染成噪声。
+        /// 给压在亮色剪影上的小字用，白字/彩字都能从花背景里切出来。
+        /// </summary>
+        public static void Outline(GameObject go, Color color, float dist)
         {
-            Sprite skin = ArtLib.UiArt(key, border);
-            if (skin == null)
+            var offsets = new Vector2[]
             {
-                return null;
+                new Vector2(dist, 0f), new Vector2(-dist, 0f),
+                new Vector2(0f, dist), new Vector2(0f, -dist),
+            };
+            foreach (var off in offsets)
+            {
+                var shadow = go.AddComponent<Shadow>();
+                shadow.effectColor = color;
+                shadow.effectDistance = off;
+                shadow.useGraphicAlpha = true;
             }
-
-            var img = Panel(name, parent, skin, Color.white);
-            img.type = Image.Type.Sliced;
-            img.raycastTarget = true;
-            return img;
         }
 
         private static void AttachClickFeedback(Button btn, Image img, Action onClick)
@@ -159,21 +165,10 @@ namespace Slime.Game
 
         public static Button TextButton(string name, Transform parent, string caption, int fontSize, Color fill, Color textColor, Action onClick)
         {
-            // 真图按钮底（金框石板）优先；参数 fill 在真图模式下不再染色，统一质感。
-            // 边距 14 与纹理金框厚度一致：按钮普遍只有 60~96 高，再大会把纵向切片压裂
-            Image img = Skinned(name, parent, "ui_button", new Vector4(14f, 14f, 14f, 14f));
-            Button btn;
-            if (img != null)
-            {
-                btn = img.gameObject.AddComponent<Button>();
-                AttachClickFeedback(btn, img, onClick);
-            }
-            else
-            {
-                img = Rounded(name, parent, Theme.RadiusM, fill, Theme.Lighten(fill, 0.18f), 2, true);
-                btn = img.gameObject.AddComponent<Button>();
-                AttachClickFeedback(btn, img, onClick);
-            }
+            // 扁平底：纯色圆角 + 一圈亮边。层级靠 fill 深浅表达，不靠贴图质感。
+            Image img = Rounded(name, parent, Theme.RadiusM, fill, Theme.Lighten(fill, 0.18f), 2, true);
+            var btn = img.gameObject.AddComponent<Button>();
+            AttachClickFeedback(btn, img, onClick);
 
             var label = Label("Caption", img.transform, caption, fontSize, textColor, TextAlignmentOptions.Center);
             label.margin = new Vector4(12f, 0f, 12f, 0f);
@@ -183,9 +178,7 @@ namespace Slime.Game
         }
 
         /// <summary>
-        /// 哑光次级按钮：纯程序化石板，无金框。
-        /// 金框底图是稀缺资源，一屏只该有一两个主角；页脚入口、认输这类
-        /// 「不能抢 CTA 戏」的按钮一律用这个，层级靠质感差异立起来。
+        /// 哑光次级按钮：深色圆角板。层级靠明度差异立起来，不抢 CTA 的戏。
         /// </summary>
         public static Button GhostButton(string name, Transform parent, string caption, int fontSize, Action onClick)
         {
@@ -201,27 +194,62 @@ namespace Slime.Game
         }
 
         /// <summary>
-        /// 主 CTA：金色浮雕板底（继续冒险这类一屏唯一的大按钮）。缺素材回退 TextButton。
-        /// 金亮面上深色字比白字清楚得多。
+        /// 纯文字入口：无底、悬停时下方细线亮起。用于页脚这类「不该有按钮壳」的导航项。
+        /// </summary>
+        public static Button LinkButton(string name, Transform parent, string caption, int fontSize, Action onClick)
+        {
+            // 命中区：近乎全透明的面，保证整块都能点
+            var img = Solid(name, parent, new Color(1f, 1f, 1f, 0.01f));
+            img.raycastTarget = true;
+            var btn = img.gameObject.AddComponent<Button>();
+
+            var label = Label("Caption", img.transform, caption, fontSize, Theme.TextDim, TextAlignmentOptions.Center);
+            label.characterSpacing = 3f;
+            Ui.Anchor(label.rectTransform,
+                new Vector2(0f, 0f), new Vector2(1f, 1f),
+                new Vector2(8f, 10f), new Vector2(-8f, -6f));
+
+            // 悬停指示线：Button 的颜色过渡直接乘在线上（normal 亮 35%，hover 100%）
+            var line = Solid("Line", img.transform, Theme.TextDim);
+            var lineRt = line.rectTransform;
+            lineRt.anchorMin = new Vector2(0.18f, 0f);
+            lineRt.anchorMax = new Vector2(0.82f, 0f);
+            lineRt.pivot = new Vector2(0.5f, 0f);
+            lineRt.sizeDelta = new Vector2(0f, 3f);
+
+            var colors = btn.colors;
+            colors.normalColor = new Color(1f, 1f, 1f, 0.35f);
+            colors.highlightedColor = new Color(1f, 1f, 1f, 1f);
+            colors.pressedColor = new Color(1f, 1f, 1f, 1f);
+            colors.fadeDuration = 0.12f;
+            btn.colors = colors;
+            btn.targetGraphic = line;
+
+            btn.onClick.AddListener(() =>
+            {
+                if (GameApp.I != null)
+                {
+                    GameApp.I.Audio.PlaySfx("ui_click");
+                }
+
+                Tween.Punch(label.rectTransform, 0.08f, 0.12f);
+                onClick();
+            });
+
+            return btn;
+        }
+
+        /// <summary>
+        /// 主 CTA：整屏唯一的实心亮色块。深色字压亮面，层级靠面积与明度，不靠浮雕贴图。
         /// </summary>
         public static Button PrimaryButton(string name, Transform parent, string caption, int fontSize, Action onClick)
         {
-            Image img = Skinned(name, parent, "ui_button_gold", new Vector4(14f, 14f, 14f, 14f));
-            Button btn;
-            if (img != null)
-            {
-                btn = img.gameObject.AddComponent<Button>();
-                AttachClickFeedback(btn, img, onClick);
-                fontSize += 4;
-            }
-            else
-            {
-                img = Rounded(name, parent, Theme.RadiusM, Theme.Gold, Theme.Lighten(Theme.Gold, 0.25f), 2, true);
-                btn = img.gameObject.AddComponent<Button>();
-                AttachClickFeedback(btn, img, onClick);
-            }
+            Image img = Rounded(name, parent, Theme.RadiusM, Theme.Gold, Theme.Lighten(Theme.Gold, 0.32f), 2, true);
+            var btn = img.gameObject.AddComponent<Button>();
+            AttachClickFeedback(btn, img, onClick);
+            fontSize += 4;
 
-            var label = Label("Caption", img.transform, caption, fontSize, Theme.Darken(Theme.Gold, 0.62f), TextAlignmentOptions.Center);
+            var label = Label("Caption", img.transform, caption, fontSize, Theme.Darken(Theme.Gold, 0.72f), TextAlignmentOptions.Center);
             label.margin = new Vector4(16f, 0f, 16f, 0f);
             label.characterSpacing = 4f;
             label.fontStyle = FontStyles.Bold;
