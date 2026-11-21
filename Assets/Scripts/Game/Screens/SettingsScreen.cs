@@ -10,7 +10,7 @@ namespace Slime.Game
     {
         protected override void Build()
         {
-            BuildHeader("设置", "音量、账号与存档", "返回");
+            BuildHeader("设置", null, "返回");
             var body = BuildBody(142f);
 
             var column = Ui.Node("Column", body);

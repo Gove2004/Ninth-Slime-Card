@@ -16,11 +16,11 @@ namespace Slime.Game
         //
         // 一章 12 层、每层 2~5 个节点，全摊在一屏里就是三十多个直径 40 的圆点。
         // 手机上每个圆点不到 8 毫米，字认不出来，连线也糊成一张网。
-        // 只留五层、节点放大到 88、每个带名字：一屏最多十五个节点，看得清也点得准。
+        // 只留五层、节点放大到 88：一屏最多十五个节点，看得清也点得准。
         // 全局进度交给标题栏的「第 N / 12 层」，不靠一张缩略图去猜。
         private const int VisibleSpan = 2;
 
-        /// <summary>相邻两层的纵向间距。必须同时容下「节点直径 + 节点名」，否则名字会蹭到下一层。</summary>
+        /// <summary>相邻两层的纵向间距。节点 88 直径 + 上下呼吸空隙，让连线读得出方向。</summary>
         private const float LayerGap = 170f;
 
         // 画布铺满标题栏与底部提示之间的整块空地：节点缩在中央一小块时，
@@ -34,12 +34,10 @@ namespace Slime.Game
 
         private readonly Dictionary<int, Image> nodeViews = new Dictionary<int, Image>();
         private readonly Dictionary<int, TextMeshProUGUI> nodeGlyphs = new Dictionary<int, TextMeshProUGUI>();
-        private readonly Dictionary<int, TextMeshProUGUI> nodeNames = new Dictionary<int, TextMeshProUGUI>();
 
         /// <summary>窗口的地图中心层。BuildMap 定下来，RefreshNodes 靠它算景深。</summary>
         private int centerFloor;
 
-        private TextMeshProUGUI hintLabel;
         private TextMeshProUGUI hpLabel;
         private TextMeshProUGUI goldLabel;
         private TextMeshProUGUI deckLabel;
@@ -76,14 +74,12 @@ namespace Slime.Game
 
             // 层号必须写在标题栏：窗口式地图只显示当前附近五层，
             // 玩家看不到全貌，得有个地方告诉他「这章还剩多少」。
-            // 无限年没有总层数，只报当前层。
+            // 无限年没有总层数，只报当前层。节点名不跟——地图节点上自己看得见。
             string sub = director.Endless
-                ? "第 " + (director.Floor + 1) + " 层 · " + director.ChapterSubtitle
-                : "第 " + (director.Floor + 1) + " / " + EnemyRoster.FloorsPerChapter + " 层 · "
-                    + director.ChapterSubtitle;
+                ? "第 " + (director.Floor + 1) + " 层"
+                : "第 " + (director.Floor + 1) + " / " + EnemyRoster.FloorsPerChapter + " 层";
             var header = BuildHeader(director.ChapterName, sub, null);
             BuildHeaderStats(header);
-            BuildHint();
             BuildMap();
             RefreshNodes();
             RefreshStats();
@@ -152,20 +148,6 @@ namespace Slime.Game
         }
 
         // ---------------------------------------------------------------- 地图
-
-        /// <summary>
-        /// 底部只留一行提示语。
-        ///
-        /// 七项图例已删：每个节点下面本来就写着它的名字（战斗/精英/篝火…），
-        /// 图例是同一信息说第二遍，纯占版面。提示语留在原来图例的最左格。
-        /// </summary>
-        private void BuildHint()
-        {
-            hintLabel = Ui.Label("Hint", Root, string.Empty, Theme.Caption, Theme.TextFaint,
-                TextAlignmentOptions.Center);
-            Ui.Fixed(hintLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, EdgeMargin + 18f), new Vector2(420f, 32f));
-        }
 
         private void RefreshStats()
         {
@@ -292,12 +274,8 @@ namespace Slime.Game
                 Ui.Fixed(glyph.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                     Vector2.zero, new Vector2(size, size));
 
-                // 圆点里只有一个字形，玩家得靠图例反查才知道「剑」是普通战斗。
-                // 名字直接写在下面，辨识负担归零——这是放大节点换来的空间该花的地方。
-                var name = Ui.Label("Name", mapRoot, node.Label, Theme.Body, Theme.TextDim,
-                    TextAlignmentOptions.Center);
-                Ui.Fixed(name.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(pos.x, pos.y - size * 0.5f - 24f), new Vector2(190f, 30f));
+                // 节点名（战斗/篝火/事件…）不再写在圆点下面：字形本身就是类型，
+                // 同名小字重复十三遍只会把地图糊成账本。
 
                 var btn = img.gameObject.AddComponent<Button>();
                 btn.targetGraphic = img;
@@ -306,10 +284,7 @@ namespace Slime.Game
 
                 nodeViews[node.Id] = img;
                 nodeGlyphs[node.Id] = glyph;
-                nodeNames[node.Id] = name;
             }
-
-            hintLabel.text = director.CurrentNodeId == 0 ? "选择起点出发" : "点亮才可前往";
         }
 
         /// <summary>节点是否落在当前窗口（当前层上下 VisibleSpan 层）内。</summary>
@@ -402,12 +377,6 @@ namespace Slime.Game
                 {
                     float ga = reachable ? 1f : (node.Visited ? 0.85f : 0.72f);
                     glyph.color = Theme.WithAlpha(Theme.Text, ga * alpha);
-                }
-
-                TextMeshProUGUI nameLabel;
-                if (nodeNames.TryGetValue(node.Id, out nameLabel))
-                {
-                    nameLabel.color = Theme.WithAlpha(reachable ? Theme.Text : Theme.TextDim, alpha);
                 }
             }
         }

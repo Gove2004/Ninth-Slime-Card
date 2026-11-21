@@ -39,8 +39,6 @@ namespace Slime.Game
 
         public override string BgKey { get { return "bg_shop"; } }
 
-        protected override string Subtitle { get { return "他把货摊在布上，不问你从哪来，只问你带了多少。"; } }
-
         protected override Color Accent { get { return Theme.SeriesThunder; } }
 
         protected override void BuildContent(RectTransform panel)

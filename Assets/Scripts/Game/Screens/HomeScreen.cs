@@ -190,13 +190,12 @@ namespace Slime.Game
             Ui.Fixed(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
                 new Vector2(104f, 0f), new Vector2(320f, 40f));
 
-            // --- 右：三个数字，从右缘往左依次排，每个是「数值在上、标签在下」 ---
-            int best = App.Meta.BestChapter > 0 ? App.Meta.BestChapter : App.Director.Chapter;
+            // --- 右：两个数字，从右缘往左依次排 ---
+            // 「最远章节」读数已删：进度在地图标题栏有专位，顶栏重复一遍是噪音。
 
-            // 从右往左：奖杯（最重要，放最右） → 金币（带金币图标） → 最远章节
+            // 从右往左：奖杯（最重要，放最右） → 金币（带金币图标）
             Stat(bar, "Trophy", App.Meta.Trophy.ToString(), "奖杯", -30f);
             Stat(bar, "Gold", App.Director.Gold.ToString(), "金币", -230f, ArtLib.UiArt("icon_gold", Vector4.zero));
-            Stat(bar, "Chapter", best + " / " + EnemyRoster.TotalChapters, "最远章节", -430f);
         }
 
         /// <summary>
@@ -297,7 +296,7 @@ namespace Slime.Game
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -410f), new Vector2(ColW - Pad * 2f, 44f));
 
-            var foe = Ui.Label("Foe", card.transform, "下一个对手 · " + info.Name,
+            var foe = Ui.Label("Foe", card.transform, info.Name,
                 Theme.Body, Theme.WithAlpha(accent, 1f), TextAlignmentOptions.Center);
             Ui.Fixed(foe.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -456f), new Vector2(ColW - Pad * 2f, 32f));

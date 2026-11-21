@@ -23,8 +23,6 @@ namespace Slime.Game
 
         public override string BgKey { get { return "bg_treasure"; } }
 
-        protected override string Subtitle { get { return "锁扣一掰就开了，里面躺着一件还没被取走的东西。"; } }
-
         protected override Color Accent { get { return Theme.Gold; } }
 
         protected override void BuildContent(RectTransform panel)
@@ -93,11 +91,6 @@ namespace Slime.Game
                 new Vector2(0f, 8f), new Vector2(14f, 26f));
 
             Tween.PopInScaled(chest, 1f, 0f, 0.9f);
-
-            var hint = Ui.Label("Hint", body, "打开它会直接得到一张卡牌，不占奖励次数。",
-                Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -130f), new Vector2(900f, 32f));
 
             var open = ActionButton(body, "打 开 宝 箱", new Vector2(0f, -6f), new Vector2(440f, 88f), Theme.Gold);
             open.GetComponentInChildren<TextMeshProUGUI>().color = Theme.BgDeep;

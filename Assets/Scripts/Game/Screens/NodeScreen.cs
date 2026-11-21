@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace Slime.Game
 {
     /// <summary>
-    /// 非战斗节点屏的共用骨架：中间一块面板，往上放标题、说明与操作区。
+    /// 非战斗节点屏的共用骨架：中间一块面板，往上放标题与操作区。
     /// 篝火 / 宝箱 / 商店 / 事件四个屏都从这里派生，保证它们的排版完全一致。
     /// </summary>
     public abstract class NodeScreen : Screen
@@ -16,9 +16,6 @@ namespace Slime.Game
 
         /// <summary>节点标题。</summary>
         protected abstract string Title { get; }
-
-        /// <summary>标题下的一句说明。</summary>
-        protected abstract string Subtitle { get; }
 
         /// <summary>强调色。</summary>
         protected abstract Color Accent { get; }
@@ -42,15 +39,10 @@ namespace Slime.Game
 
             var title = Ui.Label("Title", panel.transform, Title, Theme.H1, Accent, TextAlignmentOptions.Center);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -54f), new Vector2(PanelW - 80f, 62f));
-
-            var sub = Ui.Label("Sub", panel.transform, Subtitle, Theme.Body, Theme.TextDim, TextAlignmentOptions.Center);
-            Ui.Fixed(sub.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -114f), new Vector2(PanelW - 100f, 30f));
-            Tween.FadeIn(sub, 0.3f, 0.1f, 0f, 1f);
+                new Vector2(0f, -62f), new Vector2(PanelW - 80f, 62f));
 
             var body = Ui.Node("Body", panel.transform);
-            Ui.Stretch(body, 40f, 160f, 40f, 40f);
+            Ui.Stretch(body, 40f, 124f, 40f, 40f);
             BuildContent(body);
         }
 

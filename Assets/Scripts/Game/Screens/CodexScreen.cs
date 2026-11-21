@@ -26,7 +26,7 @@ namespace Slime.Game
 
         protected override void Build()
         {
-            BuildHeader("档案室", "八系列牌池、机制说明与成就记录", "返回");
+            BuildHeader("档案室", null, "返回");
             body = BuildBody(142f);
             Show(initialTab);
         }
@@ -59,23 +59,8 @@ namespace Slime.Game
                 tab == Tab.Achievements ? Theme.Text : Theme.TextDim, () => Show(Tab.Achievements));
             Ui.FixedSize(achi.gameObject, 320f, 62f);
 
-            // 提示条固定在标签栏下方，不随内容滚动：滚动区顶端要压在它之下，
-            // 否则长句会贴着标签按钮，读起来像是被裁掉了一截。
+            // 提示条已删：说明页讲机制怎么结算，条目本身就在解释，不需要先自报家门。
             float contentTop = 100f;
-            if (tab == Tab.Mechanics)
-            {
-                var hint = Ui.Rounded("MechHint", body, Theme.RadiusM,
-                    Theme.WithAlpha(Theme.PanelSunken, 0.96f), Theme.WithAlpha(Theme.Mana, 0.32f), 1);
-                Ui.Fixed(hint.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                    new Vector2(0f, -78f), new Vector2(1020f, 42f));
-
-                var hintText = Ui.Label("HintText", hint.transform,
-                    "卡面只写结果，不解释过程 —— 这一页说明每种机制实际怎么结算",
-                    Theme.Caption, Theme.TextDim, TextAlignmentOptions.Center);
-                Ui.Stretch(hintText.rectTransform, 16f, 0f, 16f, 0f);
-
-                contentTop = 134f;
-            }
 
             var content = Ui.Node("Content", body);
             Ui.Stretch(content, 0f, contentTop, 0f, 0f);

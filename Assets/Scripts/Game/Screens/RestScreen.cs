@@ -18,8 +18,6 @@ namespace Slime.Game
 
         public override string BgKey { get { return "bg_rest"; } }
 
-        protected override string Subtitle { get { return "火光够撑到天亮。休息，或者磨一磨手里的牌。"; } }
-
         protected override Color Accent { get { return Theme.Accent; } }
 
         protected override void BuildContent(RectTransform panel)
@@ -64,11 +62,6 @@ namespace Slime.Game
                 full ? "生命已满，休息不会有收益" : "火光能撑到天亮", Theme.Accent, OnRest);
             BuildOption("Forge", -40f, true, "锻 造", "升级一张牌",
                 "数值提高，费用不变", Theme.Gold, OnForge);
-
-            var tip = Ui.Label("Tip", body, "升级后的牌数值提高，费用不变——长局里比一次回血更值钱。",
-                Theme.Caption, Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(tip.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 26f), new Vector2(900f, 26f));
         }
 
         /// <summary>一枚 400x250 的竖排选项卡，横轴居中偏移 offsetX。</summary>

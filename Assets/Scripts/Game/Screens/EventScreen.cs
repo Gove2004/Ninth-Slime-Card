@@ -40,8 +40,6 @@ namespace Slime.Game
 
         public override string BgKey { get { return "bg_event"; } }
 
-        protected override string Subtitle { get { return "路上有些东西在等你，它不一定是敌人。"; } }
-
         protected override Color Accent { get { return Theme.SeriesDark; } }
 
         protected override void BuildContent(RectTransform panel)

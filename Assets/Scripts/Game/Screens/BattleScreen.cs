@@ -221,8 +221,8 @@ namespace Slime.Game
 
             RefreshAll();
 
-            // 每次开战先弹一次玩法提示，别让人对着手牌点半天
-            GameApp.I.Toast("拖动卡牌到中间的出牌区，松手即可打出");
+            // 开场玩法提示不再弹：出牌区常驻「拖 到 此 处 打 出」，教学已经够用，
+            // 每场都弹一次 toast 反而打断节奏。
 
             // Boss 登场先吼一声，宣告「这一场不一样」
             if (session.IsBoss)
@@ -627,7 +627,7 @@ namespace Slime.Game
             Ui.Stretch(endTurnLabel.rectTransform, 0f, 0f, 0f, 0f);
 
             // 手牌出空时，提示语正好落在出牌区的位置上——那块地方空着总得说明它为什么空
-            emptyHint = Ui.Label("EmptyHand", Root, "手牌已空 · 点右侧「结束回合」继续", Theme.H3,
+            emptyHint = Ui.Label("EmptyHand", Root, "手 牌 已 空", Theme.H3,
                 Theme.WithAlpha(Theme.TextFaint, 0.92f), TextAlignmentOptions.Center);
             Ui.Fixed(emptyHint.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(HandCenterX, ZoneY), new Vector2(760f, 40f));
