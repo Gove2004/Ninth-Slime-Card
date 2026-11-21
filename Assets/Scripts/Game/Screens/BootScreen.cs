@@ -54,8 +54,11 @@ namespace Slime.Game
             AddOutline(title.gameObject, new Color(0.03f, 0.08f, 0.10f, 0.85f), 3f);
             Ui.Fixed(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 386f), new Vector2(1200f, 84f));
-            Tween.PopIn(title.rectTransform, 0.15f, 0.3f, 0.5f);
-            Tween.Punch(title.rectTransform, 0.10f, 0.30f, 0.62f);
+            // PopIn 签名是 (rt, delay, from, dur)。落地挤压不再叠 Punch——
+            // Punch 在 Build 期捕获 baseScale（此刻 PopIn 刚把缩放压到 from），
+            // 延迟触发后会把标题按 from 倍永久钉死，标题只剩徽章大小。
+            // OutBack 曲线自带落地质感，无需叠加。
+            Tween.PopIn(title.rectTransform, 0.15f, 0.5f, 0.3f);
             Tween.FadeIn(title, 0.30f, 0.15f, 0f, 1f);
 
             // 副标题徽章：金框石板胶囊，第二波淡入

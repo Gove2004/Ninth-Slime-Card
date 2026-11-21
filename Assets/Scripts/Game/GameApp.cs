@@ -188,9 +188,8 @@ namespace Slime.Game
                 bgArtImage.raycastTarget = false;
                 FitBackground(bgArt);
 
-                // 顶部压暗必须是一条竖直渐变，不能再用径向 Glow：背景图里的月亮
-                // 正好落在标题栏左侧，径向光只会把正中间压暗，月亮照样亮着，
-                // 于是「设置」「档案室」这些标题和标签栏整条都糊在月亮上。
+                // 顶部压暗必须是一条竖直渐变，不能再用径向 Glow：径向光只会把正中间压暗，
+                // 两边照样亮着。月亮本身已从 bg_main 原图补掉（backup/2026-11-21/）。
                 var shadeTop = Ui.Panel("BgShadeTop", BackgroundLayer,
                     SpriteForge.Scrim(32, 256, Theme.BgDeep, 0.92f, 0f), Color.white);
                 shadeTop.raycastTarget = false;

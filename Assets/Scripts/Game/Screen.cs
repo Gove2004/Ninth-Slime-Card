@@ -81,7 +81,7 @@ namespace Slime.Game
         protected RectTransform BuildHeader(string title, string subtitle, string backCaption)
         {
             var header = Ui.Rounded("Header", Root, Theme.RadiusM,
-                Theme.WithAlpha(Theme.Panel, 0.92f), Theme.Border, 1);
+                Theme.WithAlpha(Theme.Panel, 0.97f), Theme.Border, 1);
             Ui.Fixed(header.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -EdgeMargin), new Vector2(HeaderW, HeaderH));
 
