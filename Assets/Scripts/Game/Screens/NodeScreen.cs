@@ -1,4 +1,3 @@
-using Slime.Core;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,43 +5,42 @@ using UnityEngine.UI;
 namespace Slime.Game
 {
     /// <summary>
-    /// 非战斗节点屏的共用骨架：中间一块面板，往上放标题与操作区。
+    /// 非战斗节点屏的共用骨架：全屏沉浸构图，没有中央面板。
+    /// 标题左上大字（与地图头部同一语言），内容直接落背景场景，操作按钮沉底。
     /// 篝火 / 宝箱 / 商店 / 事件四个屏都从这里派生，保证它们的排版完全一致。
     /// </summary>
     public abstract class NodeScreen : Screen
     {
-        protected const float PanelW = 1080f;
-        protected const float PanelH = 720f;
-
         /// <summary>节点标题。</summary>
         protected abstract string Title { get; }
 
         /// <summary>强调色。</summary>
         protected abstract Color Accent { get; }
 
-        /// <summary>构建面板内容。y 从 0 向下递减。</summary>
-        protected abstract void BuildContent(RectTransform panel);
+        /// <summary>构建内容。body 是避开标题后的全屏区域，坐标以自身中心为原点。</summary>
+        protected abstract void BuildContent(RectTransform body);
 
         protected override void Build()
         {
             App.Audio.PlayMusic("title2");
 
-            var glow = Ui.Panel("Glow", Root, SpriteForge.Glow(512, Accent), Theme.WithAlpha(Color.white, 0.18f));
+            // 一团强调色光晕垫在场景中上部：给内容一个「从暗场里亮出来」的落点
+            var glow = Ui.Panel("Glow", Root, SpriteForge.Glow(512, Accent), Theme.WithAlpha(Color.white, 0.16f));
             Ui.Fixed(glow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 40f), new Vector2(1100f, 1100f));
+                new Vector2(0f, 80f), new Vector2(1400f, 1400f));
 
-            var panel = Ui.Rounded("Panel", Root, Theme.RadiusL,
-                Theme.WithAlpha(Theme.Panel, 0.97f), Theme.WithAlpha(Accent, 0.6f), 2);
-            Ui.Fixed(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 20f), new Vector2(PanelW, PanelH));
-            Tween.PopIn(panel.rectTransform, 0f, 0.9f);
+            var title = Ui.Label("Title", Root, Title, Theme.H1, Accent, TextAlignmentOptions.Left);
+            title.characterSpacing = 4f;
+            Ui.Fixed(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(56f, -56f), new Vector2(900f, 74f));
 
-            var title = Ui.Label("Title", panel.transform, Title, Theme.H1, Accent, TextAlignmentOptions.Center);
-            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -62f), new Vector2(PanelW - 80f, 62f));
+            // 标题下一段短下划线：唯一的装饰，替代原来整块面板的框定感
+            var underline = Ui.Solid("Underline", Root, Theme.WithAlpha(Accent, 0.85f));
+            Ui.Fixed(underline.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(58f, -146f), new Vector2(132f, 5f));
 
-            var body = Ui.Node("Body", panel.transform);
-            Ui.Stretch(body, 40f, 124f, 40f, 40f);
+            var body = Ui.Node("Body", Root);
+            Ui.Stretch(body, 56f, 176f, 56f, EdgeMargin);
             BuildContent(body);
         }
 
@@ -58,10 +56,12 @@ namespace Slime.Game
             });
         }
 
-        protected Button ActionButton(RectTransform parent, string caption, Vector2 pos, Vector2 size, Color fill)
+        /// <summary>沉底主按钮：全屏构图下唯一的大行动点，居中或左右分立由 centerX 决定。</summary>
+        protected Button BottomButton(RectTransform parent, string caption, float centerX, Vector2 size, Color fill)
         {
             var btn = Ui.TextButton("Action", parent, caption, Theme.H3, fill, Theme.Text, null);
-            Ui.Fixed(btn.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), pos, size);
+            Ui.Fixed(btn.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(centerX, 56f), size);
             return btn;
         }
     }

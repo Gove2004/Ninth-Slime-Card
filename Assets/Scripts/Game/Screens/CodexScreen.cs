@@ -26,8 +26,22 @@ namespace Slime.Game
 
         protected override void Build()
         {
-            BuildHeader("档案室", null, "返回");
-            body = BuildBody(142f);
+            // 去石板头部：标题落景左上，返回沉右上——与节点屏同一构图语言。
+            var title = Ui.Label("Title", Root, "档 案 室", Theme.H1, Theme.Text, TextAlignmentOptions.Left);
+            title.characterSpacing = 4f;
+            Ui.Fixed(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(56f, -56f), new Vector2(600f, 74f));
+
+            var underline = Ui.Solid("Underline", Root, Theme.WithAlpha(Theme.Accent, 0.85f));
+            Ui.Fixed(underline.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(58f, -146f), new Vector2(132f, 5f));
+
+            var back = Ui.GhostButton("Back", Root, "返 回", Theme.Body, () => App.Pop());
+            Ui.Fixed(back.GetComponent<RectTransform>(), new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-56f, -56f), new Vector2(220f, 68f));
+
+            body = Ui.Node("Body", Root);
+            Ui.Stretch(body, 56f, 176f, 56f, EdgeMargin);
             Show(initialTab);
         }
 
@@ -36,7 +50,7 @@ namespace Slime.Game
             Ui.ClearChildren(body);
 
             var tabBar = Ui.Node("TabBar", body);
-            Ui.Fixed(tabBar, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(1020f, 66f));
+            Ui.Fixed(tabBar, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -6f), new Vector2(1400f, 66f));
 
             var row = Ui.Row(tabBar, 12, new RectOffset(0, 0, 0, 0));
             row.childForceExpandWidth = true;

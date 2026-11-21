@@ -10,13 +10,26 @@ namespace Slime.Game
     {
         protected override void Build()
         {
-            BuildHeader("设置", null, "返回");
-            var body = BuildBody(142f);
+            // 去石板头部：标题直接落背景左上，返回沉右上——与节点屏同一构图语言。
+            var title = Ui.Label("Title", Root, "设 置", Theme.H1, Theme.Text, TextAlignmentOptions.Left);
+            title.characterSpacing = 4f;
+            Ui.Fixed(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(56f, -56f), new Vector2(600f, 74f));
+
+            var underline = Ui.Solid("Underline", Root, Theme.WithAlpha(Theme.Accent, 0.85f));
+            Ui.Fixed(underline.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(58f, -146f), new Vector2(132f, 5f));
+
+            var back = Ui.GhostButton("Back", Root, "返 回", Theme.Body, () => App.Pop());
+            Ui.Fixed(back.GetComponent<RectTransform>(), new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-56f, -56f), new Vector2(220f, 68f));
+
+            var body = Ui.Node("Body", Root);
+            Ui.Stretch(body, 56f, 176f, 56f, EdgeMargin);
 
             var column = Ui.Node("Column", body);
             // 纵向居中：上下留白等分，避免内容全挤在上半屏。
-            // body 高 890（1080 - 头部 142 - 上下边距），四节内容收紧到 868 以内。
-            Ui.Fixed(column, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1180f, 890f));
+            Ui.Fixed(column, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1400f, 890f));
             Ui.Column(column, 16, new RectOffset(0, 0, 0, 0));
 
             BuildAudioSection(column);
@@ -39,10 +52,10 @@ namespace Slime.Game
         /// <summary>新春装饰偏好：跟随日期 / 常开 / 关闭，点按钮循环切换。</summary>
         private void BuildFestivalSection(RectTransform parent)
         {
-            BuildSectionHeader(parent, "外观", "新春装饰");
+            BuildSectionHeader(parent, "外观");
 
             var panel = Ui.Rounded("Festival", parent, Theme.RadiusL, Theme.WithAlpha(Theme.Panel, 0.96f), Theme.Border, 1);
-            Ui.FixedSize(panel.gameObject, 1180f, 136f);
+            Ui.FixedSize(panel.gameObject, 1400f, 136f);
 
             var info = Ui.Label("Info", panel.transform,
                 "灯笼春联会在 1 月 20 日至 2 月 28 日自动出现。纯装饰，不影响玩法。",
@@ -74,32 +87,26 @@ namespace Slime.Game
                 new Vector2(-26f, 0f), new Vector2(340f, 62f));
         }
 
-        private void BuildSectionHeader(RectTransform parent, string title, string caption)
+        private void BuildSectionHeader(RectTransform parent, string title)
         {
             var head = Ui.Node("SectionHead", parent);
-            Ui.FixedSize(head.gameObject, 1180f, 36f);
+            Ui.FixedSize(head.gameObject, 1400f, 36f);
 
             var mark = Ui.Solid("Mark", head, Theme.Accent);
             Ui.Fixed(mark.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(6f, 26f));
 
             var label = Ui.Label("Title", head, title, Theme.H4, Theme.Text, TextAlignmentOptions.Left);
             Ui.Fixed(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(18f, 0f), new Vector2(200f, 34f));
-
-            // 补充说明紧贴标题，不做整行右对齐，也不留大间距：
-            // 三个分节标题都是两字，说明挪到 104 就正好跟在后面；
-            // 再往右会落在背景那轮月亮上，灰字压亮圆，等于没写。
-            var sub = Ui.Label("Cap", head, caption, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Fixed(sub.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(104f, 0f), new Vector2(700f, 28f));
         }
 
         private void BuildAudioSection(RectTransform parent)
         {
-            BuildSectionHeader(parent, "音频", "即时生效");
+            BuildSectionHeader(parent, "音频");
 
             var panel = Ui.Rounded("Audio", parent, Theme.RadiusL, Theme.WithAlpha(Theme.Panel, 0.96f), Theme.Border, 1);
-            Ui.FixedSize(panel.gameObject, 1180f, 220f);
+            Ui.FixedSize(panel.gameObject, 1400f, 230f);
 
-            BuildSlider(panel.transform, 0, "音乐音量", "标题与战斗背景音乐", App.Audio.MusicVolume, v =>
+            BuildSlider(panel.transform, 24, "音乐音量", App.Audio.MusicVolume, v =>
             {
                 App.Audio.SetMusicVolume(v);
                 App.Audio.PlaySfx("ui_click");
@@ -114,7 +121,7 @@ namespace Slime.Game
             dividerRt.offsetMin = new Vector2(26f, -0.5f);
             dividerRt.offsetMax = new Vector2(-26f, 0.5f);
 
-            BuildSlider(panel.transform, 110, "音效音量", "出牌、爆发与界面反馈音", App.Audio.SfxVolume, v =>
+            BuildSlider(panel.transform, 120, "音效音量", App.Audio.SfxVolume, v =>
             {
                 App.Audio.SetSfxVolume(v);
                 App.Audio.PlaySfx("ui_click");
@@ -124,10 +131,10 @@ namespace Slime.Game
 
         private void BuildAccountSection(RectTransform parent)
         {
-            BuildSectionHeader(parent, "账号", string.Empty);
+            BuildSectionHeader(parent, "账号");
 
             var panel = Ui.Rounded("Account", parent, Theme.RadiusL, Theme.WithAlpha(Theme.Panel, 0.96f), Theme.Border, 1);
-            Ui.FixedSize(panel.gameObject, 1180f, 136f);
+            Ui.FixedSize(panel.gameObject, 1400f, 136f);
 
             bool logged = App.Tap.IsLoggedIn;
 
@@ -153,26 +160,26 @@ namespace Slime.Game
                 : "成就已解锁 " + App.Meta.Unlocked.Count + " / " + App.Achievements.All.Count + "，未登录时只记在本机";
 
             var info = Ui.Label("Info", panel.transform, line, Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Fixed(info.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(26f, 30f), new Vector2(1120f, 34f));
+            Ui.Fixed(info.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(26f, 30f), new Vector2(1340f, 34f));
         }
 
         private void BuildDataSection(RectTransform parent)
         {
-            BuildSectionHeader(parent, "存档", "v" + Application.version);
+            BuildSectionHeader(parent, "存档");
 
             var row = Ui.Node("DataRow", parent);
-            Ui.FixedSize(row.gameObject, 1180f, 84f);
+            Ui.FixedSize(row.gameObject, 1400f, 84f);
             var layout = Ui.Row(row, 16, new RectOffset(0, 0, 0, 0));
             layout.childForceExpandWidth = false;
             layout.childAlignment = TextAnchor.MiddleLeft;
 
             var note = Ui.Rounded("Note", row, Theme.RadiusL, Theme.WithAlpha(Theme.PanelSunken, 1f), Theme.BorderSoft, 1);
-            Ui.FixedSize(note.gameObject, 830f, 92f);
+            Ui.FixedSize(note.gameObject, 1040f, 92f);
 
             var noteText = Ui.Label("Text", note.transform,
                 "进度只写在本机，换设备或卸载后不会自动恢复。",
                 Theme.Body, Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Fixed(noteText.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(26f, 0f), new Vector2(770f, 40f));
+            Ui.Fixed(noteText.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(26f, 0f), new Vector2(980f, 40f));
 
             var reset = Ui.TextButton("Reset", row, "清除本地存档", Theme.Body, Theme.WithAlpha(Theme.Danger, 0.85f), Theme.Text, ConfirmReset);
             Ui.FixedSize(reset.gameObject, 334f, 68f);
@@ -215,16 +222,13 @@ namespace Slime.Game
         }
 
         /// <summary>一行音量滑块。topOffset 为行在面板内的纵向偏移。</summary>
-        private void BuildSlider(Transform parent, float topOffset, string caption, string hint, float value, Action<float> onChanged)
+        private void BuildSlider(Transform parent, float topOffset, string caption, float value, Action<float> onChanged)
         {
             var rowRt = Ui.Node("Row", parent);
-            Ui.Fixed(rowRt, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -topOffset), new Vector2(1120f, 110f));
+            Ui.Fixed(rowRt, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -topOffset), new Vector2(1340f, 92f));
 
-            var label = Ui.Label("Caption", rowRt, caption, Theme.Body, Theme.Text, TextAlignmentOptions.Left);
-            Ui.Fixed(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 18f), new Vector2(320f, 30f));
-
-            var hintLabel = Ui.Label("Hint", rowRt, hint, Theme.Caption, Theme.TextDim, TextAlignmentOptions.Left);
-            Ui.Fixed(hintLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, -16f), new Vector2(460f, 26f));
+            var label = Ui.Label("Caption", rowRt, caption, Theme.H4, Theme.Text, TextAlignmentOptions.Left);
+            Ui.Fixed(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 0f), new Vector2(320f, 34f));
 
             var valueLabel = Ui.Label("Value", rowRt, Mathf.RoundToInt(value * 100f) + "%", Theme.H4, Theme.Accent, TextAlignmentOptions.Right);
             Ui.Fixed(valueLabel.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-10f, 0f), new Vector2(120f, 34f));

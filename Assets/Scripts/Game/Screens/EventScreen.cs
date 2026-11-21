@@ -432,37 +432,28 @@ namespace Slime.Game
                 return;
             }
 
-            // 叙述单独装进一块凹槽里，左对齐：三段中文居中排下来，
-            // 每行长短不一，右端参差得像没对齐过的表格。
-            var quote = Ui.Rounded("Quote", body, Theme.RadiusM,
-                Theme.WithAlpha(Theme.PanelSunken, 0.92f), Theme.WithAlpha(Theme.SeriesDark, 0.35f), 1);
-            Ui.Fixed(quote.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                Vector2.zero, new Vector2(960f, 124f));
-
-            var mark = Ui.Solid("Mark", quote.transform, Theme.SeriesDark);
-            Ui.Fixed(mark.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(18f, 0f), new Vector2(4f, 88f));
-
-            var text = Ui.Label("Body", quote.transform, encounter.Body, Theme.Body,
+            // 叙述直接落场景：左对齐 + 左侧一道竖线，不再装面板框——
+            // 三段中文居中排下来右端参差像没对齐过的表格，框只会把「读故事」变成「读表单」。
+            var text = Ui.Label("Body", body, encounter.Body, Theme.H4,
                 Theme.Text, TextAlignmentOptions.Left);
             text.enableWordWrapping = true;
-            text.margin = new Vector4(38f, 14f, 26f, 12f);
-            Ui.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
+            Ui.Fixed(text.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(36f, -18f), new Vector2(1320f, 120f));
+
+            var mark = Ui.Solid("Mark", body, Theme.WithAlpha(Theme.SeriesDark, 0.9f));
+            Ui.Fixed(mark.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(0f, -22f), new Vector2(5f, 104f));
 
             if (receipt != null)
             {
-                var box = Ui.Rounded("Receipt", body, Theme.RadiusM,
-                    Theme.WithAlpha(Theme.PanelSunken, 0.96f), Theme.WithAlpha(Theme.SeriesDark, 0.6f), 1);
-                Ui.Fixed(box.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                    new Vector2(0f, -30f), new Vector2(960f, 150f));
-
-                var result = Ui.Label("Result", box.transform, receipt, Theme.Body,
-                    Theme.Text, TextAlignmentOptions.Center);
+                var result = Ui.Label("Result", body, receipt, Theme.H3,
+                    Theme.Text, TextAlignmentOptions.Left);
                 result.enableWordWrapping = true;
-                Ui.Stretch(result.rectTransform, 28f, 20f, 28f, 20f);
+                Ui.Fixed(result.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    new Vector2(-300f, 40f), new Vector2(1320f, 160f));
                 Tween.FadeIn(result, 0.3f, 0.05f, 0f, 1f);
 
-                var leave = ActionButton(body, "继 续 前 行", new Vector2(0f, 24f), new Vector2(420f, 76f), Theme.AccentDeep);
+                var leave = BottomButton(body, "继 续 前 行", 0f, new Vector2(560f, 88f), Theme.AccentDeep);
                 leave.onClick.AddListener(Leave);
                 return;
             }
@@ -472,8 +463,9 @@ namespace Slime.Game
 
         private void buildChoices()
         {
-            const float step = 130f;
-            const float top = -146f;
+            // 选项行从叙述下方起排：宽 1320 高 122，占满画面主体。
+            const float step = 138f;
+            const float top = -176f;
 
             for (int i = 0; i < encounter.Choices.Count; i++)
             {
@@ -482,10 +474,10 @@ namespace Slime.Game
                 bool enabled = blocked == null;
 
                 var row = Ui.Rounded("Choice", body, Theme.RadiusM,
-                    Theme.WithAlpha(enabled ? Theme.PanelRaised : Theme.PanelSunken, 0.94f),
+                    Theme.WithAlpha(enabled ? Theme.PanelRaised : Theme.PanelSunken, 0.92f),
                     Theme.WithAlpha(enabled ? Theme.SeriesDark : Theme.Border, enabled ? 0.6f : 0.3f), 1, true);
                 Ui.Fixed(row.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                    new Vector2(0f, top - step * i), new Vector2(960f, 116f));
+                    new Vector2(0f, top - step * i), new Vector2(1320f, 122f));
 
                 var btn = row.gameObject.AddComponent<Button>();
                 btn.targetGraphic = row;
@@ -497,18 +489,18 @@ namespace Slime.Game
                 // 竖条标出「这一整块都是按钮」，比整块淡色底更容易扫读。
                 var accent = Ui.Solid("Accent", row.transform, enabled ? Theme.SeriesDark : Theme.Border);
                 Ui.Fixed(accent.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(0f, 0f), new Vector2(5f, 66f));
+                    new Vector2(0f, 0f), new Vector2(5f, 72f));
 
                 var caption = Ui.Label("Caption", row.transform,
                     choice.Caption + (enabled ? string.Empty : "（" + blocked + "）"),
                     Theme.H3, enabled ? Theme.Text : Theme.TextFaint, TextAlignmentOptions.Left);
                 Ui.Fixed(caption.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(36f, 20f), new Vector2(880f, 36f));
+                    new Vector2(40f, 22f), new Vector2(1200f, 38f));
 
                 var detail = Ui.Label("Detail", row.transform, choice.Detail, Theme.Caption,
                     enabled ? Theme.TextDim : Theme.TextFaint, TextAlignmentOptions.Left);
                 Ui.Fixed(detail.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(36f, -22f), new Vector2(880f, 28f));
+                    new Vector2(40f, -24f), new Vector2(1200f, 28f));
 
                 if (enabled)
                 {

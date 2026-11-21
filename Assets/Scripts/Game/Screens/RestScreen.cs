@@ -38,43 +38,41 @@ namespace Slime.Game
             int actual = Mathf.Min(heal, director.HpMax - director.Hp);
             bool full = actual <= 0;
 
-            // 满血时换绿色：血红色在这一行读起来像「你受伤了」，
-            // 而「生命已满」恰恰是这一屏最好的消息。
+            // 血量读数贴顶左对齐：满血时换绿色，血红色在这一行读起来像
+            // 「你受伤了」，而「生命已满」恰恰是这一屏最好的消息。
             var hpInfo = Ui.Label("HpInfo", body,
                 "当前生命 " + director.Hp + " / " + director.HpMax +
                 (resolved ? "" : full ? "　·　生命已满" : "　·　休息可回复 " + actual),
-                Theme.H3, full && !resolved ? Theme.Accent : Theme.Hp, TextAlignmentOptions.Center);
-            Ui.Fixed(hpInfo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -6f), new Vector2(900f, 40f));
+                Theme.H3, full && !resolved ? Theme.Accent : Theme.Hp, TextAlignmentOptions.Left);
+            Ui.Fixed(hpInfo.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(4f, -16f), new Vector2(1100f, 44f));
 
             if (resolved)
             {
-                var leave = Ui.TextButton("Leave", body, "继 续 前 行", Theme.H3, Theme.AccentDeep, Theme.Text, Leave);
-                Ui.Fixed(leave.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                    new Vector2(0f, 40f), new Vector2(440f, 78f));
+                var leave = BottomButton(body, "继 续 前 行", 0f, new Vector2(560f, 88f), Theme.AccentDeep);
+                leave.onClick.AddListener(Leave);
                 return;
             }
 
-            // 两个选项做成等宽大卡：标题 + 说明 + 图形，占满正文区中段。
-            // 原来是两枚悬浮文字按钮挤在中线，上下各留 200 空屏，一屏只有三行字。
-            // body 高 520：血量行贴顶（-6），选项卡居中（高 250，中心 -40），提示贴底（26）。
-            BuildOption("Rest", -40f, full, "休 息", "回复 " + actual + " 点生命",
+            // 两个选项做成左右分立的大卡：占画面主体，直接落场景——
+            // 篝火屏唯一的决策就是它们，不再挤在中央面板里。
+            BuildOption("Rest", full, "休 息", "回复 " + actual + " 点生命",
                 full ? "生命已满，休息不会有收益" : "火光能撑到天亮", Theme.Accent, OnRest);
-            BuildOption("Forge", -40f, true, "锻 造", "升级一张牌",
+            BuildOption("Forge", true, "锻 造", "升级一张牌",
                 "数值提高，费用不变", Theme.Gold, OnForge);
         }
 
-        /// <summary>一枚 400x250 的竖排选项卡，横轴居中偏移 offsetX。</summary>
-        private void BuildOption(string name, float offsetY, bool enabled,
+        /// <summary>一枚 460x330 的竖排选项卡，左右分立。</summary>
+        private void BuildOption(string name, bool enabled,
             string title, string highlight, string note, Color accent, System.Action onClick)
         {
-            const float w = 400f;
-            const float h = 250f;
+            const float w = 460f;
+            const float h = 330f;
 
             var card = Ui.Rounded(name, body, Theme.RadiusL,
-                Theme.WithAlpha(Theme.PanelRaised, 0.97f), Theme.WithAlpha(accent, enabled ? 0.65f : 0.25f), 2, true);
+                Theme.WithAlpha(Theme.PanelRaised, 0.94f), Theme.WithAlpha(accent, enabled ? 0.7f : 0.25f), 2, true);
             Ui.Fixed(card.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(name == "Rest" ? -230f : 230f, offsetY), new Vector2(w, h));
+                new Vector2(name == "Rest" ? -300f : 300f, -30f), new Vector2(w, h));
 
             if (enabled)
             {
@@ -91,23 +89,23 @@ namespace Slime.Game
             var mark = Ui.Panel("Mark", card.transform, SpriteForge.Circle(96,
                 Theme.Darken(accent, 0.5f), Theme.Lighten(accent, 0.3f), 3), Color.white);
             mark.raycastTarget = false;
-            Ui.Fixed(mark.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -58f), new Vector2(64f, 64f));
+            Ui.Fixed(mark.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -64f), new Vector2(76f, 76f));
 
-            var t = Ui.Label("Title", card.transform, title, Theme.H3, enabled ? accent : Theme.TextFaint,
+            var t = Ui.Label("Title", card.transform, title, Theme.H2, enabled ? accent : Theme.TextFaint,
                 TextAlignmentOptions.Center);
-            Ui.Fixed(t.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -118f), new Vector2(w, 40f));
+            Ui.Fixed(t.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -142f), new Vector2(w, 50f));
 
-            var hl = Ui.Label("Highlight", card.transform, highlight, Theme.Body,
+            var hl = Ui.Label("Highlight", card.transform, highlight, Theme.H4,
                 enabled ? Theme.Text : Theme.TextFaint, TextAlignmentOptions.Center);
-            Ui.Fixed(hl.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -162f), new Vector2(w - 40f, 30f));
+            Ui.Fixed(hl.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -208f), new Vector2(w - 48f, 34f));
 
-            var n = Ui.Label("Note", card.transform, note, Theme.Caption, Theme.TextDim,
-                TextAlignmentOptions.Center);
-            Ui.Fixed(n.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -198f), new Vector2(w - 40f, 26f));
+            var n = Ui.Label("Note", card.transform, note, Theme.Body,
+                Theme.TextDim, TextAlignmentOptions.Center);
+            Ui.Fixed(n.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -254f), new Vector2(w - 48f, 30f));
         }
 
         private void OnRest()
@@ -133,15 +131,15 @@ namespace Slime.Game
 
             var director = App.Director;
 
-            var title = Ui.Label("Pick", body, "选择一张牌升级", Theme.H3, Theme.Gold, TextAlignmentOptions.Center);
-            Ui.Fixed(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -10f), new Vector2(900f, 40f));
+            var title = Ui.Label("Pick", body, "选择一张牌升级", Theme.H3, Theme.Gold, TextAlignmentOptions.Left);
+            Ui.Fixed(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(4f, -14f), new Vector2(900f, 44f));
 
             RectTransform content;
             var scroll = Ui.VerticalScroll("List", body, out content);
-            // 滚动区底部必须让开「跳过」按钮（占 24..84），否则最后两行被按钮压住点不到
+            // 滚动区底部必须让开「跳过」按钮（沉底一行），否则最后两行被按钮压住点不到
             Ui.Fixed(scroll.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 26f), new Vector2(940f, 356f));
+                new Vector2(0f, -60f), new Vector2(1400f, 560f));
 
             for (int i = 0; i < director.Deck.Count; i++)
             {
@@ -169,7 +167,7 @@ namespace Slime.Game
 
             var skip = Ui.TextButton("Skip", body, "不升级，直接前进", Theme.Body, Theme.PanelRaised, Theme.TextDim, Leave);
             Ui.Fixed(skip.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 24f), new Vector2(360f, 60f));
+                new Vector2(0f, 56f), new Vector2(480f, 70f));
         }
 
         private RectTransform BuildRow(RectTransform parent, CardInstance card, bool maxed, int index)
@@ -178,7 +176,7 @@ namespace Slime.Game
 
             var img = Ui.Rounded("Row", parent, Theme.RadiusM,
                 Theme.WithAlpha(Theme.Darken(series, 0.7f), 0.94f), Theme.WithAlpha(series, 0.5f), 1, true);
-            Ui.FixedSize(img.gameObject, 900f, 64f);
+            Ui.FixedSize(img.gameObject, 1400f, 64f);
             img.color = maxed ? new Color(1f, 1f, 1f, 0.4f) : Color.white;
 
             var name = Ui.Label("Name", img.transform, card.Name + (maxed ? "（已升级）" : ""),
@@ -189,7 +187,7 @@ namespace Slime.Game
             var desc = Ui.Label("Desc", img.transform, card.DisplayText, Theme.Caption,
                 Theme.TextDim, TextAlignmentOptions.Left);
             Ui.Fixed(desc.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(24f, -16f), new Vector2(700f, 22f));
+                new Vector2(24f, -16f), new Vector2(1200f, 22f));
 
             var cost = Ui.Label("Cost", img.transform, card.Cost.ToString(), Theme.H4,
                 Theme.Lighten(series, 0.4f), TextAlignmentOptions.Center);

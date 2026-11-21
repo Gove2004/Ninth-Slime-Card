@@ -15,8 +15,8 @@ namespace Slime.Game
     {
         // 四张牌摊在 1000 宽的正文区里，按卡面原尺寸（216×312）摆正好排得下，
         // 没有理由再缩：商店是玩家读卡最多的一屏，字小一号就是白来一趟。
-        private const float CardScale = 1f;
-        private const float CardGap = 28f;
+        private const float CardScale = 1.2f;
+        private const float CardGap = 32f;
 
         private sealed class Offer
         {
@@ -47,10 +47,9 @@ namespace Slime.Game
             rollOffers();
 
             // 金币读数只建一次（render 会随购买反复重建 body）：
-            // 一枚小金币图标 + 数字，挂在面板标题行右缘、与「商 人」同一基线。
-            // 正文右上会压住商品卡，底栏又被两个按钮占满。
-            // 注意 BuildContent 的 panel 参数就是 body 本身——必须挂到 body.parent
-            // （真正的面板），否则 render 的 ClearChildren 会把它一起清掉。
+            // 一枚小金币图标 + 数字，挂在屏幕右上角、与左上标题同一基线。
+            // 注意必须挂到 body.parent（即屏幕 Root）——render 的 ClearChildren
+            // 只清 body，挂在 body 里的东西会随购买被一起清掉。
             var plate = body.parent as RectTransform;
             var goldIcon = Ui.Panel("GoldIcon", plate, ArtLib.UiArt("icon_gold", Vector4.zero), Color.white);
             if (goldIcon.sprite == null)
@@ -61,12 +60,12 @@ namespace Slime.Game
 
             goldIcon.preserveAspect = true;
             Ui.Fixed(goldIcon.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-32f, -76f), new Vector2(40f, 40f));
+                new Vector2(-56f, -56f), new Vector2(44f, 44f));
 
             goldLabel = Ui.Label("Gold", plate, string.Empty, Theme.H4,
                 Theme.Gold, TextAlignmentOptions.Right);
             Ui.Fixed(goldLabel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-84f, -76f), new Vector2(220f, 40f));
+                new Vector2(-116f, -56f), new Vector2(220f, 44f));
 
             render();
         }
@@ -157,17 +156,17 @@ namespace Slime.Game
 
             buildOffers();
 
-            // 底部：删牌服务 + 离开。两个都是哑光入口——本屏的主角是货架上的卡，
+            // 底部：删牌服务 + 离开，沉底分立。两个都是哑光入口——本屏的主角是货架上的卡，
             // 按钮铺金框只会和卡抢视线。
             removeButton = Ui.GhostButton("Remove", body,
                 "移除一张牌 · " + removePrice + " 金币", Theme.H3, onRemoveClicked);
             removeCaption = removeButton.GetComponentInChildren<TextMeshProUGUI>();
             Ui.Fixed(removeButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(-240f, 20f), new Vector2(440f, 64f));
+                new Vector2(-330f, 56f), new Vector2(600f, 76f));
 
             var leave = Ui.GhostButton("Leave", body, "离 开 商 店", Theme.H3, Leave);
             Ui.Fixed(leave.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(240f, 20f), new Vector2(440f, 64f));
+                new Vector2(330f, 56f), new Vector2(600f, 76f));
 
             refreshAffordability();
         }
@@ -186,9 +185,9 @@ namespace Slime.Game
             float step = CardView.W * CardScale + CardGap;
             float left = -(offers.Count - 1) * 0.5f * step;
 
-            // body 高 520：底部 16~90 放两个按钮，100~142 放价格条，
-            // 卡面从 146 起、高 312 顶到 458，最后 62 留给顶部的金币筹码。
-            const float CardY = 146f;
+            // 卡底 260：全屏后卡放大到 1.2（259×374），卡顶 634 距 body 顶还有余量，
+            // 价格条挂在卡底下 46，与卡同宽。
+            const float CardY = 260f;
 
             for (int i = 0; i < offers.Count; i++)
             {
