@@ -10,7 +10,7 @@ namespace Slime.Core
     public static class EnemyRoster
     {
         public const int TotalChapters = 4;
-        /// <summary>每章地图层数（含 Boss 层）。</summary>
+        /// <summary>每章层数（含首领层）。</summary>
         public const int FloorsPerChapter = 12;
 
         public static readonly string[] ChapterNames =

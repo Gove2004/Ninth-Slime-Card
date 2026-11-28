@@ -105,7 +105,7 @@ namespace Slime.Core
         public bool Victory;
         public bool Defeat;
 
-        /// <summary>本场战斗的关卡信息（地图节点带来）。</summary>
+        /// <summary>本场战斗的关卡信息（遭遇卡带来）。</summary>
         public int Chapter = 1;
         public int Floor;
         public bool IsElite;

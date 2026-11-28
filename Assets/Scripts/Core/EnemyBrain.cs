@@ -60,7 +60,7 @@ namespace Slime.Core
         /// <summary>美术资源名（Resources/Art/Monsters/<Sprite>）。</summary>
         public string Sprite = string.Empty;
 
-        /// <summary>一句话介绍，用于图鉴与地图节点悬停。</summary>
+        /// <summary>一句话介绍，用于图鉴与遭遇预览。</summary>
         public string Blurb = string.Empty;
 
         /// <summary>立绘配色系列。表现层据此染色，图鉴里同类怪物才有一致的视觉语言。</summary>
