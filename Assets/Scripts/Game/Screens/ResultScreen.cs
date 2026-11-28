@@ -7,7 +7,7 @@ namespace Slime.Game
 {
     /// <summary>
     /// 结算屏，只在两种时刻出现：通关，或冒险终止。
-    /// 单场胜利与章节推进都由地图流程接管，不会走到这里。
+    /// 单场胜利与章节推进都由章节流程接管，不会走到这里。
     /// </summary>
     public sealed class ResultScreen : Screen
     {
@@ -118,7 +118,7 @@ namespace Slime.Game
             App.PersistMeta();
             App.Fade(0f, 1f, Theme.Fast, () =>
             {
-                App.Replace(new MapScreen());
+                App.Replace(new ChapterScreen());
                 App.Fade(1f, 0f, Theme.Normal, null);
             });
         }

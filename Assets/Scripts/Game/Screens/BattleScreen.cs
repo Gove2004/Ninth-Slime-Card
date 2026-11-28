@@ -1563,19 +1563,19 @@ namespace Slime.Game
 
                 if (director.Phase == RunPhase.Reward)
                 {
-                    // 地图流程：带着奖励回地图，弹层直接盖在地图上选，不再单独切战利品屏
-                    app.Replace(new MapScreen(session));
+                    // 带着奖励回章节卡牌屏，弹层直接盖在上面选，不再单独切战利品屏
+                    app.Replace(new ChapterScreen(session));
                 }
-                else if (director.Phase == RunPhase.Map)
+                else if (director.Phase == RunPhase.Chapter)
                 {
-                    // 击败章节 Boss 后进入下一章。这里必须直接回地图：
+                    // 击败章节 Boss 后进入下一章。这里必须直接回章节：
                     // 若走结算屏，玩家只能选「再来一局」（会清空当前进度）或「返回主页」，
                     // 等于逼着人多点两下才能继续，还很容易误点把这一局丢掉。
-                    // 无限年同走此分支（段终开新段）：报的是「无限年 · 第 N 层」。
+                    // 无限年同走此分支（段终继续往下发牌）：报的是「无限年 · 第 N 层」。
                     app.Toast(director.Endless
                         ? "无限年 · 第 " + (director.Floor + 1) + " 层"
                         : "第 " + director.Chapter + " 章　" + director.ChapterName);
-                    app.Replace(new MapScreen());
+                    app.Replace(new ChapterScreen());
                 }
                 else
                 {

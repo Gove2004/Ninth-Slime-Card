@@ -6,7 +6,7 @@ namespace Slime.Game
 {
     /// <summary>
     /// 非战斗节点屏的共用骨架：全屏沉浸构图，没有中央面板。
-    /// 标题左上大字（与地图头部同一语言），内容直接落背景场景，操作按钮沉底。
+    /// 标题左上大字（与章节卡牌屏同一语言），内容直接落背景场景，操作按钮沉底。
     /// 篝火 / 宝箱 / 商店 / 事件四个屏都从这里派生，保证它们的排版完全一致。
     /// </summary>
     public abstract class NodeScreen : Screen
@@ -44,14 +44,14 @@ namespace Slime.Game
             BuildContent(body);
         }
 
-        /// <summary>统一的「离开这个节点、回地图」出口。</summary>
+        /// <summary>统一的「离开这张遭遇卡、回章节」出口。</summary>
         protected void Leave()
         {
-            App.Director.LeaveNode();
+            App.Director.Advance();
             App.PersistMeta();
             App.Fade(0f, 1f, Theme.Fast, () =>
             {
-                App.Replace(new MapScreen());
+                App.Replace(new ChapterScreen());
                 App.Fade(1f, 0f, Theme.Normal, null);
             });
         }

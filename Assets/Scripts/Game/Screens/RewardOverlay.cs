@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace Slime.Game
 {
     /// <summary>
-    /// 战利品弹层：盖在地图上选奖励，不再单独切一块屏。
+    /// 战利品弹层：盖在章节卡牌屏上选奖励，不再单独切一块屏。
     /// 每场胜利 3 选 1；精英战给两轮（第二轮锁定该系列）。
     /// 牌组到达上限后奖励转为「替换」——选一张移出，再把新牌放进去，
     /// 这样一路打下来牌组不会膨胀到 40 张，构筑反而越打越精。
@@ -49,8 +49,8 @@ namespace Slime.Game
         {
             root = Ui.Node("RewardOverlay", host);
 
-            // 压暗地图并挡住它的点击：弹层期间地图不参与交互。
-            // 0.88 起步——0.82 时可达节点的高亮色还是能透出来抢视线。
+            // 压暗章节屏并挡住它的点击：弹层期间底层不参与交互。
+            // 0.88 起步——0.82 时遭遇卡的高亮色还是能透出来抢视线。
             Ui.Solid("Dim", root, new Color(0f, 0f, 0f, 0.88f), true);
 
             // 「选一张牌」原来直接裸摆在背景上，正好落在月亮和城堡的亮部，
@@ -352,7 +352,7 @@ namespace Slime.Game
             return img.gameObject;
         }
 
-        /// <summary>奖励流程收尾：先撤弹层，再让宿主地图接手（推进层并刷新）。</summary>
+        /// <summary>奖励流程收尾：先撤弹层，再让宿主章节屏接手（推进层并刷新）。</summary>
         private void Complete()
         {
             if (root != null)

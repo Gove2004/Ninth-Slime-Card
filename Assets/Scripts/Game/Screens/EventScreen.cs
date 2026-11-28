@@ -47,8 +47,8 @@ namespace Slime.Game
             body = panel;
 
             var director = App.Director;
-            // 事件按节点+章节确定性地挑：同一节点反复重绘不会换题目
-            int seed = director.CurrentNodeId * 2749 + director.Chapter * 613 + 11;
+            // 事件按遭遇卡种子确定性地挑：同一张卡反复重绘不会换题目
+            int seed = director.ActiveSeed * 2749 + director.Chapter * 613 + 11;
             var rng = new DeterministicRng(seed);
             encounter = buildEncounters(rng);
             render();
@@ -186,8 +186,8 @@ namespace Slime.Game
                     var director = App.Director;
                     director.Gold -= cost;
 
-                    // 用节点与当前金币做种子：同一笔赌注反复点不会换结果
-                    var rng = new DeterministicRng(director.CurrentNodeId * 31 + director.Gold * 7 + 5);
+                    // 用遭遇卡种子与当前金币做种子：同一笔赌注反复点不会换结果
+                    var rng = new DeterministicRng(director.ActiveSeed * 31 + director.Gold * 7 + 5);
                     if (rng.Range(0, 100) < 45)
                     {
                         int win = cost * 2;
@@ -258,7 +258,7 @@ namespace Slime.Game
                     int gold = 30 + App.Director.Chapter * 10;
                     App.Director.Gold += gold;
                     App.Director.GoldEarned += gold;
-                    var rng = new DeterministicRng(App.Director.CurrentNodeId * 17 + 3);
+                    var rng = new DeterministicRng(App.Director.ActiveSeed * 17 + 3);
                     return rng.Range(0, 100) < 50
                         ? "石头砸下去，箱子怪叫一声跑了。" + gold + " 金币散在地上。"
                         : "箱子里确实只有钱。" + gold + " 金币。";
@@ -293,7 +293,7 @@ namespace Slime.Game
                 Apply = () =>
                 {
                     var director = App.Director;
-                    var rng = new DeterministicRng(director.CurrentNodeId * 41 + director.DeckCount * 7);
+                    var rng = new DeterministicRng(director.ActiveSeed * 41 + director.DeckCount * 7);
                     int index = rng.Range(0, director.DeckCount);
                     string name = director.Deck[index].Name;
 
@@ -334,7 +334,7 @@ namespace Slime.Game
                         return "神龛扫过你的牌组，一无所获。金币回到了你手里。";
                     }
 
-                    var rng = new DeterministicRng(director.CurrentNodeId * 29 + paid);
+                    var rng = new DeterministicRng(director.ActiveSeed * 29 + paid);
                     int pick = candidates[rng.Range(0, candidates.Count)];
                     var card = director.Deck[pick];
                     director.UpgradeCard(pick);

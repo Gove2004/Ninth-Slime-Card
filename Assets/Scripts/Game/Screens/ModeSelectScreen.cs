@@ -74,7 +74,7 @@ namespace Slime.Game
 
         private void Choose(bool endless)
         {
-            // 手上有局才需要确认屏；空档期直接开新局进地图
+            // 手上有局才需要确认屏；空档期直接开新局进章节
             if (App.Director.DeckCount > 0)
             {
                 App.Push(new RunConfirmScreen(endless));
@@ -88,7 +88,7 @@ namespace Slime.Game
         {
             App.Director.StartNewRun(endless);
             App.PersistMeta();
-            App.Replace(new MapScreen());
+            App.Replace(new ChapterScreen());
         }
     }
 }

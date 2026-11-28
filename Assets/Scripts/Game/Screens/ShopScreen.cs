@@ -76,8 +76,8 @@ namespace Slime.Game
             var director = App.Director;
             var pool = DeckRules.RewardPool(App.Cards, director.Chapter, director.Chapter >= 2);
 
-            // 商店用自己的随机源，避免和地图/战斗的序列互相干扰
-            var rng = new DeterministicRng(director.Chapter * 7331 + director.Floor * 97 + director.DeckCount * 13);
+            // 商店用自己的随机源，避免和发牌/战斗的序列互相干扰
+            var rng = new DeterministicRng(director.ActiveSeed + director.Chapter * 7331 + director.DeckCount * 13);
 
             var bag = new List<CardDef>(pool);
             rng.Shuffle(bag);

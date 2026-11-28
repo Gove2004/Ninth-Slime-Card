@@ -99,7 +99,7 @@ namespace Slime.Game
         private void Continue()
         {
             App.Audio.PlaySfx("ui_click");
-            App.Replace(new MapScreen());
+            App.Replace(new ChapterScreen());
         }
 
         private void ConfirmRestart()
@@ -114,7 +114,7 @@ namespace Slime.Game
             App.Director.StartNewRun(wantEndless);
             App.PersistMeta();
             App.Toast("新的冒险开始了");
-            App.Replace(new MapScreen());
+            App.Replace(new ChapterScreen());
         }
     }
 }
