@@ -6,7 +6,7 @@ namespace Slime.Core
     /// <summary>一局（Run）的当前状态。</summary>
     public enum RunPhase
     {
-        Map = 0,        // 在地图上选节点
+        Chapter = 0,    // 在章节卡牌里选一张
         Battle = 1,     // 战斗中
         Reward = 2,     // 战斗奖励选择
         Rest = 3,       // 篝火
@@ -18,8 +18,8 @@ namespace Slime.Core
     }
 
     /// <summary>
-    /// 一局流程。玩家章节推进、章内走随机节点地图：
-    /// 地图 → 节点（战斗/精英/宝箱/篝火/商店/事件）→ 回地图 → … → Boss → 下一章。
+    /// 一局流程：每层发一组遭遇卡，玩家选一张进入对应内容，结算完推进到下一层。
+    /// 层号是唯一进度，摆在面前的牌只由 (CardSeed, Chapter, Floor) 决定。
     /// </summary>
     public sealed class RunDirector
     {
@@ -32,35 +32,37 @@ namespace Slime.Core
         public readonly List<CardInstance> Deck = new List<CardInstance>();
 
         public int Chapter = 1;
-        public ChapterMap Map;
-        /// <summary>本章地图的生成种子，随存档一起保存，用于读档后复现同一张地图。</summary>
-        public int MapSeed;
-        /// <summary>当前所在节点 id（未进入任何节点时为 0）。</summary>
-        public int CurrentNodeId;
-        /// <summary>已经访问过、可以继续前进的节点集合。</summary>
-        public readonly HashSet<int> Reachable = new HashSet<int>();
+        /// <summary>当前层号（0 起）。选完一张卡、内容结算完才 +1。</summary>
+        public int Floor;
+        /// <summary>整局的发牌种子，随存档保存，读档后复现同一组遭遇卡。</summary>
+        public int CardSeed;
+        /// <summary>本层摆在面前的遭遇卡。</summary>
+        public readonly List<EncounterCard> Hand = new List<EncounterCard>();
 
-        public RunPhase Phase = RunPhase.Map;
+        /// <summary>已选中的那张卡；Hand 会随层数重建，内容结算期间得靠这三个值记住选了什么。</summary>
+        public NodeKind ActiveKind;
+        public int ActiveSeed;
+        public int ActiveSlot = -1;
+        /// <summary>遭遇卡上写着的对手。BuildEnemy 按它生成，不二次抽取。</summary>
+        public string ActiveEnemyId;
+
+        public RunPhase Phase = RunPhase.Chapter;
 
         /// <summary>当前局是否为无限年模式（由 Meta.RunMode 持久化）。</summary>
         public bool Endless { get { return Meta != null && Meta.RunMode == 1; } }
 
-        /// <summary>无限年当前线段的基座层数（段内节点层号 = 基座 + 1..10），随存档持久化。</summary>
-        private int EndlessBase;
-
         /// <summary>
-        /// 无限年的难度阶梯：第 1~10 层按第四章数值，之后每 10 层 +1 档（虚拟章节）。
-        /// 普通模式恒等于 Chapter。
+        /// 无限年的难度阶梯：每 10 层 +1 档（虚拟章节）。普通模式恒等于 Chapter。
         /// </summary>
         public int VirtualChapter
         {
-            get { return Endless ? EnemyRoster.TotalChapters + Floor / 10 : Chapter; }
+            get { return Endless ? EnemyRoster.TotalChapters + Floor / ChapterCardDealer.EndlessSegment : Chapter; }
         }
 
         /// <summary>金币。商店与事件用。</summary>
         public int Gold;
 
-        /// <summary>玩家当前生命（跨节点保留，篝火与事件可以回复）。</summary>
+        /// <summary>玩家当前生命（跨层保留，篝火与事件可以回复）。</summary>
         public int Hp;
         public int HpMax;
 
@@ -93,8 +95,6 @@ namespace Slime.Core
 
         public bool AtDeckCap { get { return Deck.Count >= DeckRules.DeckCap; } }
 
-        public MapNode CurrentNode { get { return Map != null ? Map.Get(CurrentNodeId) : null; } }
-
         public string ChapterName
         {
             get
@@ -115,16 +115,6 @@ namespace Slime.Core
             }
         }
 
-        /// <summary>本局已推进的层数，用于 UI 显示进度。</summary>
-        public int Floor
-        {
-            get
-            {
-                var node = CurrentNode;
-                return node != null ? node.Floor : 0;
-            }
-        }
-
         public void StartNewRun()
         {
             StartNewRun(false);
@@ -137,14 +127,12 @@ namespace Slime.Core
         public void StartNewRun(bool endless)
         {
             Meta.RunMode = endless ? 1 : 0;
-            EndlessBase = 0;
             Chapter = endless ? EnemyRoster.TotalChapters : 1;
             Gold = 0;
             GoldEarned = 0;
-            Phase = RunPhase.Map;
+            Phase = RunPhase.Chapter;
             RunJustEnded = false;
-            CurrentNodeId = 0;
-            Reachable.Clear();
+            Floor = 0;
 
             Deck.Clear();
             if (endless)
@@ -161,31 +149,24 @@ namespace Slime.Core
 
             Meta.RunsPlayed++;
             DiscoverDeck();
-            if (endless)
-            {
-                BuildEndlessSegment();
-            }
-            else
-            {
-                BuildChapterMap();
-            }
-
+            NewCardSeed();
+            DealHand();
             SyncRun();
         }
 
         /// <summary>
         /// 主动放弃本局：清掉局内进度，但保留已解锁的卡牌与成就。
-        /// 不清 RunDeck 的话，玩家下次点「继续冒险」会被送回刚刚放弃的那张地图。
+        /// 不清 RunDeck 的话，玩家下次点「继续冒险」会被送回刚放弃的那一层。
         /// </summary>
         public void AbandonRun()
         {
             Deck.Clear();
             Meta.ClearRun();
-            CurrentNodeId = 0;
-            MapSeed = 0;
-            Reachable.Clear();
-            Map = null;
-            Phase = RunPhase.Map;
+            Floor = 0;
+            CardSeed = 0;
+            Hand.Clear();
+            ActiveSlot = -1;
+            Phase = RunPhase.Chapter;
             RunJustEnded = false;
         }
 
@@ -196,20 +177,21 @@ namespace Slime.Core
                 return;
             }
 
-            // 有可续的局就续上
+            // 有可续的局就续上。发牌只认 (种子, 章节, 层号)，所以不需要存整组卡。
             if (Meta.RunDeck.Count > 0 && Meta.RunChapter > 0)
             {
                 Chapter = EnemyRoster.ClampChapter(Meta.RunChapter);
                 HpMax = Meta.RunHpMax > 0 ? Meta.RunHpMax : EnemyRoster.PlayerHpForChapter(Chapter);
                 Hp = Math.Max(1, Math.Min(HpMax, Meta.RunHp));
                 Gold = Meta.RunGold;
+                Floor = Math.Max(0, Meta.RunFloor);
+                CardSeed = Meta.RunCardSeed;
                 for (int i = 0; i < Meta.RunDeck.Count; i++)
                 {
                     var def = Cards.Get(Meta.RunDeck[i]);
                     if (def != null)
                     {
                         var card = CardInstance.Wrap(def);
-                        // 旧存档没有等级行，长度对不上时按未升级处理
                         if (i < Meta.RunDeckLevels.Count)
                         {
                             card.Level = Math.Max(0, Meta.RunDeckLevels[i]);
@@ -219,34 +201,38 @@ namespace Slime.Core
                     }
                 }
 
-                if (Meta.RunMode == 1)
+                if (CardSeed == 0)
                 {
-                    EndlessBase = Math.Max(0, Meta.RunFloorBase);
-                    BuildEndlessSegment(Meta.RunMapSeed);
-                }
-                else
-                {
-                    BuildChapterMap(Meta.RunMapSeed);
+                    NewCardSeed();
                 }
 
-                // 旧存档没有地图种子，读出来是 0 → 会重建一张全新的地图，
-                // 原来的 NodeId 在上面可能根本不存在，那样 Reachable 会是空的，
-                // 玩家就卡在一张走不动的地图上。找不到就退回起点，损失一层进度但能继续玩。
-                var resume = Meta.RunNodeId != 0 ? Map.Get(Meta.RunNodeId) : null;
-                CurrentNodeId = resume != null ? resume.Id : 0;
-                if (resume != null)
-                {
-                    resume.Visited = true;
-                }
-
-                RebuildReachable();
+                DealHand();
                 DiscoverDeck();
-                Phase = RunPhase.Map;
+                Phase = RunPhase.Chapter;
                 return;
             }
 
             StartNewRun();
             Meta.RunsPlayed--;
+        }
+
+        private void NewCardSeed()
+        {
+            CardSeed = (int)(rng.Next() + Chapter * 977);
+            if (CardSeed == 0)
+            {
+                CardSeed = 20261024;
+            }
+        }
+
+        private void DealHand()
+        {
+            Hand.Clear();
+            Hand.AddRange(ChapterCardDealer.Deal(Chapter, Floor, CardSeed, Endless));
+            ActiveSlot = -1;
+            ActiveSeed = 0;
+            ActiveKind = NodeKind.Battle;
+            ActiveEnemyId = null;
         }
 
         private void SyncRun()
@@ -255,9 +241,8 @@ namespace Slime.Core
             Meta.RunHp = Hp;
             Meta.RunHpMax = HpMax;
             Meta.RunGold = Gold;
-            Meta.RunNodeId = CurrentNodeId;
-            Meta.RunMapSeed = MapSeed;
-            Meta.RunFloorBase = EndlessBase;
+            Meta.RunFloor = Floor;
+            Meta.RunCardSeed = CardSeed;
             Meta.RunDeck.Clear();
             Meta.RunDeckLevels.Clear();
             for (int i = 0; i < Deck.Count; i++)
@@ -275,187 +260,24 @@ namespace Slime.Core
             }
         }
 
-        private void BuildChapterMap()
-        {
-            BuildChapterMap(0);
-        }
-
         /// <summary>
-        /// 生成当前章节的地图。seed 为 0 时随机取一个新种子并记下来——种子必须持久化，
-        /// 否则读档后 CurrentNodeId 会指向另一张地图上的节点（地图每次启动都不同）。
+        /// 选中本层的一张遭遇卡并进入对应内容。选完不推进层数——
+        /// 战斗、事件、商店都可能在半途退出，层数留到 Advance 才加。
         /// </summary>
-        private void BuildChapterMap(int seed)
+        public bool ChooseCard(int slot)
         {
-            if (seed == 0)
-            {
-                seed = (int)(rng.Next() + Chapter * 977);
-            }
-
-            MapSeed = seed;
-            Map = MapGenerator.Generate(Chapter, seed);
-
-            CurrentNodeId = 0;
-            Reachable.Clear();
-
-            // 起点：第一层的全部节点可达
-            var first = Map.FloorNodes(0);
-            for (int i = 0; i < first.Count; i++)
-            {
-                Reachable.Add(first[i].Id);
-            }
-        }
-
-        /// <summary>
-        /// 生成无限年的下一个 10 层线段。seed 为 0 时从局的随机流取新种子——
-        /// 种子随 SyncRun 持久化，读档复现同一段；跨段推进时新种子也走同一入口。
-        /// 段基座用 EndlessBase（随存档持久化）：读档建段发生在还原层数之前，层数反推是循环依赖。
-        /// </summary>
-        private void BuildEndlessSegment()
-        {
-            BuildEndlessSegment(0);
-        }
-
-        private void BuildEndlessSegment(int seed)
-        {
-            if (seed == 0)
-            {
-                seed = (int)(rng.Next() + EndlessBase * 131 + 7);
-            }
-
-            MapSeed = seed;
-            Map = MapGenerator.GenerateEndless(seed, EndlessBase);
-
-            CurrentNodeId = 0;
-            Reachable.Clear();
-            Reachable.Add(1);   // 线段首节点固定 id=1
-        }
-
-        private void RebuildReachable()
-        {
-            Reachable.Clear();
-
-            if (CurrentNodeId == 0)
-            {
-                // 无限年线段的层号是全局层数（基座起），按第 0 层找节点会找不到——
-                // 段首固定是 id=1。
-                if (Endless)
-                {
-                    Reachable.Add(1);
-                    return;
-                }
-
-                var first = Map.FloorNodes(0);
-                for (int i = 0; i < first.Count; i++)
-                {
-                    Reachable.Add(first[i].Id);
-                }
-
-                return;
-            }
-
-            var node = Map.Get(CurrentNodeId);
-            if (node == null)
-            {
-                return;
-            }
-
-            for (int i = 0; i < node.Next.Count; i++)
-            {
-                Reachable.Add(node.Next[i]);
-            }
-        }
-
-        /// <summary>当前可前往的节点。</summary>
-        public List<MapNode> ReachableNodes()
-        {
-            var result = new List<MapNode>();
-            foreach (int id in Reachable)
-            {
-                var node = Map.Get(id);
-                if (node != null)
-                {
-                    result.Add(node);
-                }
-            }
-
-            result.Sort((a, b) =>
-            {
-                if (a.Floor != b.Floor) return a.Floor.CompareTo(b.Floor);
-                return a.Slot.CompareTo(b.Slot);
-            });
-
-            return result;
-        }
-
-        /// <summary>
-        /// 主页展示用的「下一个对手」。
-        /// 不等于真实下一战：可达节点里可能只有篝火或商店，这时退化为本章普通怪，
-        /// 只作氛围展示，不参与任何战斗结算。
-        /// </summary>
-        public EnemyDef NextEnemyPreview
-        {
-            get
-            {
-                var node = NextBattleNode();
-                if (node != null)
-                {
-                    bool elite = node.Kind == NodeKind.Elite;
-                    bool boss = node.Kind == NodeKind.Boss;
-                    EnemyDef basis;
-                    if (boss)
-                    {
-                        basis = Endless ? EnemyRoster.EndlessBossFor(node.Floor) : EnemyRoster.BossOf(Chapter);
-                    }
-                    else
-                    {
-                        // 预览不能用 rng：主页每次重绘都抽一次会把随机序列打乱，
-                        // 让实战的敌人生成变得不可复现。
-                        var pool = elite ? EnemyRoster.ElitePool(Chapter) : EnemyRoster.NormalPool(Chapter);
-                        basis = pool.Count > 0 ? pool[0] : EnemyRoster.Default;
-                    }
-
-                    return Scale(basis, VirtualChapter, node.Floor, elite);
-                }
-
-                var fallback = EnemyRoster.NormalPool(Chapter);
-                return fallback.Count > 0 ? fallback[0] : EnemyRoster.Default;
-            }
-        }
-
-        /// <summary>可达节点里最靠前的一场战斗，用于预览。</summary>
-        private MapNode NextBattleNode()
-        {
-            var nodes = ReachableNodes();
-            for (int i = 0; i < nodes.Count; i++)
-            {
-                var kind = nodes[i].Kind;
-                if (kind == NodeKind.Battle || kind == NodeKind.Elite || kind == NodeKind.Boss)
-                {
-                    return nodes[i];
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>进入一个节点，把阶段切到对应的流程。</summary>
-        public bool EnterNode(int nodeId)
-        {
-            if (!Reachable.Contains(nodeId))
+            if (Phase != RunPhase.Chapter || slot < 0 || slot >= Hand.Count)
             {
                 return false;
             }
 
-            var node = Map.Get(nodeId);
-            if (node == null)
-            {
-                return false;
-            }
+            var card = Hand[slot];
+            ActiveSlot = slot;
+            ActiveKind = card.Kind;
+            ActiveSeed = card.Seed;
+            ActiveEnemyId = card.EnemyId;
 
-            CurrentNodeId = nodeId;
-            node.Visited = true;
-
-            switch (node.Kind)
+            switch (card.Kind)
             {
                 case NodeKind.Battle:
                 case NodeKind.Elite:
@@ -484,37 +306,82 @@ namespace Slime.Core
             return true;
         }
 
-        /// <summary>离开当前节点（战斗胜利后、事件结束、商店离开）。</summary>
-        public void LeaveNode()
+        /// <summary>当前这张卡结算完毕，推进到下一层并重新发牌。</summary>
+        public void Advance()
         {
-            RebuildReachable();
-            Phase = RunPhase.Map;
+            Floor++;
+            DealHand();
+            Phase = RunPhase.Chapter;
             SyncRun();
+        }
+
+        /// <summary>本层卡组里第一场战斗的对手，用于预览展示。</summary>
+        public EnemyDef NextEnemyPreview
+        {
+            get
+            {
+                bool elite = false;
+                bool boss = false;
+                string enemyId = null;
+                for (int i = 0; i < Hand.Count; i++)
+                {
+                    if (string.IsNullOrEmpty(Hand[i].EnemyId))
+                    {
+                        continue;
+                    }
+
+                    elite = Hand[i].Kind == NodeKind.Elite;
+                    boss = Hand[i].Kind == NodeKind.Boss;
+                    enemyId = Hand[i].EnemyId;
+                    break;
+                }
+
+                EnemyDef basis;
+                if (boss)
+                {
+                    basis = Endless ? EnemyRoster.EndlessBossFor(Floor) : EnemyRoster.BossOf(Chapter);
+                }
+                else if (enemyId != null)
+                {
+                    basis = EnemyRoster.Get(enemyId);
+                }
+                else
+                {
+                    var pool = elite ? EnemyRoster.ElitePool(Chapter) : EnemyRoster.NormalPool(Chapter);
+                    basis = pool.Count > 0 ? pool[0] : EnemyRoster.Default;
+                }
+
+                return Scale(basis, VirtualChapter, Floor, elite);
+            }
         }
 
         // ---------------------------------------------------------- 战斗
 
-        /// <summary>当前节点对应的敌人（含章节/层数缩放）。</summary>
+        /// <summary>选中遭遇卡对应的敌人（含章节/层数缩放）。</summary>
         public EnemyDef BuildEnemy()
         {
-            var node = CurrentNode;
-            bool elite = node != null && node.Kind == NodeKind.Elite;
-            bool boss = node != null && node.Kind == NodeKind.Boss;
+            bool elite = ActiveKind == NodeKind.Elite;
+            bool boss = ActiveKind == NodeKind.Boss;
 
             EnemyDef baseDef;
             if (boss)
             {
                 baseDef = Endless ? EnemyRoster.EndlessBossFor(Floor) : EnemyRoster.BossOf(Chapter);
             }
+            else if (!string.IsNullOrEmpty(ActiveEnemyId))
+            {
+                // 卡面写了谁就打谁。EnemyRoster.Get 找不到时回退到蓝色史莱姆，不会返回 null。
+                baseDef = EnemyRoster.Get(ActiveEnemyId);
+            }
             else if (elite)
             {
                 var pool = EnemyRoster.ElitePool(Chapter);
-                baseDef = pool[rng.Range(0, pool.Count)];
+                baseDef = pool.Count > 0 ? pool[rng.Range(0, pool.Count)] : EnemyRoster.Default;
             }
             else
             {
                 var pool = EnemyRoster.NormalPool(Chapter);
-                baseDef = pool[rng.Range(0, pool.Count)];
+                baseDef = pool.Count > 0 ? pool[rng.Range(0, pool.Count)] : EnemyRoster.Default;
             }
 
             return Scale(baseDef, VirtualChapter, Floor, elite);
@@ -572,9 +439,8 @@ namespace Slime.Core
         {
             var enemy = BuildEnemy();
             LastEnemy = enemy;
-            var node = CurrentNode;
-            LastWasElite = node != null && node.Kind == NodeKind.Elite;
-            LastWasBoss = node != null && node.Kind == NodeKind.Boss;
+            LastWasElite = ActiveKind == NodeKind.Elite;
+            LastWasBoss = ActiveKind == NodeKind.Boss;
 
             var rules = BattleRules.Default();
             // 能量随章节成长。敌人血量逐章抬升，玩家如果始终只有 3 点能量，
@@ -591,7 +457,7 @@ namespace Slime.Core
             session.IsElite = LastWasElite;
             session.IsBoss = LastWasBoss;
 
-            // 把跨节点保留的生命带进战斗
+            // 把跨层保留的生命带进战斗
             session.Player.Hp = Math.Max(1, Math.Min(session.Player.HpMax, Hp));
 
             session.Begin();
@@ -639,13 +505,10 @@ namespace Slime.Core
 
                 if (LastWasBoss)
                 {
-                    // 无限年段终：不开新章而是开新段。小抬生命上限并回复三成，
-                    // 让「打过一个 Boss」是明确的喘息点而不是数值陷阱。
+                    // 段终：小抬生命上限并回复三成，接着继续往下发牌。
                     HpMax += 5;
                     Hp = Math.Min(HpMax, Hp + HpMax * 30 / 100);
-                    EndlessBase = Floor + 1;    // Boss 在段末（基座+9），下一段从下一层起
-                    BuildEndlessSegment();
-                    Phase = RunPhase.Map;
+                    Advance();
                 }
                 else
                 {
@@ -679,8 +542,9 @@ namespace Slime.Core
                     // 章节交界是明确的休整点：新章节的生命上限提高，并且回满。
                     // 不给这个恢复，玩家会带着 20% 残血进入数值高一档的章节，第二场必死。
                     Hp = HpMax;
-                    BuildChapterMap();
-                    Phase = RunPhase.Map;
+                    Floor = 0;
+                    DealHand();
+                    Phase = RunPhase.Chapter;
                 }
             }
             else
