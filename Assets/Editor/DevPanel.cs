@@ -50,16 +50,16 @@ namespace Slime.DevTools
                     return "festival pref=" + meta.FestivalPref + " active=" + Festival.IsActive;
                 }
 
-                case "map":
+                case "chapter":
                     EnsureRun(app);
-                    app.Replace(new MapScreen());
+                    app.Replace(new ChapterScreen());
                     break;
 
                 case "endless":
-                    // 无限年：起一局新模式并停在地图上
+                    // 无限年：起一局新模式并停在章节卡牌里
                     app.Director.StartNewRun(true);
                     app.PersistMeta();
-                    app.Replace(new MapScreen());
+                    app.Replace(new ChapterScreen());
                     break;
 
                 case "battle":
@@ -159,7 +159,7 @@ namespace Slime.DevTools
                     EnsureRun(app);
                     {
                         var session = WinBattle(app, NodeKind.Battle);
-                        app.Replace(new MapScreen(session));
+                        app.Replace(new ChapterScreen(session));
                     }
                     break;
 
@@ -168,7 +168,7 @@ namespace Slime.DevTools
                     {
                         // 精英战奖励是两轮，用来验收"再选一张"
                         var session = WinBattle(app, NodeKind.Elite);
-                        app.Replace(new MapScreen(session));
+                        app.Replace(new ChapterScreen(session));
                     }
                     break;
 
@@ -183,7 +183,7 @@ namespace Slime.DevTools
                         }
 
                         var session = WinBattle(app, NodeKind.Battle);
-                        app.Replace(new MapScreen(session));
+                        app.Replace(new ChapterScreen(session));
                     }
                     break;
 
@@ -233,7 +233,7 @@ namespace Slime.DevTools
                         RewardOverlay.ForcedChoices = picked;
 
                         var session = WinBattle(app, NodeKind.Battle);
-                        app.Replace(new MapScreen(session));
+                        app.Replace(new ChapterScreen(session));
                     }
                     break;
 
@@ -283,49 +283,23 @@ namespace Slime.DevTools
         }
 
         /// <summary>
-        /// 直接构造指定类型的节点并进入它，跳过地图上找这类节点的麻烦。
-        /// 节点挂到当前地图上但不加入可达集合——这样离开时就停在原地，不会真的推进。
+        /// 把本层第一张遭遇卡临时改成指定类型并进入，用来直接验收某一类内容。
+        /// 只改这一组牌，不动存档里的发牌种子。
         /// </summary>
         private static BattleScreen EnterKind(GameApp app, NodeKind kind)
         {
             var director = app.Director;
             director.EnsureRun();
-
-            var map = director.Map;
-            if (map != null)
+            if (director.Hand.Count == 0)
             {
-                MapNode match = null;
-                for (int i = 0; i < map.Nodes.Count; i++)
-                {
-                    if (map.Nodes[i].Kind == kind)
-                    {
-                        match = map.Nodes[i];
-                        break;
-                    }
-                }
-
-                if (match != null)
-                {
-                    director.Reachable.Add(match.Id);
-                    director.EnterNode(match.Id);
-                }
+                return null;
             }
 
-            // 地图里找不到这类节点（比如刚进第一章第一层只有战斗）就手动补一个
-            if (director.CurrentNode == null || director.CurrentNode.Kind != kind)
-            {
-                var node = new MapNode
-                {
-                    Id = 9000 + (int)kind,
-                    Kind = kind,
-                    Floor = director.Floor,
-                    X = 0.5f,
-                    Y = 0.5f
-                };
-                director.Map.Nodes.Add(node);
-                director.Reachable.Add(node.Id);
-                director.EnterNode(node.Id);
-            }
+            director.Phase = RunPhase.Chapter;
+            director.Hand[0].Kind = kind;
+            director.Hand[0].EnemyId = null;
+            director.Hand[0].Seed = 4242 + (int)kind;
+            director.ChooseCard(0);
 
             if (kind == NodeKind.Treasure || kind == NodeKind.Rest
                 || kind == NodeKind.Shop || kind == NodeKind.Event)
@@ -831,7 +805,7 @@ namespace Slime.DevTools
                     break;
                 }
 
-                var reachable = director.ReachableNodes();
+                var reachable = director.Hand;
                 if (reachable.Count == 0)
                 {
                     break;
@@ -856,7 +830,7 @@ namespace Slime.DevTools
                     }
                 }
 
-                director.EnterNode(node.Id);
+                director.ChooseCard(node.Slot);
                 nodes++;
 
                 if (director.Chapter > deepestChapter)
@@ -920,7 +894,7 @@ namespace Slime.DevTools
                                     picks++;
                                 }
 
-                                director.LeaveNode();
+                                director.Advance();
                             }
                         }
                         break;
@@ -942,7 +916,7 @@ namespace Slime.DevTools
                             }
                         }
 
-                        director.LeaveNode();
+                        director.Advance();
                         break;
 
                     case RunPhase.Treasure:
@@ -954,7 +928,7 @@ namespace Slime.DevTools
                                 picks++;
                             }
 
-                            director.LeaveNode();
+                            director.Advance();
                         }
                         break;
 
@@ -987,16 +961,16 @@ namespace Slime.DevTools
                                 swaps++;
                             }
 
-                            director.LeaveNode();
+                            director.Advance();
                         }
                         break;
 
                     case RunPhase.Event:
-                        director.LeaveNode();
+                        director.Advance();
                         break;
 
                     default:
-                        director.LeaveNode();
+                        director.Advance();
                         break;
                 }
 
